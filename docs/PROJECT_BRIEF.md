@@ -192,7 +192,7 @@ Lihat detail di `SPRINT_PLAN.md` dan file individual di `sprints/`.
 | 2 | Core Transactions | 2 minggu | ✅ Done |
 | 3 | Donatur & Reminder WA | 1-2 minggu | ✅ Done |
 | 4 | Dashboard, Laporan & Export | 2 minggu | ✅ Done |
-| 5 | Rekonsiliasi Bank | 2 minggu | Belum dimulai |
+| 5 | Rekonsiliasi Bank | 2 minggu | ✅ Done |
 | 6 | TV Display, Settings & Polish | 1-2 minggu | Belum dimulai |
 
 ## 9. Saran Fitur Masa Depan (Backlog)

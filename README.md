@@ -72,7 +72,7 @@ CLAUDE.md                       # Panduan untuk AI-assisted development
 | 2 | Core Transactions | ✅ Done | CRUD transaksi keuangan |
 | 3 | Donatur & Reminder WA | ✅ Done | Manajemen donatur, reminder WhatsApp via Fonnte |
 | 4 | Dashboard & Export | ✅ Done | Grafik, ringkasan, export PDF/Excel |
-| 5 | Rekonsiliasi Bank | - | Rekonsiliasi bank, void/koreksi, upload bukti |
+| 5 | Rekonsiliasi Bank | ✅ Done | Rekonsiliasi bank, void/koreksi, upload bukti |
 | 6 | TV Display, Settings & Polish | - | Display publik, pengaturan, logo, optimization |
 
 Detail setiap sprint: [`docs/SPRINT_PLAN.md`](docs/SPRINT_PLAN.md)
