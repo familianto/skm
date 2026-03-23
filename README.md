@@ -69,7 +69,7 @@ CLAUDE.md                       # Panduan untuk AI-assisted development
 |---|---|---|---|
 | 0 | Setup Wizard | Done | Inisialisasi project, koneksi Google Sheets |
 | 1 | Foundation | Done | Auth PIN, CRUD master data, layout UI |
-| 2 | Core Transactions | - | CRUD transaksi keuangan |
+| 2 | Core Transactions | ✅ Done | CRUD transaksi keuangan |
 | 3 | Dashboard & Export | - | Grafik, ringkasan, export PDF/Excel |
 | 4 | Reconciliation | - | Rekonsiliasi bank, void/koreksi, upload bukti |
 | 5 | Communication | - | Halaman publik, template pesan |
