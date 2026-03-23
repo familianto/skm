@@ -67,8 +67,8 @@ CLAUDE.md                       # Panduan untuk AI-assisted development
 
 | Sprint | Nama | Status | Deskripsi |
 |---|---|---|---|
-| 0 | Setup Wizard | Done | Inisialisasi project, koneksi Google Sheets |
-| 1 | Foundation | Done | Auth PIN, CRUD master data, layout UI |
+| 0 | Setup Wizard | ✅ Done | Inisialisasi project, koneksi Google Sheets |
+| 1 | Foundation | ✅ Done | Auth PIN, CRUD master data, layout UI |
 | 2 | Core Transactions | ✅ Done | CRUD transaksi keuangan |
 | 3 | Donatur & Reminder WA | ✅ Done | Manajemen donatur, reminder WhatsApp via Fonnte |
 | 4 | Dashboard & Export | ✅ Done | Grafik, ringkasan, export PDF/Excel |
