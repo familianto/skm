@@ -70,10 +70,10 @@ CLAUDE.md                       # Panduan untuk AI-assisted development
 | 0 | Setup Wizard | Done | Inisialisasi project, koneksi Google Sheets |
 | 1 | Foundation | Done | Auth PIN, CRUD master data, layout UI |
 | 2 | Core Transactions | ✅ Done | CRUD transaksi keuangan |
-| 3 | Dashboard & Export | - | Grafik, ringkasan, export PDF/Excel |
-| 4 | Reconciliation | - | Rekonsiliasi bank, void/koreksi, upload bukti |
-| 5 | Communication | - | Halaman publik, template pesan |
-| 6 | Polish | - | Pengaturan, logo, optimization, multi-masjid |
+| 3 | Donatur & Reminder WA | ✅ Done | Manajemen donatur, reminder WhatsApp via Fonnte |
+| 4 | Dashboard & Export | - | Grafik, ringkasan, export PDF/Excel |
+| 5 | Rekonsiliasi Bank | - | Rekonsiliasi bank, void/koreksi, upload bukti |
+| 6 | TV Display, Settings & Polish | - | Display publik, pengaturan, logo, optimization |
 
 Detail setiap sprint: [`docs/SPRINT_PLAN.md`](docs/SPRINT_PLAN.md)
 

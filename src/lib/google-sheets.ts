@@ -210,6 +210,8 @@ function getSheetNameByPrefix(prefixKey: string): string {
     AUDIT_LOG: 'audit_log',
     ANGGOTA: 'anggota',
     REKONSILIASI: 'rekonsiliasi',
+    DONATUR: 'donatur',
+    REMINDER: 'reminder',
   };
   return mapping[prefixKey] || prefixKey.toLowerCase();
 }

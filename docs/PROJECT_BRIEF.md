@@ -95,7 +95,9 @@ Lihat detail lengkap di `DATABASE_SCHEMA.md`.
 | `rekening_bank` | Daftar rekening bank masjid | Sprint 1 |
 | `audit_log` | Log semua perubahan data | Sprint 1 |
 | `anggota` | Data pengurus masjid (bendahara, dll) | Sprint 1 |
-| `rekonsiliasi` | Data rekonsiliasi bank | Sprint 4 |
+| `rekonsiliasi` | Data rekonsiliasi bank | Sprint 5 |
+| `donatur` | Data donatur masjid | Sprint 3 |
+| `reminder` | Log pengiriman reminder WA | Sprint 3 |
 
 ## 5. Fitur Utama
 
@@ -106,18 +108,15 @@ Lihat detail lengkap di `DATABASE_SCHEMA.md`.
 - Filter berdasarkan tanggal, kategori, jenis, status
 - Pagination untuk daftar transaksi
 
-### 5.2 Void & Koreksi (Sprint 4) — BARU
-- **Void**: Batalkan transaksi yang salah (status → VOID, wajib isi alasan)
-- **Koreksi**: Buat transaksi koreksi yang terhubung ke transaksi asli
-- Semua void/koreksi tercatat di audit log
+### 5.2 Manajemen Donatur & Reminder WA (Sprint 3)
+- CRUD data donatur (tetap/insidental)
+- Komitmen donasi bulanan per donatur
+- Kirim reminder via WhatsApp (Fonnte API)
+- Template pesan bawaan + custom
+- Bulk send ke banyak donatur sekaligus
+- Riwayat pengiriman reminder
 
-### 5.3 Upload Bukti Pengiriman (Sprint 4) — BARU
-- Upload foto bukti dari device (kamera/galeri)
-- Compress otomatis di client sebelum upload
-- Simpan di Google Drive, URL disimpan di sheet transaksi
-- Preview bukti di detail transaksi
-
-### 5.4 Dashboard & Laporan (Sprint 3)
+### 5.3 Dashboard & Laporan (Sprint 4)
 - **Kartu ringkasan**: Total masuk, total keluar, saldo
 - **Grafik tren bulanan**: Line chart pemasukan vs pengeluaran
 - **Grafik kategori**: Pie/bar chart breakdown per kategori
@@ -125,16 +124,22 @@ Lihat detail lengkap di `DATABASE_SCHEMA.md`.
 - **Export PDF**: Laporan keuangan format PDF
 - **Export Excel**: Data transaksi format spreadsheet
 
-### 5.5 Rekonsiliasi Bank (Sprint 4) — BARU
+### 5.4 Void & Koreksi (Sprint 5)
+- **Void**: Batalkan transaksi yang salah (status → VOID, wajib isi alasan)
+- **Koreksi**: Buat transaksi koreksi yang terhubung ke transaksi asli
+- Semua void/koreksi tercatat di audit log
+
+### 5.5 Upload Bukti Transaksi (Sprint 5)
+- Upload foto bukti dari device (kamera/galeri)
+- Compress otomatis di client sebelum upload
+- Simpan di Google Drive, URL disimpan di sheet transaksi
+- Preview bukti di detail transaksi
+
+### 5.6 Rekonsiliasi Bank (Sprint 5)
 - Input saldo bank aktual
 - Bandingkan dengan saldo sistem
 - Tampilkan selisih
 - Catat hasil rekonsiliasi
-
-### 5.6 Logo & Branding (Sprint 6) — BARU
-- Upload logo masjid
-- Logo tampil di header dan laporan PDF
-- Simpan di Google Drive
 
 ### 5.7 Autentikasi PIN (Sprint 1)
 - Login dengan PIN (bukan username/password)
@@ -143,12 +148,18 @@ Lihat detail lengkap di `DATABASE_SCHEMA.md`.
 - Middleware proteksi untuk semua halaman kecuali login
 - Cocok untuk device bersama di masjid
 
-### 5.8 Import Master Bank & Rekonsiliasi (Sprint 4) — BARU
-- Import data rekening bank dari file
-- Setup saldo awal
-- Pantau saldo per rekening
+### 5.8 TV Display Publik (Sprint 6)
+- Halaman read-only untuk ditampilkan di TV/monitor masjid
+- Ringkasan keuangan dan grafik sederhana
+- Auto-refresh setiap 5 menit
+- Tidak perlu login
 
-### 5.9 Multi-Masjid / Adopter (Sprint 6)
+### 5.9 Logo & Branding (Sprint 6)
+- Upload logo masjid
+- Logo tampil di header dan laporan PDF
+- Simpan di Google Drive
+
+### 5.10 Multi-Masjid / Adopter (Sprint 6)
 - Dokumentasi adopsi untuk masjid lain
 - Fork repository → setup Google Cloud sendiri → deploy ke Vercel
 - Kustomisasi nama, logo, kategori
@@ -176,13 +187,13 @@ Lihat detail di `SPRINT_PLAN.md` dan file individual di `sprints/`.
 
 | Sprint | Nama | Estimasi | Status |
 |---|---|---|---|
-| 0 | Setup Wizard | 1 minggu | Belum dimulai |
-| 1 | Foundation | 2 minggu | Belum dimulai |
-| 2 | Core Transactions | 2 minggu | Belum dimulai |
-| 3 | Dashboard & Export | 2 minggu | Belum dimulai |
-| 4 | Reconciliation & Additional | 2 minggu | Belum dimulai |
-| 5 | Communication & Display | 1-2 minggu | Belum dimulai |
-| 6 | Settings, Polish & Reusability | 1-2 minggu | Belum dimulai |
+| 0 | Setup Wizard | 1 minggu | ✅ Done |
+| 1 | Foundation | 2 minggu | ✅ Done |
+| 2 | Core Transactions | 2 minggu | ✅ Done |
+| 3 | Donatur & Reminder WA | 1-2 minggu | ✅ Done |
+| 4 | Dashboard, Laporan & Export | 2 minggu | Belum dimulai |
+| 5 | Rekonsiliasi Bank | 2 minggu | Belum dimulai |
+| 6 | TV Display, Settings & Polish | 1-2 minggu | Belum dimulai |
 
 ## 9. Saran Fitur Masa Depan (Backlog)
 
@@ -193,8 +204,8 @@ Fitur-fitur berikut **tidak termasuk** dalam scope v2.1, tapi bisa ditambahkan d
 3. **Keyboard Shortcut Dashboard** — Navigasi cepat via keyboard
 4. **Multi-Bahasa (i18n)** — Support bahasa selain Indonesia
 5. **Recurring Transactions** — Transaksi berulang (listrik bulanan, dll)
-6. **Dashboard Publik untuk Jamaah** — Halaman publik tanpa login
-7. **Notifikasi WhatsApp** — Kirim laporan via WhatsApp
+6. **Scheduled WA Reminders** — Reminder otomatis terjadwal (via Vercel Cron)
+7. **Donation Tracking per Donatur** — Hubungkan donatur ke transaksi untuk lacak total donasi
 8. **Mobile App (PWA)** — Progressive Web App untuk mobile
 
 ## 10. Estimasi Biaya Operasional

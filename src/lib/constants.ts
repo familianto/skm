@@ -7,6 +7,8 @@ export const SHEET_NAMES = {
   AUDIT_LOG: 'audit_log',
   ANGGOTA: 'anggota',
   REKONSILIASI: 'rekonsiliasi',
+  DONATUR: 'donatur',
+  REMINDER: 'reminder',
 } as const;
 
 // ID prefixes for each entity
@@ -18,6 +20,8 @@ export const ID_PREFIXES = {
   AUDIT_LOG: 'LOG',
   ANGGOTA: 'ANG',
   REKONSILIASI: 'RKN',
+  DONATUR: 'DON',
+  REMINDER: 'RMD',
 } as const;
 
 // Sheet headers — order must match column positions (A, B, C, ...)
@@ -48,6 +52,14 @@ export const SHEET_HEADERS: Record<string, string[]> = {
   [SHEET_NAMES.REKONSILIASI]: [
     'id', 'rekening_id', 'tanggal', 'saldo_bank', 'saldo_sistem',
     'selisih', 'status', 'catatan', 'created_at',
+  ],
+  [SHEET_NAMES.DONATUR]: [
+    'id', 'nama', 'telepon', 'alamat', 'kelompok',
+    'jumlah_komitmen', 'catatan', 'is_active', 'created_at', 'updated_at',
+  ],
+  [SHEET_NAMES.REMINDER]: [
+    'id', 'donatur_id', 'tipe', 'pesan', 'nomor_tujuan',
+    'status', 'response', 'sent_at', 'created_at',
   ],
 };
 

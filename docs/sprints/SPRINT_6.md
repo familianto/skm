@@ -1,15 +1,44 @@
-# Sprint 6: Settings, Polish & Reusability
+# Sprint 6: TV Display, Settings & Polish
 
 **Durasi**: 1-2 minggu
-**Tujuan**: Halaman pengaturan, manajemen logo, polish UI, dan dokumentasi adopsi.
+**Tujuan**: Halaman display publik untuk TV masjid, halaman pengaturan, manajemen logo, polish UI, dan dokumentasi adopsi.
 
 ## Prasyarat
 
-- Sprint 4 dan Sprint 5 selesai (semua fitur utama sudah diimplementasi)
+- Sprint 4 selesai (dashboard dan data visualisasi tersedia)
+- Sprint 5 selesai (semua fitur utama sudah diimplementasi)
 
 ## Deliverables
 
-### 1. Halaman Pengaturan
+### 1. Halaman Publik (TV Display)
+
+- [ ] `app/publik/page.tsx` (di luar group `(dashboard)`, tanpa auth):
+  - Nama dan logo masjid
+  - Ringkasan keuangan bulan ini:
+    - Total pemasukan
+    - Total pengeluaran
+    - Saldo
+  - Grafik sederhana (tren 6 bulan terakhir)
+  - Daftar transaksi terakhir (5-10 item, tanpa detail sensitif)
+  - Footer: "Dikelola dengan SKM"
+  - **Tidak perlu login** — read-only untuk jamaah
+  - Design: clean, besar, bisa ditampilkan di TV/monitor masjid
+
+### 2. API Publik
+
+- [ ] `GET /api/publik/ringkasan`:
+  - Return data yang aman untuk publik
+  - Tidak include audit log, PIN, atau data sensitif
+  - Cache response (SWR revalidate setiap 5 menit)
+- [ ] Middleware: endpoint `/api/publik/*` tidak perlu auth
+
+### 3. Auto-refresh untuk Display
+
+- [ ] Halaman publik auto-refresh setiap 5 menit
+- [ ] Gunakan SWR `refreshInterval`
+- [ ] Fullscreen mode (hide browser chrome via F11 instruction)
+
+### 4. Halaman Pengaturan
 
 - [ ] `app/(dashboard)/pengaturan/page.tsx`:
   - **Tab Profil Masjid**:
@@ -28,7 +57,7 @@
     - Kelola rekening (shortcut ke halaman rekening)
     - Info storage usage (perkiraan rows terpakai)
 
-### 2. Upload Logo
+### 5. Upload Logo
 
 - [ ] `POST /api/upload/logo`:
   - Upload logo ke Google Drive folder `logo/`
@@ -41,7 +70,7 @@
   - Laporan PDF (header)
   - Login page
 
-### 3. Ganti PIN
+### 6. Ganti PIN
 
 - [ ] `POST /api/auth/change-pin`:
   - Validasi PIN lama
@@ -50,11 +79,11 @@
   - Audit log: `UPDATE`
   - Destroy existing sessions (force re-login)
 
-### 4. UI Polish
+### 7. UI Polish
 
 - [ ] Review semua halaman untuk konsistensi:
   - Spacing dan padding konsisten
-  - Warna badge konsisten (MASUK=hijau, KELUAR=merah, VOID=abu-abu)
+  - Warna badge konsisten
   - Loading states di semua page
   - Empty states (saat tidak ada data)
   - Error states (saat API gagal)
@@ -69,7 +98,7 @@
   - Focus indicators
   - Color contrast check
 
-### 5. Performance Optimization
+### 8. Performance Optimization
 
 - [ ] Audit Google Sheets API calls:
   - Minimize jumlah calls per page load
@@ -80,7 +109,7 @@
   - Image optimization untuk bukti dan logo
   - Metadata dan OpenGraph tags
 
-### 6. Multi-Masjid Documentation
+### 9. Multi-Masjid Documentation
 
 - [ ] Finalize `docs/ADOPTER_GUIDE.md`
 - [ ] Buat `.env.example` yang lengkap dan terdokumentasi
@@ -88,7 +117,7 @@
   - Fork → setup → deploy → first login
 - [ ] Pastikan seed script membuat semua default data
 
-### 7. Final Testing Pass
+### 10. Final Testing Pass
 
 - [ ] End-to-end test semua flow utama:
   - Login → Dashboard → Buat Transaksi → Lihat di Dashboard
@@ -98,6 +127,7 @@
   - Rekonsiliasi → cek hasil
   - Export PDF → verify isi
   - Export Excel → verify isi
+  - Kirim reminder WA → cek riwayat
   - Ganti PIN → re-login
   - Halaman publik → data benar
 - [ ] Security review:
@@ -111,27 +141,41 @@
 ```
 src/
   app/
+    publik/
+      page.tsx                  # Halaman publik (no auth)
+      layout.tsx                # Layout publik (tanpa sidebar)
     (dashboard)/
       pengaturan/
         page.tsx                # Halaman pengaturan
     api/
+      publik/
+        ringkasan/
+          route.ts              # GET ringkasan publik
       auth/
         change-pin/
           route.ts              # POST ganti PIN
       upload/
         logo/
           route.ts              # POST upload logo
+  components/
+    publik/
+      public-summary.tsx        # Komponen ringkasan publik
+      public-chart.tsx          # Grafik sederhana untuk publik
 ```
 
 ## API Routes
 
-| Method | Path | Deskripsi |
-|---|---|---|
-| POST | `/api/auth/change-pin` | Ganti PIN |
-| POST | `/api/upload/logo` | Upload logo |
+| Method | Path | Auth | Deskripsi |
+|---|---|---|---|
+| GET | `/api/publik/ringkasan` | Tidak | Ringkasan untuk publik |
+| POST | `/api/auth/change-pin` | Ya | Ganti PIN |
+| POST | `/api/upload/logo` | Ya | Upload logo |
 
 ## Testing
 
+- [ ] Halaman publik: bisa diakses tanpa login
+- [ ] Halaman publik: tidak menampilkan data sensitif
+- [ ] Halaman publik: auto-refresh berfungsi
 - [ ] Pengaturan: edit profil masjid berhasil
 - [ ] Pengaturan: ganti PIN berhasil, login ulang dengan PIN baru
 - [ ] Upload logo: tampil di sidebar, PDF, publik
@@ -141,6 +185,8 @@ src/
 
 ## Definition of Done
 
+- [ ] Halaman publik bisa diakses tanpa login, data akurat
+- [ ] Auto-refresh berfungsi untuk TV display
 - [ ] Halaman pengaturan lengkap dan berfungsi
 - [ ] Logo management berfungsi
 - [ ] Ganti PIN berfungsi
@@ -148,4 +194,4 @@ src/
 - [ ] Adopter guide lengkap dan ditest
 - [ ] E2E testing pass
 - [ ] Security review pass
-- [ ] **SKM v2.1 siap production!** 🎉
+- [ ] **SKM v2.1 siap production!**
