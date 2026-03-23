@@ -10,17 +10,20 @@ import { useKategori } from '@/hooks/use-kategori';
 import { useRekening } from '@/hooks/use-rekening';
 import { TransaksiJenis } from '@/types';
 import type { Transaksi } from '@/types';
+import type { ApiResponse } from '@/types';
 import { todayISO } from '@/lib/utils';
 
 interface TransactionFormProps {
   initialData?: Transaksi;
   mode: 'create' | 'edit';
+  koreksiDariId?: string;
 }
 
-export function TransactionForm({ initialData, mode }: TransactionFormProps) {
+export function TransactionForm({ initialData, mode, koreksiDariId }: TransactionFormProps) {
   const router = useRouter();
   const { toast } = useToast();
   const [submitting, setSubmitting] = useState(false);
+  const [voidOriginal, setVoidOriginal] = useState(false);
 
   const [form, setForm] = useState({
     tanggal: initialData?.tanggal || todayISO(),
@@ -62,19 +65,35 @@ export function TransactionForm({ initialData, mode }: TransactionFormProps) {
     };
 
     try {
-      const url = mode === 'edit' ? `/api/transaksi/${initialData!.id}` : '/api/transaksi';
-      const method = mode === 'edit' ? 'PUT' : 'POST';
+      let url: string;
+      let method: string;
+
+      if (koreksiDariId) {
+        url = `/api/transaksi/${koreksiDariId}/koreksi`;
+        method = 'POST';
+      } else if (mode === 'edit') {
+        url = `/api/transaksi/${initialData!.id}`;
+        method = 'PUT';
+      } else {
+        url = '/api/transaksi';
+        method = 'POST';
+      }
+
+      const body = koreksiDariId ? { ...payload, void_original: voidOriginal } : payload;
 
       const res = await fetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
+        body: JSON.stringify(body),
       });
 
-      const data = await res.json();
+      const data: ApiResponse<Transaksi> = await res.json();
       if (data.success) {
-        toast(mode === 'edit' ? 'Transaksi berhasil diupdate' : 'Transaksi berhasil dibuat');
-        router.push('/transaksi');
+        const msg = koreksiDariId
+          ? 'Koreksi transaksi berhasil dibuat'
+          : mode === 'edit' ? 'Transaksi berhasil diupdate' : 'Transaksi berhasil dibuat';
+        toast(msg);
+        router.push(data.data ? `/transaksi/${data.data.id}` : '/transaksi');
       } else {
         toast(data.error || 'Gagal menyimpan transaksi', 'error');
       }
@@ -161,9 +180,26 @@ export function TransactionForm({ initialData, mode }: TransactionFormProps) {
           </select>
         </div>
 
+        {koreksiDariId && (
+          <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg space-y-2">
+            <p className="text-sm text-amber-800">
+              Koreksi dari: <span className="font-medium">{koreksiDariId}</span>
+            </p>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={voidOriginal}
+                onChange={(e) => setVoidOriginal(e.target.checked)}
+                className="rounded text-emerald-600 focus:ring-emerald-500"
+              />
+              <span className="text-sm text-gray-700">Void transaksi asli bersamaan</span>
+            </label>
+          </div>
+        )}
+
         <div className="flex gap-3 pt-2">
           <Button type="submit" disabled={submitting || !isValid}>
-            {submitting ? 'Menyimpan...' : (mode === 'edit' ? 'Update Transaksi' : 'Simpan Transaksi')}
+            {submitting ? 'Menyimpan...' : koreksiDariId ? 'Simpan Koreksi' : (mode === 'edit' ? 'Update Transaksi' : 'Simpan Transaksi')}
           </Button>
           <Button type="button" variant="secondary" onClick={() => router.push('/transaksi')}>
             Batal

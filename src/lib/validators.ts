@@ -124,3 +124,36 @@ export const reminderBulkSchema = z.object({
   tipe: z.nativeEnum(ReminderTipe, { error: 'Tipe reminder tidak valid' }),
   pesan: z.string().min(1, 'Pesan wajib diisi').max(1000),
 });
+
+// ============================================================
+// Void Transaksi
+// ============================================================
+
+export const voidTransaksiSchema = z.object({
+  reason: z.string().min(1, 'Alasan void wajib diisi').max(255),
+});
+
+// ============================================================
+// Koreksi Transaksi
+// ============================================================
+
+export const koreksiTransaksiSchema = z.object({
+  tanggal: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Tanggal harus format YYYY-MM-DD'),
+  jenis: z.nativeEnum(TransaksiJenis, { error: 'Jenis harus MASUK atau KELUAR' }),
+  kategori_id: z.string().min(1, 'Kategori wajib dipilih'),
+  deskripsi: z.string().min(1, 'Deskripsi wajib diisi').max(255),
+  jumlah: z.number().int('Jumlah harus bilangan bulat').positive('Jumlah harus lebih dari 0'),
+  rekening_id: z.string().min(1, 'Rekening wajib dipilih'),
+  void_original: z.boolean().default(false),
+});
+
+// ============================================================
+// Rekonsiliasi
+// ============================================================
+
+export const rekonsiliasiCreateSchema = z.object({
+  rekening_id: z.string().min(1, 'Rekening wajib dipilih'),
+  tanggal: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Tanggal harus format YYYY-MM-DD'),
+  saldo_bank: z.number().int('Saldo harus bilangan bulat').min(0, 'Saldo tidak boleh negatif'),
+  catatan: z.string().max(255).default(''),
+});
