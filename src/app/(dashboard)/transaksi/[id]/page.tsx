@@ -57,7 +57,7 @@ export default function TransaksiDetailPage({ params }: { params: Promise<{ id: 
     router.push(`/transaksi/baru?koreksi_dari=${id}`);
   }, [id, router]);
 
-  const handleUploadSuccess = useCallback(async (buktiUrl: string) => {
+  const handleUploadSuccess = useCallback(async () => {
     toast('Bukti berhasil diupload', 'success');
     setShowUpload(false);
     await refetch();

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import Image from 'next/image';
 import { formatRupiah, formatTanggal } from '@/lib/utils';
 import type { PublicRingkasan } from '@/app/api/publik/ringkasan/route';
 import { PublicTrendChart } from '@/components/publik/public-chart';
@@ -73,10 +74,13 @@ export default function PublicPage() {
       <header className="text-center mb-8">
         {data.logoUrl && (
           <div className="mb-4">
-            <img
+            <Image
               src={data.logoUrl}
               alt="Logo Masjid"
+              width={96}
+              height={96}
               className="w-20 h-20 lg:w-24 lg:h-24 rounded-full mx-auto object-cover border-4 border-white/20 shadow-lg"
+              unoptimized
             />
           </div>
         )}

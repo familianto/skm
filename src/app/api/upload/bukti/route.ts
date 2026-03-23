@@ -3,7 +3,7 @@ import { sheetsService } from '@/lib/google-sheets';
 import { SHEET_NAMES, SHEET_HEADERS, APP_CONFIG } from '@/lib/constants';
 import { logAudit } from '@/lib/audit';
 import { driveService } from '@/lib/google-drive';
-import { AuditAksi, TransaksiStatus } from '@/types';
+import { AuditAksi } from '@/types';
 import type { ApiResponse } from '@/types';
 import { nowISO } from '@/lib/utils';
 import { getSession } from '@/lib/auth';
