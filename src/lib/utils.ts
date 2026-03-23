@@ -57,3 +57,19 @@ export function nowISO(): string {
 export function todayISO(): string {
   return new Date().toISOString().slice(0, 10);
 }
+
+/**
+ * Parse Rupiah-formatted string to integer
+ */
+export function parseRupiah(input: string): number {
+  const cleaned = input.replace(/[^\d-]/g, '');
+  return parseInt(cleaned, 10) || 0;
+}
+
+/**
+ * Paginate an array
+ */
+export function paginateData<T>(data: T[], page: number, limit: number): T[] {
+  const start = (page - 1) * limit;
+  return data.slice(start, start + limit);
+}
