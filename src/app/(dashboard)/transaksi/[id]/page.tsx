@@ -1,23 +1,34 @@
 'use client';
 
-import { use, useMemo } from 'react';
+import { use, useMemo, useState, useCallback } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { PageTitle } from '@/components/layout/page-title';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Loading } from '@/components/ui/loading';
+import { VoidModal } from '@/components/forms/void-modal';
+import { UploadBukti } from '@/components/forms/upload-bukti';
+import { ImagePreview } from '@/components/ui/image-preview';
 import { useTransaksiDetail } from '@/hooks/use-transaksi';
 import { useKategori } from '@/hooks/use-kategori';
 import { useRekening } from '@/hooks/use-rekening';
+import { useToast } from '@/components/ui/toast';
 import { TransaksiJenis, TransaksiStatus } from '@/types';
+import type { ApiResponse, Transaksi } from '@/types';
 import { formatRupiah, formatTanggal, formatTimestamp } from '@/lib/utils';
 
 export default function TransaksiDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
-  const { data: transaksi, loading, error } = useTransaksiDetail(id);
+  const router = useRouter();
+  const { data: transaksi, loading, error, refetch } = useTransaksiDetail(id);
   const { data: kategoris } = useKategori();
   const { data: rekenings } = useRekening();
+  const { toast } = useToast();
+
+  const [voidOpen, setVoidOpen] = useState(false);
+  const [showUpload, setShowUpload] = useState(false);
 
   const kategoriNama = useMemo(() => {
     if (!transaksi) return '';
@@ -29,6 +40,28 @@ export default function TransaksiDetailPage({ params }: { params: Promise<{ id: 
     const r = rekenings.find((r) => r.id === transaksi.rekening_id);
     return r ? `${r.nama_bank} - ${r.nomor_rekening}` : transaksi.rekening_id;
   }, [transaksi, rekenings]);
+
+  const handleVoid = useCallback(async (reason: string) => {
+    const res = await fetch(`/api/transaksi/${id}/void`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ reason }),
+    });
+    const json: ApiResponse<Transaksi> = await res.json();
+    if (!json.success) throw new Error(json.error || 'Gagal void');
+    toast('Transaksi berhasil di-void', 'success');
+    await refetch();
+  }, [id, toast, refetch]);
+
+  const handleKoreksi = useCallback(() => {
+    router.push(`/transaksi/baru?koreksi_dari=${id}`);
+  }, [id, router]);
+
+  const handleUploadSuccess = useCallback(async (buktiUrl: string) => {
+    toast('Bukti berhasil diupload', 'success');
+    setShowUpload(false);
+    await refetch();
+  }, [toast, refetch]);
 
   if (loading) return <Loading className="py-12" />;
 
@@ -52,9 +85,13 @@ export default function TransaksiDetailPage({ params }: { params: Promise<{ id: 
         subtitle={transaksi.id}
         action={
           isAktif ? (
-            <Link href={`/transaksi/${id}/edit`}>
-              <Button>Edit Transaksi</Button>
-            </Link>
+            <div className="flex gap-2">
+              <Link href={`/transaksi/${id}/edit`}>
+                <Button>Edit</Button>
+              </Link>
+              <Button variant="secondary" onClick={handleKoreksi}>Koreksi</Button>
+              <Button variant="danger" onClick={() => setVoidOpen(true)}>Void</Button>
+            </div>
           ) : undefined
         }
       />
@@ -116,16 +153,44 @@ export default function TransaksiDetailPage({ params }: { params: Promise<{ id: 
             </div>
           )}
 
-          {transaksi.bukti_url && (
-            <div className="sm:col-span-2">
-              <dt className="text-sm font-medium text-gray-500">Bukti</dt>
-              <dd className="mt-1">
-                <a href={transaksi.bukti_url} target="_blank" rel="noopener noreferrer" className="text-sm text-emerald-600 hover:underline">
-                  Lihat Bukti
-                </a>
-              </dd>
-            </div>
-          )}
+          {/* Bukti section */}
+          <div className="sm:col-span-2">
+            <dt className="text-sm font-medium text-gray-500 mb-2">Bukti Transaksi</dt>
+            <dd>
+              {transaksi.bukti_url && !showUpload ? (
+                <div className="space-y-2">
+                  <div className="w-32 h-32">
+                    <ImagePreview src={transaksi.bukti_url} alt="Bukti transaksi" />
+                  </div>
+                  <div className="flex gap-2">
+                    <a href={transaksi.bukti_url} target="_blank" rel="noopener noreferrer" className="text-sm text-emerald-600 hover:underline">
+                      Lihat Bukti
+                    </a>
+                    {isAktif && (
+                      <button onClick={() => setShowUpload(true)} className="text-sm text-emerald-600 hover:underline">
+                        Ganti Bukti
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ) : showUpload || (!transaksi.bukti_url && isAktif) ? (
+                <div>
+                  <UploadBukti
+                    transaksiId={transaksi.id}
+                    currentBuktiUrl={transaksi.bukti_url || undefined}
+                    onUploadSuccess={handleUploadSuccess}
+                  />
+                  {showUpload && (
+                    <Button size="sm" variant="ghost" className="mt-2" onClick={() => setShowUpload(false)}>
+                      Batal
+                    </Button>
+                  )}
+                </div>
+              ) : (
+                <p className="text-sm text-gray-400">Tidak ada bukti</p>
+              )}
+            </dd>
+          </div>
 
           <div>
             <dt className="text-sm font-medium text-gray-500">Dibuat oleh</dt>
@@ -147,6 +212,13 @@ export default function TransaksiDetailPage({ params }: { params: Promise<{ id: 
           <Button variant="secondary">Kembali ke Daftar</Button>
         </Link>
       </div>
+
+      <VoidModal
+        open={voidOpen}
+        onClose={() => setVoidOpen(false)}
+        onConfirm={handleVoid}
+        transaksiId={transaksi.id}
+      />
     </div>
   );
 }
