@@ -10,7 +10,7 @@ Total estimasi: 10-12 minggu (7 sprint)
 | 1 | Foundation | 2 minggu | Sprint 0 | ✅ Done |
 | 2 | Core Transactions | 2 minggu | Sprint 1 | ✅ Done |
 | 3 | Donatur & Reminder WA | 1-2 minggu | Sprint 2 | ✅ Done |
-| 4 | Dashboard, Laporan & Export | 2 minggu | Sprint 2 | Belum dimulai |
+| 4 | Dashboard, Laporan & Export | 2 minggu | Sprint 2 | ✅ Done |
 | 5 | Rekonsiliasi Bank | 2 minggu | Sprint 2 | Belum dimulai |
 | 6 | TV Display, Settings & Polish | 1-2 minggu | Sprint 4, 5 | Belum dimulai |
 
@@ -124,7 +124,7 @@ Sprint 0: [x] Done — Setup Wizard
 Sprint 1: [x] Done — Foundation
 Sprint 2: [x] Done — Core Transactions
 Sprint 3: [x] Done — Donatur & Reminder WA
-Sprint 4: [ ] Belum dimulai — Dashboard, Laporan & Export
+Sprint 4: [x] Done — Dashboard, Laporan & Export
 Sprint 5: [ ] Belum dimulai — Rekonsiliasi Bank
 Sprint 6: [ ] Belum dimulai — TV Display, Settings & Polish
 ```
