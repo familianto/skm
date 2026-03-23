@@ -17,11 +17,14 @@ const navItems = [
   { href: '/pengaturan', label: 'Pengaturan', icon: 'M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z' },
 ];
 
+const TV_DISPLAY_ICON = 'M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z';
+
 interface SidebarProps {
   masjidName?: string;
+  logoUrl?: string;
 }
 
-export function Sidebar({ masjidName = 'SKM' }: SidebarProps) {
+export function Sidebar({ masjidName = 'SKM', logoUrl }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -35,8 +38,25 @@ export function Sidebar({ masjidName = 'SKM' }: SidebarProps) {
     <>
       {/* Logo */}
       <div className="px-4 py-6 border-b border-emerald-700">
-        <h1 className="text-xl font-bold text-white">{masjidName}</h1>
-        <p className="text-emerald-200 text-xs mt-1">Sistem Keuangan Masjid</p>
+        <div className="flex items-center gap-3">
+          {logoUrl ? (
+            <img
+              src={logoUrl}
+              alt="Logo"
+              className="w-10 h-10 rounded-full object-cover border-2 border-emerald-600 shrink-0"
+            />
+          ) : (
+            <div className="w-10 h-10 rounded-full bg-emerald-600 flex items-center justify-center shrink-0">
+              <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+              </svg>
+            </div>
+          )}
+          <div className="min-w-0">
+            <h1 className="text-lg font-bold text-white truncate">{masjidName}</h1>
+            <p className="text-emerald-200 text-xs">Sistem Keuangan Masjid</p>
+          </div>
+        </div>
       </div>
 
       {/* Nav */}
@@ -64,8 +84,22 @@ export function Sidebar({ masjidName = 'SKM' }: SidebarProps) {
         })}
       </nav>
 
-      {/* Logout */}
-      <div className="px-3 py-4 border-t border-emerald-700">
+      {/* TV Display + Logout */}
+      <div className="px-3 py-4 border-t border-emerald-700 space-y-1">
+        <a
+          href="/publik"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-sm font-medium text-emerald-100 hover:bg-emerald-700/50 transition-colors"
+        >
+          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d={TV_DISPLAY_ICON} />
+          </svg>
+          TV Display
+          <svg className="w-3 h-3 ml-auto opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+          </svg>
+        </a>
         <button
           onClick={handleLogout}
           className="flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-sm font-medium text-emerald-100 hover:bg-emerald-700/50 transition-colors"

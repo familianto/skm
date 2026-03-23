@@ -12,7 +12,7 @@ Total estimasi: 10-12 minggu (7 sprint)
 | 3 | Donatur & Reminder WA | 1-2 minggu | Sprint 2 | ✅ Done |
 | 4 | Dashboard, Laporan & Export | 2 minggu | Sprint 2 | ✅ Done |
 | 5 | Rekonsiliasi Bank | 2 minggu | Sprint 2 | ✅ Done |
-| 6 | TV Display, Settings & Polish | 1-2 minggu | Sprint 4, 5 | Belum dimulai |
+| 6 | TV Display, Settings & Polish | 1-2 minggu | Sprint 4, 5 | ✅ Done |
 
 ## Dependency Graph
 
@@ -126,7 +126,7 @@ Sprint 2: [x] Done — Core Transactions
 Sprint 3: [x] Done — Donatur & Reminder WA
 Sprint 4: [x] Done — Dashboard, Laporan & Export
 Sprint 5: [x] Done — Rekonsiliasi Bank
-Sprint 6: [ ] Belum dimulai — TV Display, Settings & Polish
+Sprint 6: [x] Done — TV Display, Settings & Polish
 ```
 
 ## Detail Sprint
