@@ -11,7 +11,7 @@
 
 ## Current Sprint
 
-> **Sprint 0 — Setup Wizard** (lihat `docs/sprints/SPRINT_0.md`)
+> **Sprint 1 — Foundation** selesai. Selanjutnya Sprint 2 — Transaksi Inti (lihat `docs/sprints/SPRINT_2.md`)
 
 Update baris ini setiap kali sprint berganti.
 

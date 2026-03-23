@@ -17,11 +17,12 @@ Sistem manajemen keuangan masjid berbasis web yang transparan, akuntabel, dan mu
 
 | Komponen | Teknologi |
 |---|---|
-| Frontend | Next.js 14+ (App Router) + TypeScript |
-| Styling | Tailwind CSS |
+| Frontend | Next.js 16 (App Router) + TypeScript |
+| Styling | Tailwind CSS 4 |
 | Database | Google Sheets API v4 |
 | File Storage | Google Drive |
-| Auth | PIN-based |
+| Auth | PIN-based (bcrypt + JWT) |
+| Validation | Zod v4 |
 | Hosting | Vercel |
 
 ## Quick Start
@@ -64,15 +65,15 @@ CLAUDE.md                       # Panduan untuk AI-assisted development
 
 ## Sprint Roadmap
 
-| Sprint | Nama | Deskripsi |
-|---|---|---|
-| 0 | Setup Wizard | Inisialisasi project, koneksi Google Sheets |
-| 1 | Foundation | Auth PIN, CRUD master data, layout UI |
-| 2 | Core Transactions | CRUD transaksi keuangan |
-| 3 | Dashboard & Export | Grafik, ringkasan, export PDF/Excel |
-| 4 | Reconciliation | Rekonsiliasi bank, void/koreksi, upload bukti |
-| 5 | Communication | Halaman publik, template pesan |
-| 6 | Polish | Pengaturan, logo, optimization, multi-masjid |
+| Sprint | Nama | Status | Deskripsi |
+|---|---|---|---|
+| 0 | Setup Wizard | Done | Inisialisasi project, koneksi Google Sheets |
+| 1 | Foundation | Done | Auth PIN, CRUD master data, layout UI |
+| 2 | Core Transactions | - | CRUD transaksi keuangan |
+| 3 | Dashboard & Export | - | Grafik, ringkasan, export PDF/Excel |
+| 4 | Reconciliation | - | Rekonsiliasi bank, void/koreksi, upload bukti |
+| 5 | Communication | - | Halaman publik, template pesan |
+| 6 | Polish | - | Pengaturan, logo, optimization, multi-masjid |
 
 Detail setiap sprint: [`docs/SPRINT_PLAN.md`](docs/SPRINT_PLAN.md)
 
