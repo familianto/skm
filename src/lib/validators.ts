@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { TransaksiJenis, UserPeran } from '@/types';
+import { TransaksiJenis, UserPeran, DonaturKelompok, ReminderTipe } from '@/types';
 
 // ============================================================
 // Auth
@@ -84,4 +84,43 @@ export const transaksiUpdateSchema = z.object({
   deskripsi: z.string().min(1).max(255).optional(),
   jumlah: z.number().int().positive().optional(),
   rekening_id: z.string().min(1).optional(),
+});
+
+// ============================================================
+// Donatur
+// ============================================================
+
+export const donaturCreateSchema = z.object({
+  nama: z.string().min(1, 'Nama donatur wajib diisi').max(100),
+  telepon: z.string().min(1, 'Nomor telepon wajib diisi').max(20).regex(/^[0-9+\-\s]+$/, 'Nomor telepon tidak valid'),
+  alamat: z.string().max(255).default(''),
+  kelompok: z.nativeEnum(DonaturKelompok, { error: 'Kelompok harus TETAP atau INSIDENTAL' }),
+  jumlah_komitmen: z.number().int('Jumlah harus bilangan bulat').min(0, 'Jumlah tidak boleh negatif').default(0),
+  catatan: z.string().max(255).default(''),
+});
+
+export const donaturUpdateSchema = z.object({
+  nama: z.string().min(1).max(100).optional(),
+  telepon: z.string().min(1).max(20).regex(/^[0-9+\-\s]+$/).optional(),
+  alamat: z.string().max(255).optional(),
+  kelompok: z.nativeEnum(DonaturKelompok).optional(),
+  jumlah_komitmen: z.number().int().min(0).optional(),
+  catatan: z.string().max(255).optional(),
+  is_active: z.boolean().optional(),
+});
+
+// ============================================================
+// Reminder
+// ============================================================
+
+export const reminderCreateSchema = z.object({
+  donatur_id: z.string().min(1, 'Donatur wajib dipilih'),
+  tipe: z.nativeEnum(ReminderTipe, { error: 'Tipe reminder tidak valid' }),
+  pesan: z.string().min(1, 'Pesan wajib diisi').max(1000),
+});
+
+export const reminderBulkSchema = z.object({
+  donatur_ids: z.array(z.string().min(1)).min(1, 'Pilih minimal 1 donatur'),
+  tipe: z.nativeEnum(ReminderTipe, { error: 'Tipe reminder tidak valid' }),
+  pesan: z.string().min(1, 'Pesan wajib diisi').max(1000),
 });
