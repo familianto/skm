@@ -1,15 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { sheetsService } from '@/lib/google-sheets';
-import { SHEET_NAMES, SHEET_HEADERS, APP_CONFIG } from '@/lib/constants';
+import { SHEET_NAMES, SHEET_HEADERS } from '@/lib/constants';
 import { logAudit } from '@/lib/audit';
-import { driveService } from '@/lib/google-drive';
 import { AuditAksi } from '@/types';
 import type { ApiResponse } from '@/types';
 import { nowISO } from '@/lib/utils';
 import { getSession } from '@/lib/auth';
 
-const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/jpg'];
-const MAX_SIZE_BYTES = APP_CONFIG.MAX_FILE_SIZE_MB * 1024 * 1024;
+// Max base64 data URL size (fits in Google Sheets cell limit of 50K chars)
+const MAX_DATA_URL_LENGTH = 50_000;
 
 export async function POST(request: NextRequest) {
   try {
@@ -21,16 +20,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const formData = await request.formData();
-    const file = formData.get('file') as File | null;
-    const transaksiId = formData.get('transaksi_id') as string | null;
-
-    if (!file) {
-      return NextResponse.json<ApiResponse<null>>(
-        { success: false, error: 'File wajib diupload.' },
-        { status: 400 }
-      );
-    }
+    const body = await request.json();
+    const { transaksiId, buktiDataUrl } = body as { transaksiId?: string; buktiDataUrl?: string };
 
     if (!transaksiId) {
       return NextResponse.json<ApiResponse<null>>(
@@ -39,16 +30,16 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!ALLOWED_TYPES.includes(file.type)) {
+    if (!buktiDataUrl || !buktiDataUrl.startsWith('data:image/')) {
       return NextResponse.json<ApiResponse<null>>(
-        { success: false, error: 'Hanya file JPG dan PNG yang diperbolehkan.' },
+        { success: false, error: 'Data bukti tidak valid.' },
         { status: 400 }
       );
     }
 
-    if (file.size > MAX_SIZE_BYTES) {
+    if (buktiDataUrl.length > MAX_DATA_URL_LENGTH) {
       return NextResponse.json<ApiResponse<null>>(
-        { success: false, error: `Ukuran file maksimal ${APP_CONFIG.MAX_FILE_SIZE_MB}MB.` },
+        { success: false, error: 'Ukuran bukti terlalu besar. Coba gunakan gambar yang lebih kecil.' },
         { status: 400 }
       );
     }
@@ -62,44 +53,28 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Upload to Google Drive
-    const buffer = Buffer.from(await file.arrayBuffer());
-    const fileName = `bukti_${transaksiId}_${Date.now()}.${file.type === 'image/png' ? 'png' : 'jpg'}`;
-
-    let buktiUrl: string;
-    try {
-      const folderId = process.env.GOOGLE_DRIVE_FOLDER_ID;
-      const fileId = await driveService.uploadFile(buffer, fileName, file.type, folderId);
-      buktiUrl = driveService.getFileUrl(fileId);
-    } catch (driveError) {
-      console.error('Google Drive upload failed:', driveError);
-      return NextResponse.json<ApiResponse<null>>(
-        { success: false, error: 'Gagal mengupload file. Pastikan Google Drive sudah dikonfigurasi.' },
-        { status: 503 }
-      );
-    }
-
-    // Update transaction with bukti_url
+    // Update transaction with bukti as base64 data URL
     const headers = SHEET_HEADERS[SHEET_NAMES.TRANSAKSI];
     const row = [...result.row];
-    // Ensure row has enough elements
     while (row.length < headers.length) row.push('');
 
     const buktiUrlIndex = headers.indexOf('bukti_url');
     const updatedAtIndex = headers.indexOf('updated_at');
-    row[buktiUrlIndex] = buktiUrl;
+    row[buktiUrlIndex] = buktiDataUrl;
     row[updatedAtIndex] = nowISO();
 
     await sheetsService.updateRow(SHEET_NAMES.TRANSAKSI, result.rowIndex, row);
 
-    await logAudit(
-      AuditAksi.UPDATE, SHEET_NAMES.TRANSAKSI, transaksiId,
-      JSON.stringify({ bukti_url: buktiUrl }),
-      session.role || 'Bendahara'
-    );
+    try {
+      await logAudit(
+        AuditAksi.UPDATE, SHEET_NAMES.TRANSAKSI, transaksiId,
+        JSON.stringify({ bukti_url: 'base64_data_url' }),
+        session.role || 'Bendahara'
+      );
+    } catch { /* audit failure should not block */ }
 
     return NextResponse.json<ApiResponse<{ bukti_url: string }>>(
-      { success: true, data: { bukti_url: buktiUrl } }
+      { success: true, data: { bukti_url: buktiDataUrl } }
     );
   } catch (error) {
     console.error('POST /api/upload/bukti error:', error);

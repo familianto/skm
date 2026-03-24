@@ -12,6 +12,33 @@ interface UploadBuktiProps {
   onUploadSuccess: (buktiUrl: string) => void;
 }
 
+function resizeImageToDataUrl(file: File, maxSize: number, quality: number): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const img = document.createElement('img');
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      let { width, height } = img;
+      if (width > maxSize || height > maxSize) {
+        if (width > height) {
+          height = Math.round((height * maxSize) / width);
+          width = maxSize;
+        } else {
+          width = Math.round((width * maxSize) / height);
+          height = maxSize;
+        }
+      }
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) { reject(new Error('Canvas not supported')); return; }
+      ctx.drawImage(img, 0, 0, width, height);
+      resolve(canvas.toDataURL('image/jpeg', quality));
+    };
+    img.onerror = () => reject(new Error('Gagal membaca gambar.'));
+    img.src = URL.createObjectURL(file);
+  });
+}
+
 export function UploadBukti({ transaksiId, currentBuktiUrl, onUploadSuccess }: UploadBuktiProps) {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
@@ -32,13 +59,12 @@ export function UploadBukti({ transaksiId, currentBuktiUrl, onUploadSuccess }: U
     setError('');
 
     try {
-      const formData = new FormData();
-      formData.append('file', selectedFile);
-      formData.append('transaksi_id', transaksiId);
+      const buktiDataUrl = await resizeImageToDataUrl(selectedFile, 600, 0.7);
 
       const res = await fetch('/api/upload/bukti', {
         method: 'POST',
-        body: formData,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ transaksiId, buktiDataUrl }),
       });
 
       const json: ApiResponse<{ bukti_url: string }> = await res.json();
