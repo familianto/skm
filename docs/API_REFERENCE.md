@@ -358,31 +358,58 @@ Buat catatan rekonsiliasi baru.
 
 ### `POST /api/upload/bukti`
 
-Upload bukti transaksi (gambar).
+Upload bukti transaksi sebagai base64 data URL.
 
-**Request**: `multipart/form-data`
+**Request**: `application/json`
 | Field | Type | Deskripsi |
 |---|---|---|
-| `file` | File | Gambar (JPG/PNG, max 1MB setelah compress) |
-| `transaksi_id` | string | ID transaksi terkait |
+| `transaksiId` | string | ID transaksi terkait |
+| `buktiDataUrl` | string | Base64 data URL gambar (di-resize client-side max 600px, JPEG 70%) |
 
 **Response (200):**
 ```json
 {
   "success": true,
   "data": {
-    "url": "https://drive.google.com/..."
+    "bukti_url": "data:image/jpeg;base64,..."
   }
 }
 ```
 
+**Validasi:**
+- Data URL harus dimulai dengan `data:image/`
+- Panjang maksimal 50.000 karakter (limit cell Google Sheets)
+
 **Side Effects:**
-- Upload file ke Google Drive folder `bukti/`
-- Update `bukti_url` di sheet transaksi
+- Update `bukti_url` di sheet transaksi dengan base64 data URL
+- Audit log: UPDATE
 
 ### `POST /api/upload/logo`
 
-Upload logo masjid. (Sprint 6)
+Upload logo masjid sebagai base64 data URL.
+
+**Request**: `application/json`
+| Field | Type | Deskripsi |
+|---|---|---|
+| `logoDataUrl` | string | Base64 data URL gambar (di-resize client-side max 200px, JPEG 80%) |
+
+**Response (200):**
+```json
+{
+  "success": true,
+  "data": {
+    "logo_url": "data:image/jpeg;base64,..."
+  }
+}
+```
+
+**Validasi:**
+- Data URL harus dimulai dengan `data:image/`
+- Panjang maksimal 50.000 karakter (limit cell Google Sheets)
+
+**Side Effects:**
+- Update `logo_url` di sheet master dengan base64 data URL
+- Audit log: UPDATE
 
 ---
 

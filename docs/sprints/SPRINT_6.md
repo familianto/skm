@@ -60,10 +60,10 @@
 ### 5. Upload Logo
 
 - [ ] `POST /api/upload/logo`:
-  - Upload logo ke Google Drive folder `logo/`
-  - Update `logo_url` di sheet master
-  - Validasi: JPG/PNG, max 500KB
-  - Resize jika terlalu besar
+  - Terima JSON body `{ logoDataUrl }`
+  - Validasi: data URL harus `data:image/*`, max 50.000 karakter
+  - Simpan base64 data URL langsung di kolom `logo_url` sheet master
+- [ ] Client-side: resize via Canvas API (max 200x200px), compress ke JPEG 80%
 - [ ] Logo tampil di:
   - Sidebar (kecil)
   - Header halaman publik

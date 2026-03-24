@@ -32,11 +32,12 @@
 
 ## Keputusan Teknis
 
-### Google Drive Graceful Error Handling
-- Upload bukti menggunakan `driveService.uploadFile()` dari `lib/google-drive.ts`.
-- Jika Google Drive credentials belum di-set atau upload gagal, API mengembalikan HTTP 503 dengan pesan jelas: "Gagal mengupload file. Pastikan Google Drive sudah dikonfigurasi."
-- Ini memungkinkan fitur lain (void, koreksi, rekonsiliasi) tetap berfungsi walau Google Drive belum di-setup.
-- Validasi file dilakukan sebelum attempt upload: tipe (JPG/PNG only), ukuran (max 1MB sesuai `APP_CONFIG.MAX_FILE_SIZE_MB`).
+### Upload Bukti sebagai Base64 Data URL (Tanpa Google Drive)
+- Upload bukti **tidak menggunakan Google Drive** karena service account Gmail personal tidak punya storage quota.
+- Gambar di-resize client-side via Canvas API (max 600x600px) dan di-compress ke JPEG 70%.
+- Hasilnya disimpan sebagai base64 data URL langsung di kolom `bukti_url` sheet transaksi.
+- Limit: max 50.000 karakter per cell Google Sheets.
+- Validasi file di client: tipe (JPG/PNG only), ukuran (max 500KB sebelum resize).
 
 ### Batch Fetching untuk Rekonsiliasi
 - `POST /api/rekonsiliasi` menggunakan `sheetsService.batchGet()` untuk fetch data rekening_bank + transaksi dalam 1 API call.
@@ -62,9 +63,9 @@
 - Routing koreksi: dari detail page klik "Koreksi" → redirect ke `/transaksi/baru?koreksi_dari=TRX-XXX` → form pre-fill dari transaksi asli → submit ke `POST /api/transaksi/[id]/koreksi`.
 
 ### Upload Flow
-- Client-side: FileUpload component → validasi tipe/ukuran → preview lokal (FileReader) → user klik "Upload" → kirim FormData ke API.
-- Server-side: validasi ulang → baca file ke Buffer → upload ke Google Drive → set permission "anyone with link" → simpan URL di sheet transaksi.
-- Nama file di Drive: `bukti_{transaksiId}_{timestamp}.{ext}` — memudahkan identifikasi.
+- Client-side: FileUpload component → validasi tipe/ukuran → preview lokal (FileReader) → user klik "Upload" → resize via Canvas API (max 600px, JPEG 70%) → kirim JSON `{ transaksiId, buktiDataUrl }` ke API.
+- Server-side: validasi data URL (harus `data:image/*`, max 50K chars) → simpan langsung di kolom `bukti_url` sheet transaksi.
+- Tidak ada file terpisah — semua tersimpan inline di cell Google Sheets.
 
 ### Rekonsiliasi Result Display
 - Hasil rekonsiliasi ditampilkan dalam 3 kartu berwarna: Saldo Sistem (biru), Saldo Bank (abu), Selisih (hijau jika 0, merah jika tidak).
@@ -138,7 +139,7 @@ Sprint 6 akan mengimplementasi halaman publik (TV display), halaman pengaturan, 
 | File/Komponen | Dipakai untuk |
 |---|---|
 | `src/lib/google-sheets.ts` | `sheetsService.getRows()`, `getRowById()`, `updateRow()`, `appendRow()`, `batchGet()` — semua CRUD + batch operations |
-| `src/lib/google-drive.ts` | `driveService.uploadFile()`, `getFileUrl()` — untuk upload logo (pattern sama dengan upload bukti) |
+| `src/lib/google-drive.ts` | Legacy — **tidak digunakan** untuk upload logo/bukti (diganti base64 data URL) |
 | `src/lib/auth.ts` | `getSession()` untuk protected endpoints, `hashPin()` & `verifyPin()` untuk ganti PIN, `deleteSession()` untuk force re-login setelah ganti PIN |
 | `src/lib/audit.ts` | `logAudit()` — untuk log ganti PIN, update profil, upload logo |
 | `src/lib/constants.ts` | `SHEET_NAMES.MASTER` untuk update profil/PIN, `APP_CONFIG` untuk konfigurasi |
@@ -147,7 +148,7 @@ Sprint 6 akan mengimplementasi halaman publik (TV display), halaman pengaturan, 
 | `src/lib/validators.ts` | Pattern Zod schema untuk validasi ganti PIN, update profil |
 | `src/app/api/dashboard/summary/route.ts` | Pattern & logic untuk API publik ringkasan (reuse penghitungan total masuk/keluar/saldo) |
 | `src/app/api/dashboard/chart-data/route.ts` | Pattern untuk grafik publik (tren 6 bulan terakhir) |
-| `src/app/api/upload/bukti/route.ts` | Pattern upload file ke Google Drive — reuse untuk upload logo |
+| `src/app/api/upload/bukti/route.ts` | Pattern upload base64 data URL — reuse untuk upload logo |
 | `src/components/ui/*` | Button, Card, Input, Modal, Loading, Badge, Table, SummaryCard, FileUpload, ImagePreview |
 | `src/components/charts/*` | MonthlyTrendChart — bisa reuse/simplify untuk chart publik |
 | `src/components/forms/upload-bukti.tsx` | Pattern upload component — referensi untuk upload logo |
