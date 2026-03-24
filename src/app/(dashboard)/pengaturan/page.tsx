@@ -551,7 +551,7 @@ function DataTab() {
           </div>
           <div className="flex justify-between text-sm">
             <span className="text-gray-500">File Storage</span>
-            <span className="text-gray-900 font-medium">Google Drive</span>
+            <span className="text-gray-900 font-medium">Base64 di Google Sheets</span>
           </div>
         </div>
       </Card>
