@@ -36,7 +36,7 @@ Karena Google Sheets tidak punya enforced schema, dokumen ini ADALAH schema-nya.
 | F | `telepon` | string | Nomor telepon | `021-1234567` |
 | G | `email` | string | Email masjid | `masjid@email.com` |
 | H | `pin_hash` | string | Hash PIN untuk autentikasi | `$2b$10$...` |
-| I | `logo_url` | string | URL logo di Google Drive | `https://drive.google.com/...` |
+| I | `logo_url` | string | Base64 data URL logo masjid (max 200x200px JPEG) | `data:image/jpeg;base64,...` |
 | J | `tahun_buku_aktif` | string | Tahun buku yang aktif | `2026` |
 | K | `mata_uang` | string | Kode mata uang | `IDR` |
 | L | `created_at` | timestamp | Waktu dibuat | `2026-01-01T00:00:00Z` |
@@ -59,7 +59,7 @@ Karena Google Sheets tidak punya enforced schema, dokumen ini ADALAH schema-nya.
 | E | `deskripsi` | string | Ya | Keterangan transaksi | `Infaq Jumat minggu ke-3` |
 | F | `jumlah` | integer | Ya | Nominal dalam Rupiah | `1500000` |
 | G | `rekening_id` | string | Ya | Referensi ke sheet rekening | `REK-20260101-0001` |
-| H | `bukti_url` | string | Tidak | URL bukti di Google Drive | `https://drive.google.com/...` |
+| H | `bukti_url` | string | Tidak | Base64 data URL bukti transaksi (max 600x600px JPEG) | `data:image/jpeg;base64,...` |
 | I | `status` | enum | Ya | `AKTIF` atau `VOID` | `AKTIF` |
 | J | `void_reason` | string | Tidak | Alasan void (wajib jika VOID) | `Salah input nominal` |
 | K | `void_date` | date | Tidak | Tanggal void | `2026-03-24` |

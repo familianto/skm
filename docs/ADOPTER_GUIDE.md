@@ -6,7 +6,7 @@ SKM (Sistem Keuangan Masjid) adalah sistem open-source yang dapat diadopsi oleh 
 
 ## Persyaratan Minimum
 
-- **Akun Google** (untuk Google Sheets & Drive)
+- **Akun Google** (untuk Google Sheets)
 - **Akun GitHub** (untuk fork repository)
 - **Akun Vercel** (gratis, untuk hosting) — atau hosting provider lain yang support Next.js
 - **Komputer/laptop** dengan browser modern
@@ -16,7 +16,7 @@ SKM (Sistem Keuangan Masjid) adalah sistem open-source yang dapat diadopsi oleh 
 
 | Komponen | Biaya |
 |---|---|
-| Google Sheets + Drive | Gratis (15GB storage) |
+| Google Sheets | Gratis |
 | Vercel Hosting (Free tier) | Gratis |
 | GitHub (Free tier) | Gratis |
 | Domain (opsional) | Rp 12.000 - Rp 150.000/tahun |
@@ -35,7 +35,6 @@ SKM (Sistem Keuangan Masjid) adalah sistem open-source yang dapat diadopsi oleh 
 Ikuti panduan lengkap di [`SETUP_GUIDE.md`](SETUP_GUIDE.md), bagian:
 - Langkah 2: Setup Google Cloud Project
 - Langkah 3: Setup Google Sheets
-- Langkah 4: Setup Google Drive Folder
 
 ### Langkah 3: Deploy ke Vercel
 
@@ -107,10 +106,9 @@ Ya, aplikasi responsive dan bisa diakses dari browser HP. Tidak perlu install ap
 
 - [ ] Fork repository ke GitHub Anda
 - [ ] Buat Google Cloud Project
-- [ ] Aktifkan Google Sheets API & Drive API
+- [ ] Aktifkan Google Sheets API
 - [ ] Buat Service Account + download credentials
 - [ ] Buat Google Sheets + share ke service account
-- [ ] Buat Google Drive folder + share ke service account
 - [ ] Deploy ke Vercel + set environment variables
 - [ ] Login dan ganti PIN default
 - [ ] Isi data masjid

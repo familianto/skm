@@ -36,23 +36,19 @@
 ### 3. Upload Bukti Transaksi
 
 - [ ] `POST /api/upload/bukti`:
-  - Terima multipart/form-data (file + transaksi_id)
-  - Validasi: file type (JPG, PNG), max size
-  - Upload ke Google Drive folder `bukti/`
-  - Set file permission: viewable by anyone with link
-  - Update `bukti_url` di sheet transaksi
+  - Terima JSON body `{ transaksiId, buktiDataUrl }`
+  - Validasi: data URL harus `data:image/*`, max 50.000 karakter
+  - Simpan base64 data URL langsung di kolom `bukti_url` sheet transaksi
   - Audit log: `UPDATE`
-- [ ] Client-side image compression:
-  - Compress sebelum upload (target: max 1MB)
-  - Library: browser-image-compression
-  - Show progress indicator
+- [ ] Client-side image resize & compress:
+  - Resize via Canvas API (max 600x600px)
+  - Compress ke JPEG 70% quality
+  - Validasi tipe file (JPG/PNG) dan ukuran (max 500KB) sebelum resize
 - [ ] UI di form transaksi:
   - File input / kamera capture
   - Preview thumbnail sebelum upload
-  - Progress bar saat upload
 - [ ] UI di detail transaksi:
-  - Thumbnail bukti (klik untuk full size)
-  - Link download
+  - Thumbnail bukti (klik untuk lightbox full size)
   - Tombol ganti bukti
 
 ### 4. Rekonsiliasi Bank
@@ -133,9 +129,9 @@ Tidak ada kolom baru — semua kolom sudah didefinisikan di `DATABASE_SCHEMA.md`
 - [ ] Void: status berubah ke VOID, alasan tersimpan
 - [ ] Void: transaksi yang sudah VOID tidak bisa di-void lagi
 - [ ] Koreksi: transaksi baru terbuat dengan link ke asli
-- [ ] Upload: file terupload ke Google Drive, URL tersimpan
-- [ ] Upload: file > 4.5MB di-reject
-- [ ] Upload: compression berfungsi di client
+- [ ] Upload: bukti tersimpan sebagai base64 di sheet
+- [ ] Upload: data URL > 50K chars di-reject
+- [ ] Upload: resize & compress berfungsi di client
 - [ ] Rekonsiliasi: saldo sistem terhitung benar
 - [ ] Rekonsiliasi: selisih dan status ditampilkan
 - [ ] Rekonsiliasi: riwayat tersimpan dan tampil

@@ -23,7 +23,7 @@ Update baris ini setiap kali sprint berganti.
 | Styling | Tailwind CSS |
 | Backend/API | Next.js API Route Handlers |
 | Database | Google Sheets API v4 (Google Sheets sebagai DB) |
-| File Storage | Google Drive (untuk upload bukti) |
+| File Storage | Base64 Data URL di Google Sheets (logo & bukti) |
 | Auth | PIN-based (hash disimpan di sheet `master`) |
 | Charts | Chart.js / Recharts |
 | State | React Context + SWR |
@@ -35,8 +35,9 @@ Update baris ini setiap kali sprint berganti.
 
 ```
 Browser → Next.js (Vercel) → API Routes → Google Sheets API → Google Sheets
-                                        → Google Drive API  → Google Drive (file uploads)
 ```
+
+**Catatan**: Logo dan bukti transaksi disimpan sebagai base64 data URL langsung di cell Google Sheets (bukan Google Drive). Gambar di-resize dan compress client-side sebelum disimpan.
 
 **Semua akses Google Sheets HARUS melalui `lib/google-sheets.ts`** — jangan panggil API langsung dari route handler.
 
@@ -81,7 +82,7 @@ components/
   layout/                       # Sidebar, Header, etc.
 lib/
   google-sheets.ts              # Google Sheets service layer (SATU-SATUNYA entry point)
-  google-drive.ts               # Google Drive service (upload bukti)
+  google-drive.ts               # Google Drive service (legacy, tidak dipakai untuk logo/bukti)
   auth.ts                       # PIN auth helpers
   utils.ts                      # Utility functions
   constants.ts                  # Constants & enums
@@ -116,8 +117,9 @@ PIN_SALT=                       # Salt untuk hashing PIN
 2. **Private key newlines**: Saat set env var, pastikan `\n` di-escape dengan benar (`\\n` di `.env`, actual newline di Vercel)
 3. **Sheet name case-sensitive**: `Transaksi` ≠ `transaksi`. Gunakan constants.
 4. **Row-based concurrency**: Google Sheets tidak punya row locking. Untuk SKM ini acceptable karena single-user write per masjid.
-5. **Vercel serverless limit**: Body size max 4.5MB. Untuk upload bukti, compress gambar dulu di client.
+5. **Vercel serverless limit**: Body size max 4.5MB. Gambar di-resize dan compress client-side sebelum upload.
 6. **Google Sheets cell limit**: Max ~10 juta cells per spreadsheet. Untuk 1 masjid, ini lebih dari cukup.
+7. **Google Sheets cell character limit**: Max 50.000 karakter per cell. Logo/bukti di-resize agar base64 muat di 1 cell (logo max 200px, bukti max 600px).
 
 ## Documentation Map
 

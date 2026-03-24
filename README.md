@@ -20,7 +20,7 @@ Sistem manajemen keuangan masjid berbasis web yang transparan, akuntabel, dan mu
 | Frontend | Next.js 16 (App Router) + TypeScript |
 | Styling | Tailwind CSS 4 |
 | Database | Google Sheets API v4 |
-| File Storage | Google Drive |
+| File Storage | Base64 Data URL (di Google Sheets) |
 | Auth | PIN-based (bcrypt + JWT) |
 | Validation | Zod v4 |
 | Hosting | Vercel |

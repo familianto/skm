@@ -30,7 +30,7 @@ SKM adalah sistem manajemen keuangan masjid berbasis web yang bertujuan untuk me
 | Styling | Tailwind CSS | Mobile-first |
 | Backend | Next.js API Routes | Route Handlers |
 | Database | Google Sheets API v4 | Sheets sebagai DB |
-| File Storage | Google Drive | Upload bukti transaksi |
+| File Storage | Base64 Data URL (di Google Sheets) | Logo & bukti transaksi disimpan sebagai base64 |
 | Auth | PIN-based | Hash + cookie session |
 | Charts | Chart.js / Recharts | Dashboard visualisasi |
 | State | SWR + React Context | Client-side caching |
@@ -67,18 +67,17 @@ SKM adalah sistem manajemen keuangan masjid berbasis web yang bertujuan untuk me
 │  │  lib/  │  │     │  - rekonsiliasi  │
 │  │ google │  │     └──────────────────┘
 │  │-sheets │  │
-│  │  .ts   │  │     ┌──────────────────┐
-│  └───┬────┘  │     │  Google Drive    │
-│      └───────┼────▶│  (File Storage)  │
-│              │     │  - Bukti foto    │
-└──────────────┘     └──────────────────┘
+│  │  .ts   │  │     Logo & bukti disimpan
+│  └────────┘  │     sebagai base64 data URL
+│              │     langsung di cell Sheets
+└──────────────┘
 ```
 
 ### Data Flow
 
 1. **Baca data**: Client → SWR fetch → API Route → `lib/google-sheets.ts` → Google Sheets API → Spreadsheet
 2. **Tulis data**: Client → Form submit → API Route → Validasi (Zod) → `lib/google-sheets.ts` → Append/Update row → Audit log
-3. **Upload bukti**: Client → Compress image → API Route → `lib/google-drive.ts` → Google Drive → Return URL → Simpan URL di sheet transaksi
+3. **Upload bukti/logo**: Client → Resize & compress via Canvas API → Base64 data URL → API Route → Simpan di cell Google Sheets
 4. **Export**: Client → API Route → Baca data dari sheets → Generate PDF/Excel → Return file
 
 ## 4. Struktur Google Sheets
@@ -131,9 +130,9 @@ Lihat detail lengkap di `DATABASE_SCHEMA.md`.
 
 ### 5.5 Upload Bukti Transaksi (Sprint 5)
 - Upload foto bukti dari device (kamera/galeri)
-- Compress otomatis di client sebelum upload
-- Simpan di Google Drive, URL disimpan di sheet transaksi
-- Preview bukti di detail transaksi
+- Resize otomatis di client (max 600px) dan compress ke JPEG 70%
+- Simpan sebagai base64 data URL di kolom `bukti_url` sheet transaksi
+- Preview bukti di detail transaksi (lightbox viewer)
 
 ### 5.6 Rekonsiliasi Bank (Sprint 5)
 - Input saldo bank aktual
@@ -156,8 +155,9 @@ Lihat detail lengkap di `DATABASE_SCHEMA.md`.
 
 ### 5.9 Logo & Branding (Sprint 6)
 - Upload logo masjid
-- Logo tampil di header dan laporan PDF
-- Simpan di Google Drive
+- Resize otomatis di client (max 200px) dan compress ke JPEG 80%
+- Simpan sebagai base64 data URL di kolom `logo_url` sheet master
+- Logo tampil di sidebar, halaman publik, dan laporan PDF
 
 ### 5.10 Multi-Masjid / Adopter (Sprint 6)
 - Dokumentasi adopsi untuk masjid lain
@@ -214,7 +214,7 @@ Fitur-fitur berikut **tidak termasuk** dalam scope v2.1, tapi bisa ditambahkan d
 
 | Komponen | Biaya/Bulan |
 |---|---|
-| Google Sheets + Drive | Gratis (15GB per Google account) |
+| Google Sheets | Gratis (logo & bukti disimpan sebagai base64 di Sheets) |
 | Vercel Hosting (Free tier) | Gratis |
 | Domain (opsional) | Rp 12.000 - Rp 150.000/tahun |
 | **Total** | **Rp 0 - Rp 12.500/bulan** |

@@ -54,11 +54,14 @@
 - `stale-while-revalidate=60` — Serve stale content selama 1 menit saat revalidating.
 - Ini mengurangi beban Google Sheets API karena multiple TV/monitor bisa share cache yang sama.
 
-### Logo Upload 500KB Max
-- Logo menggunakan limit lebih kecil dari bukti transaksi (500KB vs 1MB) karena logo tidak perlu resolusi tinggi.
-- Pattern upload sama dengan upload bukti: validasi tipe/ukuran → Buffer → `driveService.uploadFile()` → simpan URL di sheet master.
-- Nama file: `logo_masjid_{timestamp}.{ext}`.
+### Logo Upload sebagai Base64 Data URL (Tanpa Google Drive)
+- Logo **tidak menggunakan Google Drive** karena service account Gmail personal tidak punya storage quota.
+- Gambar di-resize client-side via Canvas API (max 200x200px) dan di-compress ke JPEG 80%.
+- Hasilnya disimpan sebagai base64 data URL langsung di kolom `logo_url` sheet master.
+- Limit: max 50.000 karakter per cell Google Sheets.
+- Validasi file di client: tipe (JPG/PNG only), ukuran (max 500KB sebelum resize).
 - Logo ditampilkan di sidebar (40x40, rounded), halaman publik (80x80 / 96x96 di lg), dan halaman pengaturan.
+- Menggunakan `<img>` tag (bukan Next.js `<Image>`) agar kompatibel dengan base64 data URL.
 
 ### Ganti PIN dengan Session Destroy
 - Flow: validasi PIN lama → hash PIN baru → update sheet master → audit log → `deleteSession()`.
@@ -116,10 +119,10 @@ src/
 ## Known Issues / Tech Debt (Keseluruhan Project)
 
 ### Dari Sprint 5 (masih berlaku)
-1. **No client-side image compression** — Upload bukti dan logo tanpa compression. Validasi ukuran file saja. Untuk MVP cukup.
+1. **~~No client-side image compression~~** — RESOLVED: Gambar di-resize dan compress client-side via Canvas API (bukti max 600px JPEG 70%, logo max 200px JPEG 80%).
 2. **No upload progress bar** — Upload menampilkan "Mengupload..." tanpa persentase.
-3. **Google Drive files di root** — Tidak ada folder organization (bukti/ dan logo/ terpisah). Semua file di root Drive service account.
-4. **ImagePreview menggunakan external URL** — `<img>` tag langsung ke Google Drive URL. Tidak menggunakan Next.js `<Image>` karena perlu konfigurasi domain.
+3. **~~Google Drive files di root~~** — RESOLVED: Tidak lagi menggunakan Google Drive. Semua gambar disimpan sebagai base64 data URL di cell Google Sheets.
+4. **~~ImagePreview menggunakan external URL~~** — RESOLVED: Menggunakan `<img>` tag dengan base64 data URL. Tidak ada dependency ke external URL.
 5. **rowToEntity() duplicated** — Fungsi konversi row-to-object diduplikasi di banyak route files. Bisa di-extract ke shared utility.
 
 ### Dari Sprint 6
@@ -127,7 +130,7 @@ src/
 7. **No E2E tests** — Tidak ada automated end-to-end test suite.
 8. **Adopter Guide belum di-finalize** — `docs/ADOPTER_GUIDE.md` belum di-review dan ditest end-to-end (fork → setup → deploy → first login).
 9. **No pagination di halaman publik** — Transaksi terakhir di TV display menampilkan 10 item tanpa pagination. Cukup untuk display.
-10. **Logo tidak di-resize server-side** — Logo diupload as-is (max 500KB). Tidak ada server-side resize. Browser handles scaling.
+10. **~~Logo tidak di-resize~~** — RESOLVED: Logo di-resize client-side via Canvas API (max 200x200px, JPEG 80%).
 11. **No CSRF protection** — API routes menggunakan cookie-based auth tanpa CSRF token. Mitigasi: SameSite=lax cookie.
 12. **No input sanitization** — Input ditampilkan as-is. XSS risk rendah karena React auto-escapes, tapi custom sanitization belum diterapkan.
 13. **Sidebar fetch master setiap page load** — DashboardShell fetch `/api/master` di setiap mount. Bisa di-cache dengan SWR atau React Context.

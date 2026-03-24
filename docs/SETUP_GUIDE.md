@@ -31,7 +31,6 @@ cd skm
 1. Buka **APIs & Services** → **Library**
 2. Cari dan aktifkan:
    - **Google Sheets API**
-   - **Google Drive API**
 
 ### 2.3 Buat Service Account
 
@@ -126,37 +125,23 @@ id | rekening_id | tanggal | saldo_bank | saldo_sistem | selisih | status | cata
 
 > **TIP**: Di Sprint 0, kita akan buat script otomatis untuk setup header dan seed data.
 
-## Langkah 4: Setup Google Drive Folder
+## Langkah 4: Environment Variables
 
-1. Buka [Google Drive](https://drive.google.com)
-2. Buat folder baru: `SKM - [Nama Masjid]`
-3. Di dalam folder, buat sub-folder:
-   - `bukti` — untuk foto bukti transaksi
-   - `logo` — untuk logo masjid
-4. Share folder dengan service account email (Editor access)
-5. Catat **Folder ID** dari URL:
-   ```
-   https://drive.google.com/drive/folders/[FOLDER_ID]
-   ```
+> **Catatan**: Google Drive **tidak diperlukan**. Logo dan bukti transaksi disimpan langsung sebagai base64 data URL di cell Google Sheets. Gambar otomatis di-resize dan compress di browser sebelum disimpan.
 
-## Langkah 5: Environment Variables
-
-### 5.1 Buat File `.env.local`
+### 4.1 Buat File `.env.local`
 
 ```bash
 cp .env.example .env.local
 ```
 
-### 5.2 Isi Environment Variables
+### 4.2 Isi Environment Variables
 
 ```env
 # Google Sheets
 GOOGLE_SHEETS_ID=your_spreadsheet_id_here
 GOOGLE_SERVICE_ACCOUNT_EMAIL=your-service@your-project.iam.gserviceaccount.com
 GOOGLE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\nYOUR_KEY_HERE\n-----END PRIVATE KEY-----\n"
-
-# Google Drive
-GOOGLE_DRIVE_FOLDER_ID=your_drive_folder_id_here
 
 # App Config
 NEXT_PUBLIC_APP_NAME=SKM
@@ -167,7 +152,7 @@ AUTH_SECRET=generate_random_string_32_chars_here
 PIN_SALT=generate_random_string_16_chars_here
 ```
 
-### 5.3 Catatan Penting untuk `GOOGLE_PRIVATE_KEY`
+### 4.3 Catatan Penting untuk `GOOGLE_PRIVATE_KEY`
 
 Private key dari file JSON credentials perlu di-handle dengan benar:
 
@@ -184,7 +169,7 @@ Private key dari file JSON credentials perlu di-handle dengan benar:
 npm run test:connection  # Script untuk test koneksi ke Google Sheets
 ```
 
-## Langkah 6: Install Dependencies & Run
+## Langkah 5: Install Dependencies & Run
 
 ```bash
 # Install dependencies
@@ -197,19 +182,19 @@ npm run dev
 # http://localhost:3000
 ```
 
-## Langkah 7: Vercel Deployment
+## Langkah 6: Vercel Deployment
 
-### 7.1 Connect Repository
+### 6.1 Connect Repository
 
 1. Buka [Vercel Dashboard](https://vercel.com)
 2. **Import Project** → pilih repository `familianto/skm`
 3. Framework: **Next.js** (auto-detected)
 
-### 7.2 Set Environment Variables
+### 6.2 Set Environment Variables
 
 Di Vercel project settings → **Environment Variables**, tambahkan semua variabel dari `.env.local`.
 
-### 7.3 Deploy
+### 6.3 Deploy
 
 Setiap push ke branch `main` akan auto-deploy.
 
@@ -234,11 +219,11 @@ Setiap push ke branch `main` akan auto-deploy.
 - Implementasi batch reads (baca beberapa range dalam 1 API call)
 - Tambah delay/retry dengan exponential backoff
 
-### Error: "File upload too large"
+### Error: "Ukuran bukti/logo terlalu besar"
 
-- Vercel serverless function body limit: 4.5MB
-- Compress image di client sebelum upload
-- Target: max 1MB per image setelah compression
+- Google Sheets cell limit: 50.000 karakter
+- Gambar di-resize otomatis client-side (logo max 200px, bukti max 600px)
+- Jika masih terlalu besar, gunakan gambar dengan resolusi lebih kecil
 
 ### Sheet tidak ditemukan
 
