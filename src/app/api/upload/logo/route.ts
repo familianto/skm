@@ -54,14 +54,10 @@ export async function POST(request: NextRequest) {
       const folderId = process.env.GOOGLE_DRIVE_FOLDER_ID;
       const fileId = await driveService.uploadFile(buffer, fileName, file.type, folderId);
       logoUrl = driveService.getThumbnailUrl(fileId);
-    } catch (driveError: unknown) {
+    } catch (driveError) {
       console.error('Google Drive upload failed:', driveError);
-      const errMsg = driveError instanceof Error ? driveError.message : String(driveError);
-      const hasFolderId = !!process.env.GOOGLE_DRIVE_FOLDER_ID;
-      const hasEmail = !!process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
-      const hasKey = !!process.env.GOOGLE_PRIVATE_KEY;
       return NextResponse.json<ApiResponse<null>>(
-        { success: false, error: `Gagal upload logo: ${errMsg} [folder=${hasFolderId}, email=${hasEmail}, key=${hasKey}]` },
+        { success: false, error: 'Gagal mengupload logo. Pastikan Google Drive sudah dikonfigurasi.' },
         { status: 503 }
       );
     }
