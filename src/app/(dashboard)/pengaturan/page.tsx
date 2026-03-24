@@ -3,7 +3,6 @@
 import { useState, useEffect, useCallback, FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import Image from 'next/image';
 import { PageTitle } from '@/components/layout/page-title';
 import { Card, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -126,21 +125,58 @@ function ProfilTab() {
     }
   };
 
+  const resizeImageToDataUrl = (file: File, maxSize: number): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const img = document.createElement('img');
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        let { width, height } = img;
+        if (width > maxSize || height > maxSize) {
+          if (width > height) {
+            height = Math.round((height * maxSize) / width);
+            width = maxSize;
+          } else {
+            width = Math.round((width * maxSize) / height);
+            height = maxSize;
+          }
+        }
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) { reject(new Error('Canvas not supported')); return; }
+        ctx.drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL('image/jpeg', 0.8));
+      };
+      img.onerror = () => reject(new Error('Gagal membaca gambar.'));
+      img.src = URL.createObjectURL(file);
+    });
+  };
+
   const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+
+    if (!['image/jpeg', 'image/png', 'image/jpg'].includes(file.type)) {
+      setError('Hanya file JPG dan PNG yang diperbolehkan.');
+      return;
+    }
+
+    if (file.size > 500 * 1024) {
+      setError('Ukuran file logo maksimal 500KB.');
+      return;
+    }
 
     setUploadingLogo(true);
     setMessage('');
     setError('');
 
-    const formData = new FormData();
-    formData.append('file', file);
-
     try {
+      const logoDataUrl = await resizeImageToDataUrl(file, 200);
+
       const res = await fetch('/api/upload/logo', {
         method: 'POST',
-        body: formData,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ logoDataUrl }),
       });
       const json = await res.json();
       if (json.success) {
@@ -170,7 +206,8 @@ function ProfilTab() {
         <div className="mt-4 flex items-center gap-6">
           <div className="w-20 h-20 rounded-full bg-gray-100 flex items-center justify-center overflow-hidden border-2 border-gray-200">
             {master?.logo_url ? (
-              <Image src={master.logo_url} alt="Logo" width={80} height={80} className="w-full h-full object-cover" unoptimized />
+              /* eslint-disable-next-line @next/next/no-img-element */
+              <img src={master.logo_url} alt="Logo" width={80} height={80} className="w-full h-full object-cover" />
             ) : (
               <svg className="w-10 h-10 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
