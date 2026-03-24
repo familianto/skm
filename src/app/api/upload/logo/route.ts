@@ -2,14 +2,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import { sheetsService } from '@/lib/google-sheets';
 import { SHEET_NAMES, SHEET_HEADERS } from '@/lib/constants';
 import { logAudit } from '@/lib/audit';
-import { driveService } from '@/lib/google-drive';
 import { AuditAksi } from '@/types';
 import type { ApiResponse } from '@/types';
 import { nowISO } from '@/lib/utils';
 import { getSession } from '@/lib/auth';
 
-const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/jpg'];
-const MAX_SIZE_BYTES = 500 * 1024; // 500KB for logo
+// Max base64 data URL size (~40KB image = ~55K chars base64, fits in Sheets cell limit of 50K)
+const MAX_DATA_URL_LENGTH = 50_000;
 
 export async function POST(request: NextRequest) {
   try {
@@ -21,48 +20,24 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const formData = await request.formData();
-    const file = formData.get('file') as File | null;
+    const body = await request.json();
+    const { logoDataUrl } = body as { logoDataUrl?: string };
 
-    if (!file) {
+    if (!logoDataUrl || !logoDataUrl.startsWith('data:image/')) {
       return NextResponse.json<ApiResponse<null>>(
-        { success: false, error: 'File wajib diupload.' },
+        { success: false, error: 'Data logo tidak valid.' },
         { status: 400 }
       );
     }
 
-    if (!ALLOWED_TYPES.includes(file.type)) {
+    if (logoDataUrl.length > MAX_DATA_URL_LENGTH) {
       return NextResponse.json<ApiResponse<null>>(
-        { success: false, error: 'Hanya file JPG dan PNG yang diperbolehkan.' },
+        { success: false, error: 'Ukuran logo terlalu besar. Coba gunakan gambar yang lebih kecil.' },
         { status: 400 }
       );
     }
 
-    if (file.size > MAX_SIZE_BYTES) {
-      return NextResponse.json<ApiResponse<null>>(
-        { success: false, error: 'Ukuran file logo maksimal 500KB.' },
-        { status: 400 }
-      );
-    }
-
-    // Upload to Google Drive
-    const buffer = Buffer.from(await file.arrayBuffer());
-    const fileName = `logo_masjid_${Date.now()}.${file.type === 'image/png' ? 'png' : 'jpg'}`;
-
-    let logoUrl: string;
-    try {
-      const folderId = process.env.GOOGLE_DRIVE_FOLDER_ID;
-      const fileId = await driveService.uploadFile(buffer, fileName, file.type, folderId);
-      logoUrl = driveService.getThumbnailUrl(fileId);
-    } catch (driveError) {
-      console.error('Google Drive upload failed:', driveError);
-      return NextResponse.json<ApiResponse<null>>(
-        { success: false, error: 'Gagal mengupload logo. Pastikan Google Drive sudah dikonfigurasi.' },
-        { status: 503 }
-      );
-    }
-
-    // Update master row with logo_url
+    // Update master row with logo as base64 data URL
     const rows = await sheetsService.getRows(SHEET_NAMES.MASTER);
     if (rows.length === 0) {
       return NextResponse.json<ApiResponse<null>>(
@@ -77,7 +52,7 @@ export async function POST(request: NextRequest) {
 
     const logoUrlIndex = headers.indexOf('logo_url');
     const updatedAtIndex = headers.indexOf('updated_at');
-    row[logoUrlIndex] = logoUrl;
+    row[logoUrlIndex] = logoDataUrl;
     row[updatedAtIndex] = nowISO();
 
     await sheetsService.updateRow(SHEET_NAMES.MASTER, 2, row);
@@ -85,13 +60,13 @@ export async function POST(request: NextRequest) {
     try {
       await logAudit(
         AuditAksi.UPDATE, SHEET_NAMES.MASTER, row[0],
-        JSON.stringify({ logo_url: logoUrl }),
+        JSON.stringify({ logo_url: 'base64_data_url' }),
         session.role || 'Bendahara'
       );
     } catch { /* audit failure should not block */ }
 
     return NextResponse.json<ApiResponse<{ logo_url: string }>>(
-      { success: true, data: { logo_url: logoUrl } }
+      { success: true, data: { logo_url: logoDataUrl } }
     );
   } catch (error) {
     console.error('POST /api/upload/logo error:', error);
