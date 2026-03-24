@@ -143,6 +143,14 @@ GOOGLE_SHEETS_ID=your_spreadsheet_id_here
 GOOGLE_SERVICE_ACCOUNT_EMAIL=your-service@your-project.iam.gserviceaccount.com
 GOOGLE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\nYOUR_KEY_HERE\n-----END PRIVATE KEY-----\n"
 
+# Google OAuth
+GOOGLE_CLIENT_ID=your_client_id_here
+GOOGLE_CLIENT_SECRET=your_client_secret_here
+
+# NextAuth
+NEXTAUTH_URL=http://localhost:3000
+NEXTAUTH_SECRET=generate_random_string_32_chars_here
+
 # App Config
 NEXT_PUBLIC_APP_NAME=SKM
 NEXT_PUBLIC_APP_VERSION=2.1
@@ -150,6 +158,9 @@ NEXT_PUBLIC_APP_VERSION=2.1
 # Auth
 AUTH_SECRET=generate_random_string_32_chars_here
 PIN_SALT=generate_random_string_16_chars_here
+
+# Fonnte WhatsApp API
+FONNTE_API_TOKEN=your_fonnte_api_token_here
 ```
 
 ### 4.3 Catatan Penting untuk `GOOGLE_PRIVATE_KEY`

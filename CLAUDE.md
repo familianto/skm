@@ -102,13 +102,24 @@ GOOGLE_SHEETS_ID=               # ID spreadsheet dari URL
 GOOGLE_SERVICE_ACCOUNT_EMAIL=   # Email service account
 GOOGLE_PRIVATE_KEY=             # Private key dari credentials JSON
 
+# Google OAuth
+GOOGLE_CLIENT_ID=               # Client ID dari Google Cloud Console
+GOOGLE_CLIENT_SECRET=           # Client Secret dari Google Cloud Console
+
+# NextAuth
+NEXTAUTH_URL=                   # URL aplikasi (http://localhost:3000 untuk dev)
+NEXTAUTH_SECRET=                # Secret untuk NextAuth session
+
 # App
 NEXT_PUBLIC_APP_NAME=SKM
-NEXT_PUBLIC_MASJID_NAME=        # Nama masjid (opsional, bisa dari sheet master)
+NEXT_PUBLIC_APP_VERSION=2.1
 
 # Auth
 AUTH_SECRET=                    # Secret untuk session/cookie encryption
 PIN_SALT=                       # Salt untuk hashing PIN
+
+# Fonnte WhatsApp API
+FONNTE_API_TOKEN=               # Token API dari fonnte.com
 ```
 
 ## Common Pitfalls
