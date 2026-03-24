@@ -68,7 +68,8 @@ export async function POST(request: NextRequest) {
 
     let buktiUrl: string;
     try {
-      const fileId = await driveService.uploadFile(buffer, fileName, file.type);
+      const folderId = process.env.GOOGLE_DRIVE_FOLDER_ID;
+      const fileId = await driveService.uploadFile(buffer, fileName, file.type, folderId);
       buktiUrl = driveService.getFileUrl(fileId);
     } catch (driveError) {
       console.error('Google Drive upload failed:', driveError);

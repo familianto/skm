@@ -51,8 +51,9 @@ export async function POST(request: NextRequest) {
 
     let logoUrl: string;
     try {
-      const fileId = await driveService.uploadFile(buffer, fileName, file.type);
-      logoUrl = driveService.getFileUrl(fileId);
+      const folderId = process.env.GOOGLE_DRIVE_FOLDER_ID;
+      const fileId = await driveService.uploadFile(buffer, fileName, file.type, folderId);
+      logoUrl = driveService.getThumbnailUrl(fileId);
     } catch (driveError) {
       console.error('Google Drive upload failed:', driveError);
       return NextResponse.json<ApiResponse<null>>(
