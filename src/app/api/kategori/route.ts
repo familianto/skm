@@ -29,6 +29,15 @@ export async function GET(request: NextRequest) {
       kategoris = kategoris.filter((k) => k.jenis === jenis);
     }
 
+    // Sort alphabetically, but keep "Lain-lain…" entries at the end
+    kategoris.sort((a, b) => {
+      const aIsLain = a.nama.toLowerCase().startsWith('lain-lain');
+      const bIsLain = b.nama.toLowerCase().startsWith('lain-lain');
+      if (aIsLain && !bIsLain) return 1;
+      if (!aIsLain && bIsLain) return -1;
+      return a.nama.localeCompare(b.nama, 'id');
+    });
+
     return NextResponse.json<ApiResponse<Kategori[]>>(
       { success: true, data: kategoris, meta: { total: kategoris.length } }
     );
