@@ -25,12 +25,17 @@ export function TransactionForm({ initialData, mode, koreksiDariId }: Transactio
   const [submitting, setSubmitting] = useState(false);
   const [voidOriginal, setVoidOriginal] = useState(false);
 
+  const formatRupiah = (value: string) => {
+    const digits = value.replace(/[^\d]/g, '');
+    return digits.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+  };
+
   const [form, setForm] = useState({
     tanggal: initialData?.tanggal || todayISO(),
     jenis: initialData?.jenis || TransaksiJenis.MASUK,
     kategori_id: initialData?.kategori_id || '',
     deskripsi: initialData?.deskripsi || '',
-    jumlah: initialData?.jumlah?.toString() || '',
+    jumlah: initialData?.jumlah ? formatRupiah(initialData.jumlah.toString()) : '',
     rekening_id: initialData?.rekening_id || '',
   });
 
@@ -160,10 +165,11 @@ export function TransactionForm({ initialData, mode, koreksiDariId }: Transactio
 
         <Input
           label="Jumlah (Rp)"
-          type="number"
+          type="text"
+          inputMode="numeric"
           value={form.jumlah}
-          onChange={(e) => setForm((f) => ({ ...f, jumlah: e.target.value }))}
-          placeholder="Contoh: 1500000"
+          onChange={(e) => setForm((f) => ({ ...f, jumlah: formatRupiah(e.target.value) }))}
+          placeholder="Contoh: 1.500.000"
         />
 
         <div>
