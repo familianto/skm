@@ -38,6 +38,8 @@ export async function GET(request: NextRequest) {
     const tahun = searchParams.get('tahun') || new Date().getFullYear().toString();
     const bulan = searchParams.get('bulan');
     const type = searchParams.get('type') || 'ringkasan'; // ringkasan or detail
+    const kategoriParam = searchParams.get('kategori');
+    const kategoriIds = kategoriParam ? kategoriParam.split(',').filter(Boolean) : [];
 
     // Fetch data
     const [transaksiRows, kategoriRows, masterRows] = await sheetsService.batchGet([
@@ -66,12 +68,22 @@ export async function GET(request: NextRequest) {
       transaksis = transaksis.filter(t => t.tanggal.startsWith(monthPrefix));
     }
 
+    // Apply kategori filter
+    if (kategoriIds.length > 0) {
+      transaksis = transaksis.filter(t => kategoriIds.includes(t.kategori_id));
+    }
+
     transaksis.sort((a, b) => a.tanggal.localeCompare(b.tanggal));
 
     // Period label
     const periode = bulan
       ? `${BULAN_NAMES[parseInt(bulan, 10)]} ${tahun}`
       : `Tahun ${tahun}`;
+
+    // Kategori filter label for PDF title
+    const kategoriFilterLabel = kategoriIds.length > 0
+      ? kategoriIds.map(id => kategoriMap.get(id) || id).join(', ')
+      : '';
 
     // Generate PDF
     const doc = new jsPDF();
@@ -98,14 +110,20 @@ export async function GET(request: NextRequest) {
     doc.setFontSize(10);
     doc.setFont('helvetica', 'normal');
     doc.text(`Periode: ${periode}`, pageWidth / 2, 46, { align: 'center' });
+    if (kategoriFilterLabel) {
+      doc.setFontSize(9);
+      doc.text(`Kategori: ${kategoriFilterLabel}`, pageWidth / 2, 51, { align: 'center' });
+    }
 
     const totalMasuk = transaksis.filter(t => t.jenis === TransaksiJenis.MASUK).reduce((s, t) => s + t.jumlah, 0);
     const totalKeluar = transaksis.filter(t => t.jenis === TransaksiJenis.KELUAR).reduce((s, t) => s + t.jumlah, 0);
     const saldo = totalMasuk - totalKeluar;
 
+    const contentStartY = kategoriFilterLabel ? 60 : 56;
+
     if (type === 'ringkasan') {
       // Summary section
-      let y = 56;
+      let y = contentStartY;
       doc.setFontSize(11);
       doc.setFont('helvetica', 'bold');
       doc.text('Ringkasan', 14, y);
@@ -203,7 +221,7 @@ export async function GET(request: NextRequest) {
       tableBody.push(['', '', 'Saldo', '', formatRupiah(saldo)]);
 
       autoTable(doc, {
-        startY: 54,
+        startY: contentStartY - 2,
         head: [['Tanggal', 'Deskripsi', 'Kategori', 'Masuk', 'Keluar']],
         body: tableBody,
         theme: 'grid',

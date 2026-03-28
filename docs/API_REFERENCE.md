@@ -424,6 +424,7 @@ Ambil ringkasan keuangan.
 |---|---|---|---|
 | `tahun` | string | current year | Tahun buku |
 | `bulan` | string | - | Bulan spesifik (opsional) |
+| `kategori` | string | - | Comma-separated kategori IDs (opsional). Filter transaksi berdasarkan kategori. |
 
 **Response (200):**
 ```json
@@ -478,6 +479,7 @@ Generate laporan PDF.
 | `tahun` | string | Tahun buku |
 | `bulan` | string | Bulan (opsional) |
 | `type` | enum | `ringkasan` atau `detail` |
+| `kategori` | string | Comma-separated kategori IDs (opsional). Jika diisi, hanya transaksi dari kategori tersebut yang dimasukkan. Judul PDF akan mencantumkan nama kategori yang difilter. |
 
 **Response**: PDF file (application/pdf)
 
@@ -490,6 +492,7 @@ Export data transaksi ke Excel.
 |---|---|---|
 | `tahun` | string | Tahun buku |
 | `bulan` | string | Bulan (opsional) |
+| `kategori` | string | Comma-separated kategori IDs (opsional). Jika diisi, hanya transaksi dari kategori tersebut yang dimasukkan. Header Excel akan mencantumkan nama kategori yang difilter. |
 
 **Response**: Excel file (application/vnd.openxmlformats-officedocument.spreadsheetml.sheet)
 

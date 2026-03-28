@@ -117,11 +117,12 @@ Lihat detail lengkap di `DATABASE_SCHEMA.md`.
 
 ### 5.3 Dashboard & Laporan (Sprint 4)
 - **Kartu ringkasan**: Total masuk, total keluar, saldo
-- **Grafik tren bulanan**: Line chart pemasukan vs pengeluaran
-- **Grafik kategori**: Pie/bar chart breakdown per kategori
-- **Filter periode**: Pilih rentang tanggal
-- **Export PDF**: Laporan keuangan format PDF
-- **Export Excel**: Data transaksi format spreadsheet
+- **Grafik tren bulanan**: Bar chart pemasukan vs pengeluaran per bulan
+- **Grafik kategori**: Pie/donut chart breakdown per kategori (top 5 + Lainnya)
+- **Filter periode**: Pilih tahun dan bulan
+- **Filter kategori**: Multi-select kategori untuk laporan (dikelompokkan per jenis MASUK/KELUAR)
+- **Export PDF**: Laporan keuangan format PDF (ringkasan/detail), dengan filter kategori opsional
+- **Export Excel**: Data transaksi format spreadsheet (2 sheets: Ringkasan + Detail), dengan filter kategori opsional
 
 ### 5.4 Void & Koreksi (Sprint 5)
 - **Void**: Batalkan transaksi yang salah (status → VOID, wajib isi alasan)

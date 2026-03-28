@@ -161,3 +161,19 @@ src/
 - [ ] TypeScript: no errors
 - [ ] Tests pass
 - [ ] Build pass
+
+---
+
+## Post-Sprint Enhancement
+
+### Filter Kategori di Halaman Laporan (2026-03-28)
+
+Ditambahkan multi-select filter kategori di halaman Laporan (`/laporan`):
+
+- **UI**: Dropdown multi-select dengan checkbox, dikelompokkan berdasarkan jenis (Pemasukan / Pengeluaran)
+- **Default**: "Semua Kategori" (perilaku sama seperti sebelumnya)
+- **Preview**: Ringkasan di halaman berubah sesuai kategori yang dipilih
+- **Export PDF**: Query param `kategori` (comma-separated IDs). Judul PDF mencantumkan nama kategori yang difilter
+- **Export Excel**: Query param `kategori` (comma-separated IDs). Header Excel mencantumkan nama kategori yang difilter
+- **API**: Parameter `kategori` ditambahkan ke `/api/dashboard/summary`, `/api/export/pdf`, dan `/api/export/excel`
+- **Use case**: Generate laporan khusus (misal: laporan pertanggungjawaban Qurban) dengan memilih kategori terkait

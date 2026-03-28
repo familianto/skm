@@ -35,10 +35,12 @@ export interface ChartData {
   data: MonthlyTrendItem[] | CategoryBreakdownItem[];
 }
 
-export function useDashboardSummary(tahun?: string, bulan?: string) {
+export function useDashboardSummary(tahun?: string, bulan?: string, kategoriIds?: string[]) {
   const [data, setData] = useState<DashboardSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const kategoriKey = kategoriIds?.sort().join(',') || '';
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -47,6 +49,9 @@ export function useDashboardSummary(tahun?: string, bulan?: string) {
       const params = new URLSearchParams();
       if (tahun) params.set('tahun', tahun);
       if (bulan) params.set('bulan', bulan);
+      if (kategoriIds && kategoriIds.length > 0) {
+        params.set('kategori', kategoriIds.join(','));
+      }
       const qs = params.toString();
       const url = qs ? `/api/dashboard/summary?${qs}` : '/api/dashboard/summary';
       const res = await fetch(url);
@@ -61,7 +66,8 @@ export function useDashboardSummary(tahun?: string, bulan?: string) {
     } finally {
       setLoading(false);
     }
-  }, [tahun, bulan]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tahun, bulan, kategoriKey]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
