@@ -43,6 +43,8 @@ export async function GET(request: NextRequest) {
     const { searchParams } = request.nextUrl;
     const tahun = searchParams.get('tahun');
     const bulan = searchParams.get('bulan');
+    const kategoriParam = searchParams.get('kategori');
+    const kategoriIds = kategoriParam ? kategoriParam.split(',').filter(Boolean) : [];
 
     // Batch fetch transaksi and rekening in a single API call
     const [transaksiRows, rekeningRows] = await sheetsService.batchGet([
@@ -65,6 +67,11 @@ export async function GET(request: NextRequest) {
       transaksis = transaksis.filter(t =>
         tahun ? t.tanggal.startsWith(monthPrefix) : t.tanggal.includes(monthPrefix)
       );
+    }
+
+    // Apply kategori filter
+    if (kategoriIds.length > 0) {
+      transaksis = transaksis.filter(t => kategoriIds.includes(t.kategori_id));
     }
 
     const totalMasuk = transaksis

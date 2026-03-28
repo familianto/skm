@@ -35,6 +35,8 @@ export async function GET(request: NextRequest) {
     const { searchParams } = request.nextUrl;
     const tahun = searchParams.get('tahun') || new Date().getFullYear().toString();
     const bulan = searchParams.get('bulan');
+    const kategoriParam = searchParams.get('kategori');
+    const kategoriIds = kategoriParam ? kategoriParam.split(',').filter(Boolean) : [];
 
     // Fetch data
     const [transaksiRows, kategoriRows, masterRows] = await sheetsService.batchGet([
@@ -62,11 +64,20 @@ export async function GET(request: NextRequest) {
       transaksis = transaksis.filter(t => t.tanggal.startsWith(monthPrefix));
     }
 
+    // Apply kategori filter
+    if (kategoriIds.length > 0) {
+      transaksis = transaksis.filter(t => kategoriIds.includes(t.kategori_id));
+    }
+
     transaksis.sort((a, b) => a.tanggal.localeCompare(b.tanggal));
 
     const periode = bulan
       ? `${BULAN_NAMES[parseInt(bulan, 10)]} ${tahun}`
       : `Tahun ${tahun}`;
+
+    const kategoriFilterLabel = kategoriIds.length > 0
+      ? kategoriIds.map(id => kategoriMap.get(id) || id).join(', ')
+      : '';
 
     const totalMasuk = transaksis.filter(t => t.jenis === TransaksiJenis.MASUK).reduce((s, t) => s + t.jumlah, 0);
     const totalKeluar = transaksis.filter(t => t.jenis === TransaksiJenis.KELUAR).reduce((s, t) => s + t.jumlah, 0);
@@ -88,10 +99,16 @@ export async function GET(request: NextRequest) {
     wsRingkasan.mergeCells('A2:D2');
     wsRingkasan.getCell('A2').value = `Laporan Keuangan - ${periode}`;
     wsRingkasan.getCell('A2').font = { bold: true, size: 11 };
+    if (kategoriFilterLabel) {
+      wsRingkasan.mergeCells('A3:D3');
+      wsRingkasan.getCell('A3').value = `Kategori: ${kategoriFilterLabel}`;
+      wsRingkasan.getCell('A3').font = { italic: true, size: 10, color: { argb: 'FF666666' } };
+    }
 
     // Summary table
-    wsRingkasan.getCell('A4').value = 'Ringkasan';
-    wsRingkasan.getCell('A4').font = { bold: true, size: 12 };
+    const ringkasanStartRow = kategoriFilterLabel ? 'A5' : 'A4';
+    wsRingkasan.getCell(ringkasanStartRow).value = 'Ringkasan';
+    wsRingkasan.getCell(ringkasanStartRow).font = { bold: true, size: 12 };
 
     const summaryData = [
       ['Keterangan', 'Jumlah'],
@@ -170,6 +187,11 @@ export async function GET(request: NextRequest) {
     wsDetail.mergeCells('A2:F2');
     wsDetail.getCell('A2').value = `Detail Transaksi - ${periode}`;
     wsDetail.getCell('A2').font = { bold: true, size: 11 };
+    if (kategoriFilterLabel) {
+      wsDetail.mergeCells('A3:F3');
+      wsDetail.getCell('A3').value = `Kategori: ${kategoriFilterLabel}`;
+      wsDetail.getCell('A3').font = { italic: true, size: 10, color: { argb: 'FF666666' } };
+    }
 
     const detailHeader = wsDetail.addRow([]);
     detailHeader.values = ['No', 'Tanggal', 'Deskripsi', 'Kategori', 'Masuk', 'Keluar'];
