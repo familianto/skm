@@ -9,7 +9,7 @@ Sistem manajemen keuangan masjid berbasis web yang transparan, akuntabel, dan mu
 - **Rekonsiliasi Bank** — Bandingkan saldo sistem dengan saldo bank aktual
 - **Void & Koreksi** — Batalkan atau koreksi transaksi yang salah dengan audit trail
 - **Upload Bukti** — Lampirkan foto bukti transaksi (struk, kwitansi)
-- **Export Laporan** — Download laporan dalam format PDF atau Excel, dengan filter kategori
+- **Export Laporan** — Download laporan dalam format PDF atau Excel, dengan filter kategori per jenis (Masuk/Keluar)
 - **Display Publik** — Halaman read-only untuk ditampilkan di TV/monitor masjid
 - **Multi-Masjid** — Dapat diadopsi oleh masjid lain dengan mudah
 

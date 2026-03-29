@@ -121,7 +121,7 @@ Lihat detail lengkap di `DATABASE_SCHEMA.md`.
 - **Grafik kategori**: Pie/donut chart breakdown per kategori (top 5 + Lainnya)
 - **Filter periode**: Pilih tahun dan bulan
 - **Filter kategori**: Multi-select kategori untuk laporan (dikelompokkan per jenis MASUK/KELUAR)
-- **Export PDF**: Laporan keuangan format PDF (ringkasan/detail), dengan filter kategori opsional
+- **Export PDF**: Laporan keuangan format PDF (ringkasan/detail), dengan filter kategori opsional (dikelompokkan per jenis MASUK/KELUAR di judul)
 - **Export Excel**: Data transaksi format spreadsheet (2 sheets: Ringkasan + Detail), dengan filter kategori opsional
 
 ### 5.4 Void & Koreksi (Sprint 5)
