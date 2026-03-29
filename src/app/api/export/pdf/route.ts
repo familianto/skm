@@ -80,10 +80,24 @@ export async function GET(request: NextRequest) {
       ? `${BULAN_NAMES[parseInt(bulan, 10)]} ${tahun}`
       : `Tahun ${tahun}`;
 
-    // Kategori filter label for PDF title
-    const kategoriFilterLabel = kategoriIds.length > 0
-      ? kategoriIds.map(id => kategoriMap.get(id) || id).join(', ')
-      : '';
+    // Kategori filter label for PDF title — grouped by jenis
+    const kategoriJenisMap = new Map(kategoriList.map(k => [k.id, k.jenis]));
+    let kategoriFilterLines: string[] = [];
+    if (kategoriIds.length > 0) {
+      const masukNames = kategoriIds
+        .filter(id => kategoriJenisMap.get(id) === TransaksiJenis.MASUK)
+        .map(id => kategoriMap.get(id) || id);
+      const keluarNames = kategoriIds
+        .filter(id => kategoriJenisMap.get(id) === TransaksiJenis.KELUAR)
+        .map(id => kategoriMap.get(id) || id);
+
+      if (masukNames.length > 0) {
+        kategoriFilterLines.push(`Kategori Masuk: ${masukNames.join(', ')}`);
+      }
+      if (keluarNames.length > 0) {
+        kategoriFilterLines.push(`Kategori Keluar: ${keluarNames.join(', ')}`);
+      }
+    }
 
     // Generate PDF
     const doc = new jsPDF();
@@ -110,16 +124,27 @@ export async function GET(request: NextRequest) {
     doc.setFontSize(10);
     doc.setFont('helvetica', 'normal');
     doc.text(`Periode: ${periode}`, pageWidth / 2, 46, { align: 'center' });
-    if (kategoriFilterLabel) {
+    const tableMarginLeft = 14;
+    const tableMarginRight = 14;
+    const maxTextWidth = pageWidth - tableMarginLeft - tableMarginRight;
+    let nextY = 51;
+
+    if (kategoriFilterLines.length > 0) {
       doc.setFontSize(9);
-      doc.text(`Kategori: ${kategoriFilterLabel}`, pageWidth / 2, 51, { align: 'center' });
+      doc.setFont('helvetica', 'normal');
+      for (const line of kategoriFilterLines) {
+        const wrapped = doc.splitTextToSize(line, maxTextWidth) as string[];
+        doc.text(wrapped, pageWidth / 2, nextY, { align: 'center' });
+        nextY += wrapped.length * 4; // ~4pt per line at font size 9
+      }
+      nextY += 2; // small gap before content
     }
 
     const totalMasuk = transaksis.filter(t => t.jenis === TransaksiJenis.MASUK).reduce((s, t) => s + t.jumlah, 0);
     const totalKeluar = transaksis.filter(t => t.jenis === TransaksiJenis.KELUAR).reduce((s, t) => s + t.jumlah, 0);
     const saldo = totalMasuk - totalKeluar;
 
-    const contentStartY = kategoriFilterLabel ? 60 : 56;
+    const contentStartY = kategoriFilterLines.length > 0 ? nextY : 56;
 
     if (type === 'ringkasan') {
       // Summary section
