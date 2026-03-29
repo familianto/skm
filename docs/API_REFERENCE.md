@@ -479,7 +479,7 @@ Generate laporan PDF.
 | `tahun` | string | Tahun buku |
 | `bulan` | string | Bulan (opsional) |
 | `type` | enum | `ringkasan` atau `detail` |
-| `kategori` | string | Comma-separated kategori IDs (opsional). Jika diisi, hanya transaksi dari kategori tersebut yang dimasukkan. Judul PDF akan mencantumkan nama kategori yang difilter. |
+| `kategori` | string | Comma-separated kategori IDs (opsional). Jika diisi, hanya transaksi dari kategori tersebut yang dimasukkan. Judul PDF mencantumkan nama kategori yang difilter, dikelompokkan berdasarkan jenis (Kategori Masuk / Kategori Keluar). Teks kategori mengikuti margin tabel dan otomatis wrap jika terlalu panjang. |
 
 **Response**: PDF file (application/pdf)
 
