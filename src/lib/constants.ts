@@ -84,6 +84,13 @@ export const DEFAULT_CATEGORIES = {
   ],
 };
 
+// Rate limiting config
+export const RATE_LIMIT = {
+  MAX_ATTEMPTS: 5,
+  LOCKOUT_DURATION_MS: 5 * 60 * 1000, // 5 minutes
+  WARNING_THRESHOLD: 3, // Show remaining attempts after this many failures
+} as const;
+
 // App config
 export const APP_CONFIG = {
   NAME: 'SKM',
