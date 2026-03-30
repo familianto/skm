@@ -147,6 +147,8 @@ Lihat detail lengkap di `DATABASE_SCHEMA.md`.
 - Session berbasis cookie (HTTP-only)
 - Middleware proteksi untuk semua halaman kecuali login
 - Cocok untuk device bersama di masjid
+- **Rate limiting**: Maksimal 5x percobaan login gagal berturut-turut, setelahnya akun di-lock selama 5 menit dengan countdown timer real-time
+- **Warning visual**: Peringatan sisa percobaan setelah gagal ke-3 dengan border merah pada input
 
 ### 5.8 TV Display Publik (Sprint 6)
 - Halaman read-only untuk ditampilkan di TV/monitor masjid

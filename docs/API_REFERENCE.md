@@ -70,6 +70,50 @@ Login dengan PIN.
 - Set HTTP-only session cookie
 - Tulis audit log (`LOGIN`)
 
+#### Rate Limiting
+
+Endpoint ini dilindungi oleh mekanisme rate limiting untuk mencegah brute force attack.
+
+| Parameter | Nilai |
+|---|---|
+| Maksimum percobaan | 5x berturut-turut |
+| Durasi lockout | 5 menit |
+| Warning threshold | Setelah gagal ke-3 |
+| Tracking | Server-side (in-memory per IP) + Client-side (localStorage) |
+
+**Response saat locked (429):**
+```json
+{
+  "success": false,
+  "error": "Terlalu banyak percobaan login. Silakan coba lagi nanti.",
+  "data": {
+    "locked": true,
+    "lockoutUntil": 1711234567890,
+    "remainingAttempts": 0
+  }
+}
+```
+
+**Response saat warning (401, setelah gagal ke-3):**
+```json
+{
+  "success": false,
+  "error": "PIN salah. Sisa 2 percobaan sebelum akun di-lock.",
+  "data": {
+    "locked": false,
+    "remainingAttempts": 2,
+    "attemptCount": 3
+  }
+}
+```
+
+**Behavior:**
+- Setelah 5x gagal berturut-turut → HTTP 429, locked selama 5 menit
+- Setelah gagal ke-3 → pesan warning dengan sisa percobaan
+- Login berhasil → reset counter ke 0
+- Lockout expired → counter otomatis reset
+- Client-side: countdown timer real-time, persist via localStorage
+
 ---
 
 ### `POST /api/auth/logout`
