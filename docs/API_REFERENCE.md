@@ -506,8 +506,8 @@ Ambil ringkasan keuangan.
 **Query Parameters:**
 | Param | Type | Default | Deskripsi |
 |---|---|---|---|
-| `tahun` | string | current year | Tahun buku |
-| `bulan` | string | - | Bulan spesifik (opsional) |
+| `tahun` | string | current year | Tahun buku. Gunakan `all` untuk semua tahun. |
+| `bulan` | string | - | Bulan spesifik (opsional). Jika tahun=all, filter bulan diterapkan lintas tahun. |
 | `kategori` | string | - | Comma-separated kategori IDs (opsional). Filter transaksi berdasarkan kategori. |
 
 **Response (200):**
@@ -542,19 +542,29 @@ Ambil data kumulatif all-time (lintas tahun) beserta tren tahunan.
     "totalKeluar": 100000000,
     "saldo": 50000000,
     "jumlahTransaksi": 3208,
+    "jumlahMasuk": 1500,
+    "jumlahKeluar": 1708,
     "yearlyTrend": [
-      { "tahun": "2024", "masuk": 20000000, "keluar": 15000000 },
       { "tahun": "2025", "masuk": 80000000, "keluar": 55000000 },
       { "tahun": "2026", "masuk": 50000000, "keluar": 30000000 }
-    ]
+    ],
+    "categoryBreakdown": {
+      "masuk": [
+        { "kategori_id": "KAT-001", "nama": "Infaq", "jumlah": 80000000, "persentase": 53.33 }
+      ],
+      "keluar": [
+        { "kategori_id": "KAT-002", "nama": "Listrik", "jumlah": 30000000, "persentase": 30 }
+      ]
+    }
   }
 }
 ```
 
 **Catatan:**
 - Semua transaksi aktif (status `AKTIF`) dihitung, tanpa filter periode.
-- `yearlyTrend` diurutkan berdasarkan tahun ascending, dinamis dari data yang ada.
-- Tahun-tahun dengan data parsial (misal: 2024 hanya Desember) ditampilkan apa adanya.
+- `yearlyTrend` diurutkan berdasarkan tahun ascending, mulai dari 2025 (exclude data parsial sebelumnya).
+- `jumlahMasuk` dan `jumlahKeluar` menunjukkan jumlah transaksi per jenis.
+- `categoryBreakdown` menampilkan top 10 kategori + "Lainnya" per jenis, diurutkan by jumlah descending.
 
 ### `GET /api/dashboard/chart-data`
 
@@ -589,8 +599,8 @@ Generate laporan PDF.
 **Query Parameters:**
 | Param | Type | Deskripsi |
 |---|---|---|
-| `tahun` | string | Tahun buku |
-| `bulan` | string | Bulan (opsional) |
+| `tahun` | string | Tahun buku. Gunakan `all` untuk semua tahun. |
+| `bulan` | string | Bulan (opsional). Jika tahun=all, filter bulan diterapkan lintas tahun. |
 | `type` | enum | `ringkasan` atau `detail` |
 | `kategori` | string | Comma-separated kategori IDs (opsional). Jika diisi, hanya transaksi dari kategori tersebut yang dimasukkan. Judul PDF mencantumkan nama kategori yang difilter, dikelompokkan berdasarkan jenis (Kategori Masuk / Kategori Keluar). Teks kategori mengikuti margin tabel dan otomatis wrap jika terlalu panjang. |
 
@@ -603,8 +613,8 @@ Export data transaksi ke Excel.
 **Query Parameters:**
 | Param | Type | Deskripsi |
 |---|---|---|
-| `tahun` | string | Tahun buku |
-| `bulan` | string | Bulan (opsional) |
+| `tahun` | string | Tahun buku. Gunakan `all` untuk semua tahun. |
+| `bulan` | string | Bulan (opsional). Jika tahun=all, filter bulan diterapkan lintas tahun. |
 | `kategori` | string | Comma-separated kategori IDs (opsional). Jika diisi, hanya transaksi dari kategori tersebut yang dimasukkan. Header Excel akan mencantumkan nama kategori yang difilter. |
 
 **Response**: Excel file (application/vnd.openxmlformats-officedocument.spreadsheetml.sheet)

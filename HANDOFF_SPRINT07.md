@@ -96,3 +96,81 @@ Implementasi di `src/components/layout/sidebar.tsx`:
 - **TV Display (publik)**: Dark theme tetap, hanya formatRupiah otomatis terupdate
 - **Typography**: Heading sudah bold, body regular — sesuai spec
 - **globals.css**: Tidak perlu perubahan
+
+---
+
+# Sprint A2: Filter Transaksi, Dashboard Chart, Laporan All Time
+
+**Tanggal**: 2026-04-06
+**Status**: Selesai
+
+## Deliverables Sprint A2
+
+| # | Deliverable | Status |
+|---|---|---|
+| 1 | Transaksi: Multi-select kategori filter dengan checkbox dropdown | Done |
+| 2 | Transaksi: Sticky summary bar (Masuk/Keluar/Saldo) di atas tabel | Done |
+| 3 | Transaksi: Auto-scroll ke tabel saat filter diterapkan | Done |
+| 4 | Transaksi: Filter spacing diperbaiki (gap-4) | Done |
+| 5 | Dashboard: Transaction count pada semua 3 cumulative cards | Done |
+| 6 | Dashboard: Yearly trend → line chart + area fill (dari bar chart) | Done |
+| 7 | Dashboard: Yearly trend mulai dari 2025 (exclude 2024) | Done |
+| 8 | Dashboard: Category breakdown all-time — horizontal bar chart top 10 | Done |
+| 9 | Laporan: "Semua Tahun" option di dropdown tahun | Done |
+| 10 | Laporan: Preview label berubah saat "Semua Tahun" dipilih | Done |
+| 11 | Export PDF: Support tahun=all (semua tahun) | Done |
+| 12 | Export Excel: Support tahun=all (semua tahun) | Done |
+| 13 | API: dashboard/summary support tahun=all | Done |
+| 14 | API: dashboard/cumulative return jumlahMasuk, jumlahKeluar, categoryBreakdown | Done |
+
+## Keputusan Teknis Sprint A2
+
+### 1. Multi-Select Kategori (Transaksi Page)
+- Custom dropdown component dengan checkbox per kategori
+- Grouped by jenis (Pemasukan/Pengeluaran) dengan header warna
+- Label trigger: "Semua Kategori" atau "N Kategori"
+- Close on click outside (mousedown listener)
+- Reused pattern dari KategoriMultiSelect di Laporan page
+
+### 2. Sticky Summary Bar
+- Summary (Masuk/Keluar/Saldo/jumlah transaksi) dipindah dari footer tabel ke sticky bar di atas tabel
+- `sticky top-0 z-10` dengan background putih dan shadow
+- Selalu visible saat scroll tabel ke bawah
+
+### 3. Yearly Trend → Line Chart
+- Diganti dari BarChart ke ComposedChart (Area + Line) dari recharts
+- 2 line: Pemasukan (hijau) dan Pengeluaran (merah)
+- Area fill subtle dengan gradient (opacity 0.15 → 0.02)
+- Dot markers di setiap data point
+- Data mulai dari tahun 2025 (filter `year >= '2025'` di API)
+
+### 4. Category Breakdown All-Time
+- Horizontal bar chart custom (bukan recharts Treemap — terlalu kompleks untuk data ini)
+- Top 10 kategori + "Lainnya" bucket
+- Toggle Pemasukan/Pengeluaran
+- Progress bar visual dengan persentase dan jumlah Rupiah
+
+### 5. Laporan All-Time Mode
+- Dropdown tahun menambah "Semua Tahun" sebagai opsi pertama (value=`all`)
+- API dashboard/summary: `tahun=all` → skip tahun filter, hanya bulan jika ada
+- API export/pdf dan export/excel: `tahun=all` → include semua transaksi aktif
+- Periode label: "Semua Tahun" atau "Januari (Semua Tahun)"
+- Preview title berubah menjadi "Pemasukan dan Pengeluaran Semua Tahun"
+
+## File yang Diubah Sprint A2
+
+| File | Perubahan |
+|---|---|
+| `src/app/(dashboard)/transaksi/page.tsx` | Multi-select filter, sticky summary, auto-scroll |
+| `src/app/(dashboard)/page.tsx` | Cumulative cards subtitle, category bar chart |
+| `src/app/(dashboard)/laporan/page.tsx` | Semua Tahun option, preview title |
+| `src/components/charts/yearly-trend.tsx` | Bar → Line + Area chart |
+| `src/components/charts/category-bar.tsx` | New: horizontal bar chart component |
+| `src/hooks/use-dashboard.ts` | CumulativeDashboard type updated |
+| `src/app/api/dashboard/cumulative/route.ts` | jumlahMasuk/Keluar, categoryBreakdown, year>=2025 |
+| `src/app/api/dashboard/summary/route.ts` | Support tahun=all |
+| `src/app/api/export/pdf/route.ts` | Support tahun=all |
+| `src/app/api/export/excel/route.ts` | Support tahun=all |
+| `docs/PROJECT_BRIEF.md` | Changelog v2.1.2 |
+| `docs/API_REFERENCE.md` | Updated dashboard & export endpoint docs |
+| `HANDOFF_IMPORT_DATA.md` | Sprint A2 notes |
