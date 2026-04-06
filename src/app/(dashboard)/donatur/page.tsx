@@ -187,7 +187,7 @@ export default function DonaturPage() {
                 <TableHead>Telepon</TableHead>
                 <TableHead>Kelompok</TableHead>
                 <TableHead className="text-right">Komitmen/Bulan</TableHead>
-                <TableHead className="text-right">Aksi</TableHead>
+                <TableHead className="text-center">Aksi</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -208,7 +208,7 @@ export default function DonaturPage() {
                   <TableCell className="text-right">
                     {d.jumlah_komitmen > 0 ? formatRupiah(d.jumlah_komitmen) : '-'}
                   </TableCell>
-                  <TableCell className="text-right space-x-2">
+                  <TableCell className="text-center space-x-2">
                     <Button variant="ghost" size="sm" onClick={() => openEdit(d)}>Edit</Button>
                     <Button variant="ghost" size="sm" onClick={() => handleDelete(d.id, d.nama)}>Hapus</Button>
                   </TableCell>

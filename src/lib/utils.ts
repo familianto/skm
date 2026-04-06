@@ -9,15 +9,14 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 /**
- * Format number as Indonesian Rupiah
+ * Format number as Indonesian Rupiah with space: "Rp 1.234.567"
  */
 export function formatRupiah(amount: number): string {
-  return new Intl.NumberFormat('id-ID', {
-    style: 'currency',
-    currency: 'IDR',
+  const formatted = new Intl.NumberFormat('id-ID', {
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
   }).format(amount);
+  return `Rp ${formatted}`;
 }
 
 /**
