@@ -124,12 +124,12 @@ function parseDate(dateStr: string): string {
   const slashParts = s.split('/');
   if (slashParts.length === 3) {
     const [dd, mm, yyyy] = slashParts;
-    return `${yyyy.padStart(4, '0')}-${mm.padStart(2, '0')}-${dd.padStart(2, '0')}`;
+    return `${yyyy}-${mm.padStart(2, '0')}-${dd.padStart(2, '0')}`;
   }
 
   // "DD-MM-YYYY" (dash with day first, year is 4 digits at end)
   const dashParts = s.split('-');
-  if (dashParts.length === 3 && dashParts[2].length === 4) {
+  if (dashParts.length === 3 && dashParts[2].length === 4 && /^\d+$/.test(dashParts[1])) {
     const [dd, mm, yyyy] = dashParts;
     return `${yyyy}-${mm.padStart(2, '0')}-${dd.padStart(2, '0')}`;
   }
@@ -137,6 +137,12 @@ function parseDate(dateStr: string): string {
   // Already "YYYY-MM-DD" or "YYYY-MM-DD HH:MM:SS" — return date part only
   if (dashParts.length >= 3 && dashParts[0].length === 4) {
     return s.slice(0, 10);
+  }
+
+  // Fallback: try native Date parsing
+  const d = new Date(s);
+  if (!isNaN(d.getTime())) {
+    return d.toISOString().slice(0, 10);
   }
 
   return s;
