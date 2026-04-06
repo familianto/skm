@@ -118,11 +118,28 @@ const keluarRules: PatternRule[] = [
 // ============================================================
 
 function parseDate(dateStr: string): string {
-  // Input: "DD/MM/YYYY" → Output: "YYYY-MM-DD"
-  const parts = dateStr.trim().split('/');
-  if (parts.length !== 3) return dateStr;
-  const [dd, mm, yyyy] = parts;
-  return `${yyyy}-${mm.padStart(2, '0')}-${dd.padStart(2, '0')}`;
+  const s = dateStr.trim();
+
+  // "DD/MM/YYYY" → "YYYY-MM-DD"
+  const slashParts = s.split('/');
+  if (slashParts.length === 3) {
+    const [dd, mm, yyyy] = slashParts;
+    return `${yyyy.padStart(4, '0')}-${mm.padStart(2, '0')}-${dd.padStart(2, '0')}`;
+  }
+
+  // "DD-MM-YYYY" (dash with day first, year is 4 digits at end)
+  const dashParts = s.split('-');
+  if (dashParts.length === 3 && dashParts[2].length === 4) {
+    const [dd, mm, yyyy] = dashParts;
+    return `${yyyy}-${mm.padStart(2, '0')}-${dd.padStart(2, '0')}`;
+  }
+
+  // Already "YYYY-MM-DD" or "YYYY-MM-DD HH:MM:SS" — return date part only
+  if (dashParts.length >= 3 && dashParts[0].length === 4) {
+    return s.slice(0, 10);
+  }
+
+  return s;
 }
 
 function parseAmount(val: string): number {
