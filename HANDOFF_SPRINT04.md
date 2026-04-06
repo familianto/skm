@@ -182,3 +182,11 @@ PIN_SALT=
 FONNTE_API_TOKEN=
 FONNTE_MOCK=
 ```
+
+---
+
+## Post-Sprint UI/UX Updates (Sprint 7 — 6 April 2026)
+
+Komponen yang dibuat di Sprint 4 dan diupdate di Sprint 7:
+- **Dashboard SummaryCard**: Sudah sesuai (shadow-sm + border-gray-200), tidak ada perubahan
+- **Chart tooltips**: Format Rupiah otomatis menggunakan spasi baru via shared `formatRupiah()`

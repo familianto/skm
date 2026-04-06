@@ -195,3 +195,12 @@ PIN_SALT=
 FONNTE_API_TOKEN=
 FONNTE_MOCK=
 ```
+
+---
+
+## Post-Sprint UI/UX Updates (Sprint 7 — 6 April 2026)
+
+Komponen yang dibuat di Sprint 5 dan diupdate di Sprint 7:
+- **Rekonsiliasi page**: Form dibatasi max-w-2xl agar proporsional, tidak lagi full-width
+- **Badge SESUAI/TIDAK_SESUAI**: Style diubah ke subtle/muted
+- **Format Rupiah**: Saldo sistem/bank/selisih menggunakan spasi baru

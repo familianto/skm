@@ -181,3 +181,12 @@ NEXT_PUBLIC_MASJID_NAME=
 AUTH_SECRET=
 PIN_SALT=
 ```
+
+---
+
+## Post-Sprint UI/UX Updates (Sprint 7 — 6 April 2026)
+
+Komponen yang dibuat di Sprint 3 dan diupdate di Sprint 7:
+- **Donatur page**: Kolom Aksi diubah ke text-center
+- **Badge TETAP/INSIDENTAL**: Style diubah ke grayscale muted
+- **Format Rupiah**: Komitmen donasi sekarang menggunakan spasi ("Rp 1.234.567")

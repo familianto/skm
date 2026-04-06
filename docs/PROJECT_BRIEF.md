@@ -239,7 +239,38 @@ Fitur-fitur berikut **tidak termasuk** dalam scope v2.1, tapi bisa ditambahkan d
 
 ---
 
+## 11. Design System & Theme
+
+### Prinsip Desain
+- **Clean & Modern**: Minimalis, less colorful, good readability
+- **Primary Color**: Emerald/green hanya untuk elemen aktif dan CTA
+- **Grayscale**: Sisanya menggunakan abu-abu, putih, hitam
+
+### Sidebar
+- Menu dikelompokkan dalam sections dengan label: **Utama**, **Laporan**, **Pengaturan**, **Lainnya**
+- Label section: font kecil, uppercase, warna abu-abu, tidak clickable
+
+### Komponen UI
+- **Badge**: Subtle/muted style — light background, dark text, ring border (bukan solid color)
+  - MASUK: `bg-emerald-50 text-emerald-700 ring-emerald-200`
+  - KELUAR: `bg-red-50 text-red-700 ring-red-200`
+  - Status: grayscale muted
+- **Card**: `shadow-sm + border-gray-200 + rounded-xl`, padding `p-6`
+- **Table**: Header `bg-gray-50 font-semibold`, row hover `bg-gray-50`, kolom Aksi `text-center`
+- **Rupiah**: Format dengan spasi: `Rp 1.234.567` (via `formatRupiah()` di `lib/utils.ts`)
+
+### Rekonsiliasi Form
+- Form dibatasi `max-w-2xl` agar tidak full-width
+
+---
+
 ## Changelog
+
+### v2.1.1 (6 April 2026)
+- UI/UX Polish: Sidebar grouping dengan section labels
+- Theme: Badge subtle/muted, tabel header semibold, Aksi column text-center
+- Format Rupiah dengan spasi: "Rp 1.234.567"
+- Rekonsiliasi form layout fix (max-w-2xl)
 
 ### v2.1 (23 Maret 2026)
 - Tambah fitur Upload Bukti Pengiriman

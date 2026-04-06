@@ -182,3 +182,12 @@ FONNTE_MOCK=
 **Total**: ~103 files, ~9838 lines of application code.
 
 **SKM v2.1 siap untuk deployment ke Vercel dan demo ke pengurus masjid.**
+
+---
+
+## Post-Sprint UI/UX Updates (Sprint 7 — 6 April 2026)
+
+Komponen yang dibuat di Sprint 6 dan diupdate di Sprint 7:
+- **Sidebar**: Menu dikelompokkan dalam sections dengan label (Utama, Laporan, Pengaturan, Lainnya)
+- **Kategori page**: Kolom Aksi diubah ke text-center
+- **TV Display (publik)**: Format Rupiah otomatis menggunakan spasi baru via shared `formatRupiah()`
