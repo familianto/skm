@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { sheetsService } from '@/lib/google-sheets';
 import { SHEET_NAMES, SHEET_HEADERS } from '@/lib/constants';
 import { TransaksiJenis, TransaksiStatus } from '@/types';
@@ -28,7 +28,7 @@ export interface CumulativeDashboard {
   yearlyTrend: YearlyTrendItem[];
 }
 
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
     const [transaksiRows] = await sheetsService.batchGet([
       `${SHEET_NAMES.TRANSAKSI}!A2:ZZ`,

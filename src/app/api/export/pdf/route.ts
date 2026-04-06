@@ -82,7 +82,7 @@ export async function GET(request: NextRequest) {
 
     // Kategori filter label for PDF title — grouped by jenis
     const kategoriJenisMap = new Map(kategoriList.map(k => [k.id, k.jenis]));
-    let kategoriFilterLines: string[] = [];
+    const kategoriFilterLines: string[] = [];
     if (kategoriIds.length > 0) {
       const masukNames = kategoriIds
         .filter(id => kategoriJenisMap.get(id) === TransaksiJenis.MASUK)
