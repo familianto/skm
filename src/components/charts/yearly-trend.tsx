@@ -1,8 +1,8 @@
 'use client';
 
 import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer, Legend,
+  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
+  ResponsiveContainer, Legend, Area, ComposedChart,
 } from 'recharts';
 import { formatRupiah } from '@/lib/utils';
 
@@ -25,7 +25,7 @@ function CustomTooltip({ active, payload, label }: {
   return (
     <div className="bg-white border border-gray-200 rounded-lg shadow-lg p-3">
       <p className="text-sm font-medium text-gray-900 mb-1">Tahun {label}</p>
-      {payload.map((entry, i) => (
+      {payload.filter(e => e.name !== undefined).map((entry, i) => (
         <p key={i} className="text-sm" style={{ color: entry.color }}>
           {entry.name}: {formatRupiah(entry.value)}
         </p>
@@ -54,15 +54,27 @@ export function YearlyTrendChart({ data }: YearlyTrendChartProps) {
 
   return (
     <ResponsiveContainer width="100%" height={300}>
-      <BarChart data={data} margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
+      <ComposedChart data={data} margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
+        <defs>
+          <linearGradient id="fillMasuk" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="5%" stopColor="#059669" stopOpacity={0.15} />
+            <stop offset="95%" stopColor="#059669" stopOpacity={0.02} />
+          </linearGradient>
+          <linearGradient id="fillKeluar" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="5%" stopColor="#dc2626" stopOpacity={0.15} />
+            <stop offset="95%" stopColor="#dc2626" stopOpacity={0.02} />
+          </linearGradient>
+        </defs>
         <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
         <XAxis dataKey="tahun" tick={{ fontSize: 12 }} />
         <YAxis tickFormatter={formatYAxis} tick={{ fontSize: 12 }} />
         <Tooltip content={<CustomTooltip />} />
         <Legend />
-        <Bar dataKey="masuk" name="Pemasukan" fill="#059669" radius={[4, 4, 0, 0]} />
-        <Bar dataKey="keluar" name="Pengeluaran" fill="#dc2626" radius={[4, 4, 0, 0]} />
-      </BarChart>
+        <Area type="monotone" dataKey="masuk" name="Pemasukan" fill="url(#fillMasuk)" stroke="none" />
+        <Area type="monotone" dataKey="keluar" name="Pengeluaran" fill="url(#fillKeluar)" stroke="none" />
+        <Line type="monotone" dataKey="masuk" name="Pemasukan" stroke="#059669" strokeWidth={2} dot={{ r: 5, fill: '#059669' }} activeDot={{ r: 7 }} />
+        <Line type="monotone" dataKey="keluar" name="Pengeluaran" stroke="#dc2626" strokeWidth={2} dot={{ r: 5, fill: '#dc2626' }} activeDot={{ r: 7 }} />
+      </ComposedChart>
     </ResponsiveContainer>
   );
 }

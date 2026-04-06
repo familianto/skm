@@ -7,6 +7,7 @@ import { SummaryCard } from '@/components/ui/summary-card';
 import { MonthlyTrendChart } from '@/components/charts/monthly-trend';
 import { CategoryBreakdownChart } from '@/components/charts/category-breakdown';
 import { YearlyTrendChart } from '@/components/charts/yearly-trend';
+import { CategoryBarChart } from '@/components/charts/category-bar';
 import { Loading } from '@/components/ui/loading';
 import { useDashboardSummary, useChartData, useCumulativeDashboard } from '@/hooks/use-dashboard';
 import { useTransaksi } from '@/hooks/use-transaksi';
@@ -34,10 +35,15 @@ const months = [
   { value: '12', label: 'Desember' },
 ];
 
+function formatCount(count: number): string {
+  return new Intl.NumberFormat('id-ID').format(count);
+}
+
 export default function DashboardPage() {
   const [tahun, setTahun] = useState(APP_CONFIG.DEFAULT_TAHUN_BUKU);
   const [bulan, setBulan] = useState('');
   const [categoryJenis, setCategoryJenis] = useState<string>(TransaksiJenis.KELUAR);
+  const [cumulativeCatJenis, setCumulativeCatJenis] = useState<'masuk' | 'keluar'>('keluar');
 
   const { data: cumulative, loading: cumulativeLoading } = useCumulativeDashboard();
   const { data: summary, loading: summaryLoading } = useDashboardSummary(tahun, bulan || undefined);
@@ -62,30 +68,67 @@ export default function DashboardPage() {
               value={formatRupiah(cumulative.totalMasuk)}
               icon="↑"
               color="green"
-              subtitle={`${cumulative.jumlahTransaksi} transaksi`}
+              subtitle={`${formatCount(cumulative.jumlahMasuk)} transaksi`}
             />
             <SummaryCard
               title="Total Pengeluaran (All-Time)"
               value={formatRupiah(cumulative.totalKeluar)}
               icon="↓"
               color="red"
+              subtitle={`${formatCount(cumulative.jumlahKeluar)} transaksi`}
             />
             <SummaryCard
               title="Saldo Kumulatif"
               value={formatRupiah(cumulative.saldo)}
               icon="$"
               color="blue"
+              subtitle={`${formatCount(cumulative.jumlahTransaksi)} transaksi total`}
             />
           </div>
 
           {cumulative.yearlyTrend.length > 0 && (
-            <Card>
+            <Card className="mb-6">
               <CardTitle>Tren Tahunan</CardTitle>
               <div className="mt-4">
                 <YearlyTrendChart data={cumulative.yearlyTrend} />
               </div>
             </Card>
           )}
+
+          {/* Category Breakdown All-Time */}
+          <Card>
+            <div className="flex items-center justify-between">
+              <CardTitle>Top Kategori (All-Time)</CardTitle>
+              <div className="flex gap-1">
+                <button
+                  onClick={() => setCumulativeCatJenis('masuk')}
+                  className={`px-3 py-1 text-xs rounded-lg transition-colors ${
+                    cumulativeCatJenis === 'masuk'
+                      ? 'bg-emerald-100 text-emerald-700 font-medium'
+                      : 'text-gray-500 hover:bg-gray-100'
+                  }`}
+                >
+                  Pemasukan
+                </button>
+                <button
+                  onClick={() => setCumulativeCatJenis('keluar')}
+                  className={`px-3 py-1 text-xs rounded-lg transition-colors ${
+                    cumulativeCatJenis === 'keluar'
+                      ? 'bg-red-100 text-red-700 font-medium'
+                      : 'text-gray-500 hover:bg-gray-100'
+                  }`}
+                >
+                  Pengeluaran
+                </button>
+              </div>
+            </div>
+            <div className="mt-4">
+              <CategoryBarChart
+                data={cumulative.categoryBreakdown[cumulativeCatJenis]}
+                color={cumulativeCatJenis === 'masuk' ? 'green' : 'red'}
+              />
+            </div>
+          </Card>
         </div>
       ) : null}
 

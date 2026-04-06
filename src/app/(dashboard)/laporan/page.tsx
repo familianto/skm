@@ -14,7 +14,10 @@ import type { Kategori } from '@/types';
 import { useToast } from '@/components/ui/toast';
 
 const currentYear = new Date().getFullYear();
-const years = Array.from({ length: 5 }, (_, i) => (currentYear - i).toString());
+const years = [
+  { value: 'all', label: 'Semua Tahun' },
+  ...Array.from({ length: 5 }, (_, i) => ({ value: (currentYear - i).toString(), label: (currentYear - i).toString() })),
+];
 const months = [
   { value: '', label: 'Semua Bulan' },
   { value: '01', label: 'Januari' },
@@ -177,7 +180,7 @@ function KategoriMultiSelect({
 }
 
 export default function LaporanPage() {
-  const [tahun, setTahun] = useState(APP_CONFIG.DEFAULT_TAHUN_BUKU);
+  const [tahun, setTahun] = useState<string>(APP_CONFIG.DEFAULT_TAHUN_BUKU);
   const [bulan, setBulan] = useState('');
   const [tipe, setTipe] = useState<'ringkasan' | 'detail'>('ringkasan');
   const [selectedKategori, setSelectedKategori] = useState<string[]>([]);
@@ -185,15 +188,16 @@ export default function LaporanPage() {
   const { toast } = useToast();
 
   const { data: kategoriList } = useKategori();
+  const isAllYears = tahun === 'all';
   const { data: summary, loading: summaryLoading } = useDashboardSummary(
     tahun,
     bulan || undefined,
     selectedKategori.length > 0 ? selectedKategori : undefined,
   );
 
-  const periode = bulan
-    ? `${BULAN_NAMES[parseInt(bulan, 10)]} ${tahun}`
-    : `Tahun ${tahun}`;
+  const periode = isAllYears
+    ? (bulan ? `${BULAN_NAMES[parseInt(bulan, 10)]} (Semua Tahun)` : 'Semua Tahun')
+    : (bulan ? `${BULAN_NAMES[parseInt(bulan, 10)]} ${tahun}` : `Tahun ${tahun}`);
 
   const kategoriLabel = selectedKategori.length > 0
     ? selectedKategori.map(id => kategoriList.find(k => k.id === id)?.nama || id).join(', ')
@@ -252,7 +256,7 @@ export default function LaporanPage() {
               className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
             >
               {years.map(y => (
-                <option key={y} value={y}>{y}</option>
+                <option key={y.value} value={y.value}>{y.label}</option>
               ))}
             </select>
           </div>
@@ -293,7 +297,7 @@ export default function LaporanPage() {
       {/* Preview */}
       <Card className="mb-6">
         <CardTitle>
-          Preview Ringkasan — {periode}
+          {isAllYears ? 'Pemasukan dan Pengeluaran Semua Tahun' : `Preview Ringkasan — ${periode}`}
           {kategoriLabel && (
             <span className="text-sm font-normal text-gray-500 ml-2">
               ({kategoriLabel})

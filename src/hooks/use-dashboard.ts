@@ -41,12 +41,25 @@ export interface YearlyTrendItem {
   keluar: number;
 }
 
+export interface CumulativeCategoryItem {
+  kategori_id: string;
+  nama: string;
+  jumlah: number;
+  persentase: number;
+}
+
 export interface CumulativeDashboard {
   totalMasuk: number;
   totalKeluar: number;
   saldo: number;
   jumlahTransaksi: number;
+  jumlahMasuk: number;
+  jumlahKeluar: number;
   yearlyTrend: YearlyTrendItem[];
+  categoryBreakdown: {
+    masuk: CumulativeCategoryItem[];
+    keluar: CumulativeCategoryItem[];
+  };
 }
 
 export function useCumulativeDashboard() {
