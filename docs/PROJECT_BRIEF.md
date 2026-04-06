@@ -143,12 +143,22 @@ Lihat detail lengkap di `DATABASE_SCHEMA.md`.
 - Middleware proteksi untuk semua halaman kecuali login
 - Cocok untuk device bersama di masjid
 
-### 5.8 Import Master Bank & Rekonsiliasi (Sprint 4) — BARU
+### 5.8 Import CSV Rekening Koran — BARU
+- Import transaksi dari CSV rekening koran bank
+- Arsitektur extensible: bank template per bank (saat ini: Bank Muamalat)
+- Auto-kategorisasi berdasarkan pattern rules di keterangan transaksi
+- Preview tabel dengan status: Auto / Review / Perlu Split
+- Split handler untuk transaksi gabungan (misal Setor Tunai)
+- Duplikat detection (tanggal + jumlah + keterangan)
+- Batch insert ke sheet Transaksi via API
+- Template bank disimpan di `src/lib/bank-templates/` — lihat `docs/BANK_TEMPLATES.md`
+
+### 5.9 Import Master Bank & Rekonsiliasi (Sprint 4) — BARU
 - Import data rekening bank dari file
 - Setup saldo awal
 - Pantau saldo per rekening
 
-### 5.9 Multi-Masjid / Adopter (Sprint 6)
+### 5.10 Multi-Masjid / Adopter (Sprint 6)
 - Dokumentasi adopsi untuk masjid lain
 - Fork repository → setup Google Cloud sendiri → deploy ke Vercel
 - Kustomisasi nama, logo, kategori
