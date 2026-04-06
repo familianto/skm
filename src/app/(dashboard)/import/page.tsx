@@ -87,7 +87,7 @@ export default function ImportPage() {
         setImportResult(null);
         // Set default date range from parsed data
         if (parsed.length > 0) {
-          const dates = parsed.map((r) => r.tanggal).sort();
+          const dates = parsed.map((r) => r.tanggal.slice(0, 10)).sort();
           setFilterDateFrom(dates[0]);
           setFilterDateTo(dates[dates.length - 1]);
         }
@@ -159,8 +159,10 @@ export default function ImportPage() {
   // Filtered rows by date range
   const filteredRows = useMemo(() => {
     return rows.filter((r) => {
-      if (filterDateFrom && r.tanggal < filterDateFrom) return false;
-      if (filterDateTo && r.tanggal > filterDateTo) return false;
+      // Extract YYYY-MM-DD from tanggal (may have time suffix like "2026-03-01 00:00:00")
+      const rowDate = r.tanggal.slice(0, 10);
+      if (filterDateFrom && rowDate < filterDateFrom) return false;
+      if (filterDateTo && rowDate > filterDateTo) return false;
       return true;
     });
   }, [rows, filterDateFrom, filterDateTo]);
