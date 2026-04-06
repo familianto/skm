@@ -35,6 +35,48 @@ export interface ChartData {
   data: MonthlyTrendItem[] | CategoryBreakdownItem[];
 }
 
+export interface YearlyTrendItem {
+  tahun: string;
+  masuk: number;
+  keluar: number;
+}
+
+export interface CumulativeDashboard {
+  totalMasuk: number;
+  totalKeluar: number;
+  saldo: number;
+  jumlahTransaksi: number;
+  yearlyTrend: YearlyTrendItem[];
+}
+
+export function useCumulativeDashboard() {
+  const [data, setData] = useState<CumulativeDashboard | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchData = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch('/api/dashboard/cumulative');
+      const json: ApiResponse<CumulativeDashboard> = await res.json();
+      if (json.success && json.data) {
+        setData(json.data);
+      } else {
+        setError(json.error || 'Gagal memuat data kumulatif');
+      }
+    } catch {
+      setError('Gagal memuat data kumulatif');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { fetchData(); }, [fetchData]);
+
+  return { data, loading, error, refetch: fetchData };
+}
+
 export function useDashboardSummary(tahun?: string, bulan?: string, kategoriIds?: string[]) {
   const [data, setData] = useState<DashboardSummary | null>(null);
   const [loading, setLoading] = useState(true);
