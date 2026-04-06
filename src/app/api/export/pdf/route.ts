@@ -35,7 +35,9 @@ export async function GET(request: NextRequest) {
     }
 
     const { searchParams } = request.nextUrl;
-    const tahun = searchParams.get('tahun') || new Date().getFullYear().toString();
+    const tahunParam = searchParams.get('tahun') || new Date().getFullYear().toString();
+    const isAllYears = tahunParam === 'all';
+    const tahun = isAllYears ? 'all' : tahunParam;
     const bulan = searchParams.get('bulan');
     const type = searchParams.get('type') || 'ringkasan'; // ringkasan or detail
     const kategoriParam = searchParams.get('kategori');
@@ -61,11 +63,20 @@ export async function GET(request: NextRequest) {
 
     // Filter transactions
     let transaksis = transaksiRows.map(rowToTransaksi)
-      .filter(t => t.status === TransaksiStatus.AKTIF && t.tanggal.startsWith(tahun));
+      .filter(t => t.status === TransaksiStatus.AKTIF);
+
+    if (!isAllYears) {
+      transaksis = transaksis.filter(t => t.tanggal.startsWith(tahun));
+    }
 
     if (bulan) {
-      const monthPrefix = `${tahun}-${bulan.padStart(2, '0')}`;
-      transaksis = transaksis.filter(t => t.tanggal.startsWith(monthPrefix));
+      if (!isAllYears) {
+        const monthPrefix = `${tahun}-${bulan.padStart(2, '0')}`;
+        transaksis = transaksis.filter(t => t.tanggal.startsWith(monthPrefix));
+      } else {
+        const monthStr = `-${bulan.padStart(2, '0')}-`;
+        transaksis = transaksis.filter(t => t.tanggal.includes(monthStr));
+      }
     }
 
     // Apply kategori filter
@@ -76,9 +87,12 @@ export async function GET(request: NextRequest) {
     transaksis.sort((a, b) => a.tanggal.localeCompare(b.tanggal));
 
     // Period label
-    const periode = bulan
-      ? `${BULAN_NAMES[parseInt(bulan, 10)]} ${tahun}`
-      : `Tahun ${tahun}`;
+    let periode: string;
+    if (isAllYears) {
+      periode = bulan ? `${BULAN_NAMES[parseInt(bulan, 10)]} (Semua Tahun)` : 'Semua Tahun';
+    } else {
+      periode = bulan ? `${BULAN_NAMES[parseInt(bulan, 10)]} ${tahun}` : `Tahun ${tahun}`;
+    }
 
     // Kategori filter label for PDF title — grouped by jenis
     const kategoriJenisMap = new Map(kategoriList.map(k => [k.id, k.jenis]));

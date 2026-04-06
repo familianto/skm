@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import { PageTitle } from '@/components/layout/page-title';
 import { Button } from '@/components/ui/button';
@@ -17,14 +17,127 @@ import { APP_CONFIG } from '@/lib/constants';
 type SortField = 'tanggal' | 'jumlah';
 type SortOrder = 'asc' | 'desc';
 
+function KategoriMultiSelect({
+  kategoris,
+  selected,
+  onChange,
+}: {
+  kategoris: { id: string; nama: string; jenis: string }[];
+  selected: string[];
+  onChange: (ids: string[]) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, []);
+
+  const masukKats = kategoris.filter(k => k.jenis === TransaksiJenis.MASUK);
+  const keluarKats = kategoris.filter(k => k.jenis === TransaksiJenis.KELUAR);
+
+  function toggle(id: string) {
+    if (selected.includes(id)) {
+      onChange(selected.filter(s => s !== id));
+    } else {
+      onChange([...selected, id]);
+    }
+  }
+
+  const isAll = selected.length === 0;
+  const label = isAll
+    ? 'Semua Kategori'
+    : `${selected.length} Kategori`;
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 text-left flex items-center justify-between"
+      >
+        <span className={isAll ? 'text-gray-900' : 'text-emerald-700 font-medium'}>
+          {label}
+        </span>
+        <svg className={`w-4 h-4 text-gray-400 transition-transform ${open ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+
+      {open && (
+        <div className="absolute z-20 mt-1 w-64 bg-white border border-gray-200 rounded-lg shadow-lg max-h-72 overflow-y-auto">
+          <div className="flex gap-2 px-3 py-2 border-b border-gray-100 sticky top-0 bg-white">
+            <button type="button" onClick={() => onChange([])} className="text-xs text-emerald-600 hover:text-emerald-700 font-medium">
+              Semua
+            </button>
+            {selected.length > 0 && (
+              <>
+                <span className="text-gray-300">|</span>
+                <button type="button" onClick={() => onChange([])} className="text-xs text-red-500 hover:text-red-700">
+                  Reset
+                </button>
+              </>
+            )}
+          </div>
+
+          {masukKats.length > 0 && (
+            <div>
+              <div className="px-3 py-1.5 text-[10px] font-semibold text-emerald-600 bg-emerald-50 uppercase tracking-wide">
+                Pemasukan
+              </div>
+              {masukKats.map(k => (
+                <label key={k.id} className="flex items-center gap-2 px-3 py-1.5 hover:bg-gray-50 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={selected.includes(k.id)}
+                    onChange={() => toggle(k.id)}
+                    className="rounded border-gray-300 text-emerald-600 focus:ring-emerald-500"
+                  />
+                  <span className="text-sm text-gray-700">{k.nama}</span>
+                </label>
+              ))}
+            </div>
+          )}
+
+          {keluarKats.length > 0 && (
+            <div>
+              <div className="px-3 py-1.5 text-[10px] font-semibold text-red-600 bg-red-50 uppercase tracking-wide">
+                Pengeluaran
+              </div>
+              {keluarKats.map(k => (
+                <label key={k.id} className="flex items-center gap-2 px-3 py-1.5 hover:bg-gray-50 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={selected.includes(k.id)}
+                    onChange={() => toggle(k.id)}
+                    className="rounded border-gray-300 text-emerald-600 focus:ring-emerald-500"
+                  />
+                  <span className="text-sm text-gray-700">{k.nama}</span>
+                </label>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function TransaksiPage() {
   const { data: transaksis, loading } = useTransaksi();
   const { data: kategoris } = useKategori();
+  const tableRef = useRef<HTMLDivElement>(null);
 
   // Filters
   const [filterJenis, setFilterJenis] = useState<string>('');
   const [filterStatus, setFilterStatus] = useState<string>('');
-  const [filterKategori, setFilterKategori] = useState<string>('');
+  const [filterKategoriIds, setFilterKategoriIds] = useState<string[]>([]);
   const [filterDateFrom, setFilterDateFrom] = useState<string>('');
   const [filterDateTo, setFilterDateTo] = useState<string>('');
 
@@ -47,7 +160,7 @@ export default function TransaksiPage() {
 
     if (filterJenis) result = result.filter((t) => t.jenis === filterJenis);
     if (filterStatus) result = result.filter((t) => t.status === filterStatus);
-    if (filterKategori) result = result.filter((t) => t.kategori_id === filterKategori);
+    if (filterKategoriIds.length > 0) result = result.filter((t) => filterKategoriIds.includes(t.kategori_id));
     if (filterDateFrom) result = result.filter((t) => t.tanggal >= filterDateFrom);
     if (filterDateTo) result = result.filter((t) => t.tanggal <= filterDateTo);
 
@@ -63,7 +176,7 @@ export default function TransaksiPage() {
     });
 
     return result;
-  }, [transaksis, filterJenis, filterStatus, filterKategori, filterDateFrom, filterDateTo, sortField, sortOrder]);
+  }, [transaksis, filterJenis, filterStatus, filterKategoriIds, filterDateFrom, filterDateTo, sortField, sortOrder]);
 
   // Totals
   const totalMasuk = useMemo(
@@ -92,6 +205,15 @@ export default function TransaksiPage() {
     return sortOrder === 'desc' ? ' ↓' : ' ↑';
   };
 
+  const hasActiveFilters = filterJenis || filterStatus || filterKategoriIds.length > 0 || filterDateFrom || filterDateTo;
+
+  // Auto-scroll to table when filters change
+  useEffect(() => {
+    if (hasActiveFilters && tableRef.current) {
+      tableRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, [filterJenis, filterStatus, filterKategoriIds, filterDateFrom, filterDateTo]); // eslint-disable-line react-hooks/exhaustive-deps
+
   return (
     <div>
       <PageTitle
@@ -106,7 +228,7 @@ export default function TransaksiPage() {
 
       {/* Filters */}
       <Card>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
           <div>
             <label className="block text-xs font-medium text-gray-500 mb-1">Jenis</label>
             <select
@@ -133,16 +255,11 @@ export default function TransaksiPage() {
           </div>
           <div>
             <label className="block text-xs font-medium text-gray-500 mb-1">Kategori</label>
-            <select
-              value={filterKategori}
-              onChange={(e) => { setFilterKategori(e.target.value); setPage(1); }}
-              className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
-            >
-              <option value="">Semua</option>
-              {kategoris.map((k) => (
-                <option key={k.id} value={k.id}>{k.nama}</option>
-              ))}
-            </select>
+            <KategoriMultiSelect
+              kategoris={kategoris}
+              selected={filterKategoriIds}
+              onChange={(ids) => { setFilterKategoriIds(ids); setPage(1); }}
+            />
           </div>
           <div>
             <label className="block text-xs font-medium text-gray-500 mb-1">Dari Tanggal</label>
@@ -165,8 +282,20 @@ export default function TransaksiPage() {
         </div>
       </Card>
 
+      {/* Sticky Summary Bar */}
+      <div ref={tableRef} className="sticky top-0 z-10 bg-white border border-gray-200 rounded-lg shadow-sm mt-4 px-4 py-3">
+        <div className="flex flex-wrap gap-4 justify-between items-center text-sm">
+          <div className="flex gap-4">
+            <span className="text-emerald-600 font-medium">Masuk: {formatRupiah(totalMasuk)}</span>
+            <span className="text-red-600 font-medium">Keluar: {formatRupiah(totalKeluar)}</span>
+            <span className="font-bold">Saldo: {formatRupiah(totalMasuk - totalKeluar)}</span>
+          </div>
+          <span className="text-gray-500">{filtered.length} transaksi</span>
+        </div>
+      </div>
+
       {/* Table */}
-      <Card padding={false} className="mt-4">
+      <Card padding={false} className="mt-2">
         {loading ? (
           <Loading className="py-12" />
         ) : filtered.length === 0 ? (
@@ -213,16 +342,6 @@ export default function TransaksiPage() {
                 ))}
               </TableBody>
             </Table>
-
-            {/* Footer totals */}
-            <div className="flex flex-wrap gap-4 justify-between items-center px-4 py-3 border-t bg-gray-50 text-sm">
-              <div className="flex gap-4">
-                <span className="text-emerald-600 font-medium">Masuk: {formatRupiah(totalMasuk)}</span>
-                <span className="text-red-600 font-medium">Keluar: {formatRupiah(totalKeluar)}</span>
-                <span className="font-bold">Saldo: {formatRupiah(totalMasuk - totalKeluar)}</span>
-              </div>
-              <span className="text-gray-500">{filtered.length} transaksi</span>
-            </div>
 
             {/* Pagination */}
             {totalPages > 1 && (

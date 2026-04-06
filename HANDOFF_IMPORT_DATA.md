@@ -123,3 +123,8 @@ docs/API_REFERENCE.md               # + POST /api/transaksi/import
 - Kolom Aksi di tabel preview diubah ke `text-center` untuk konsistensi
 - Badge status (Auto, Review, Perlu Split, Duplikat) menggunakan style subtle/muted baru
 - Format Rupiah sekarang menggunakan spasi: "Rp 1.234.567"
+
+## Sprint A2 Updates (6 April 2026)
+
+- Dashboard kumulatif sekarang menampilkan jumlah transaksi per jenis dan category breakdown all-time
+- Laporan support "Semua Tahun" mode — export PDF/Excel lintas tahun

@@ -266,6 +266,16 @@ Fitur-fitur berikut **tidak termasuk** dalam scope v2.1, tapi bisa ditambahkan d
 
 ## Changelog
 
+### v2.1.2 (6 April 2026)
+- Transaksi: Multi-select kategori filter dengan checkbox dropdown
+- Transaksi: Sticky summary bar (Masuk/Keluar/Saldo) di atas tabel
+- Dashboard: Transaction count pada semua cumulative cards
+- Dashboard: Yearly trend chart diubah dari bar ke line chart + area fill
+- Dashboard: Category breakdown all-time (horizontal bar chart top 10)
+- Dashboard: Yearly trend mulai dari 2025 (exclude data parsial 2024)
+- Laporan: Opsi "Semua Tahun" untuk laporan lintas tahun
+- Export PDF/Excel: Support mode all-time (tahun=all)
+
 ### v2.1.1 (6 April 2026)
 - UI/UX Polish: Sidebar grouping dengan section labels
 - Theme: Badge subtle/muted, tabel header semibold, Aksi column text-center

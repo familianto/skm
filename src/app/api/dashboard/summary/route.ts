@@ -58,15 +58,19 @@ export async function GET(request: NextRequest) {
     // Filter active transaksi only
     let transaksis = allTransaksi.filter(t => t.status === TransaksiStatus.AKTIF);
 
-    // Apply period filter
-    if (tahun) {
+    // Apply period filter — tahun=all means all years
+    if (tahun && tahun !== 'all') {
       transaksis = transaksis.filter(t => t.tanggal.startsWith(tahun));
     }
     if (bulan) {
-      const monthPrefix = tahun ? `${tahun}-${bulan.padStart(2, '0')}` : `-${bulan.padStart(2, '0')}-`;
-      transaksis = transaksis.filter(t =>
-        tahun ? t.tanggal.startsWith(monthPrefix) : t.tanggal.includes(monthPrefix)
-      );
+      if (tahun && tahun !== 'all') {
+        const monthPrefix = `${tahun}-${bulan.padStart(2, '0')}`;
+        transaksis = transaksis.filter(t => t.tanggal.startsWith(monthPrefix));
+      } else {
+        // All years + specific month: match -MM- pattern
+        const monthStr = `-${bulan.padStart(2, '0')}-`;
+        transaksis = transaksis.filter(t => t.tanggal.includes(monthStr));
+      }
     }
 
     // Apply kategori filter
