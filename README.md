@@ -5,7 +5,7 @@ Sistem manajemen keuangan masjid berbasis web yang transparan, akuntabel, dan mu
 ## Fitur Utama
 
 - **Pencatatan Transaksi** — Catat pemasukan dan pengeluaran dengan kategori dan rekening bank
-- **Dashboard Real-time** — Ringkasan keuangan dengan grafik tren dan breakdown kategori
+- **Dashboard Real-time** — Ringkasan keuangan kumulatif lintas tahun, tren tahunan, grafik tren bulanan, dan breakdown kategori
 - **Rekonsiliasi Bank** — Bandingkan saldo sistem dengan saldo bank aktual
 - **Void & Koreksi** — Batalkan atau koreksi transaksi yang salah dengan audit trail
 - **Upload Bukti** — Lampirkan foto bukti transaksi (struk, kwitansi)

@@ -487,6 +487,35 @@ Ambil ringkasan keuangan.
 }
 ```
 
+### `GET /api/dashboard/cumulative`
+
+Ambil data kumulatif all-time (lintas tahun) beserta tren tahunan.
+
+**Query Parameters:** Tidak ada.
+
+**Response (200):**
+```json
+{
+  "success": true,
+  "data": {
+    "totalMasuk": 150000000,
+    "totalKeluar": 100000000,
+    "saldo": 50000000,
+    "jumlahTransaksi": 3208,
+    "yearlyTrend": [
+      { "tahun": "2024", "masuk": 20000000, "keluar": 15000000 },
+      { "tahun": "2025", "masuk": 80000000, "keluar": 55000000 },
+      { "tahun": "2026", "masuk": 50000000, "keluar": 30000000 }
+    ]
+  }
+}
+```
+
+**Catatan:**
+- Semua transaksi aktif (status `AKTIF`) dihitung, tanpa filter periode.
+- `yearlyTrend` diurutkan berdasarkan tahun ascending, dinamis dari data yang ada.
+- Tahun-tahun dengan data parsial (misal: 2024 hanya Desember) ditampilkan apa adanya.
+
 ### `GET /api/dashboard/chart-data`
 
 Ambil data untuk grafik.

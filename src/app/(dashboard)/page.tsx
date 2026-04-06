@@ -6,8 +6,9 @@ import { PageTitle } from '@/components/layout/page-title';
 import { SummaryCard } from '@/components/ui/summary-card';
 import { MonthlyTrendChart } from '@/components/charts/monthly-trend';
 import { CategoryBreakdownChart } from '@/components/charts/category-breakdown';
+import { YearlyTrendChart } from '@/components/charts/yearly-trend';
 import { Loading } from '@/components/ui/loading';
-import { useDashboardSummary, useChartData } from '@/hooks/use-dashboard';
+import { useDashboardSummary, useChartData, useCumulativeDashboard } from '@/hooks/use-dashboard';
 import { useTransaksi } from '@/hooks/use-transaksi';
 import { formatRupiah, formatTanggal } from '@/lib/utils';
 import { APP_CONFIG } from '@/lib/constants';
@@ -38,6 +39,7 @@ export default function DashboardPage() {
   const [bulan, setBulan] = useState('');
   const [categoryJenis, setCategoryJenis] = useState<string>(TransaksiJenis.KELUAR);
 
+  const { data: cumulative, loading: cumulativeLoading } = useCumulativeDashboard();
   const { data: summary, loading: summaryLoading } = useDashboardSummary(tahun, bulan || undefined);
   const { data: trendData, loading: trendLoading } = useChartData('monthly-trend', tahun);
   const { data: categoryData, loading: categoryLoading } = useChartData('category-breakdown', tahun, categoryJenis);
@@ -48,6 +50,50 @@ export default function DashboardPage() {
   return (
     <div>
       <PageTitle title="Dashboard" subtitle="Ringkasan keuangan masjid" />
+
+      {/* Cumulative All-Time Section */}
+      {cumulativeLoading ? (
+        <Loading className="my-8" />
+      ) : cumulative ? (
+        <div className="mb-8">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+            <SummaryCard
+              title="Total Pemasukan (All-Time)"
+              value={formatRupiah(cumulative.totalMasuk)}
+              icon="↑"
+              color="green"
+              subtitle={`${cumulative.jumlahTransaksi} transaksi`}
+            />
+            <SummaryCard
+              title="Total Pengeluaran (All-Time)"
+              value={formatRupiah(cumulative.totalKeluar)}
+              icon="↓"
+              color="red"
+            />
+            <SummaryCard
+              title="Saldo Kumulatif"
+              value={formatRupiah(cumulative.saldo)}
+              icon="$"
+              color="blue"
+            />
+          </div>
+
+          {cumulative.yearlyTrend.length > 0 && (
+            <Card>
+              <CardTitle>Tren Tahunan</CardTitle>
+              <div className="mt-4">
+                <YearlyTrendChart data={cumulative.yearlyTrend} />
+              </div>
+            </Card>
+          )}
+        </div>
+      ) : null}
+
+      {/* Detail Bulanan Separator */}
+      <div className="border-t border-gray-200 pt-6 mb-6">
+        <h2 className="text-lg font-semibold text-gray-900">Detail Bulanan</h2>
+        <p className="text-sm text-gray-500">Filter berdasarkan tahun dan bulan</p>
+      </div>
 
       {/* Period Filter */}
       <div className="flex gap-3 mb-6">
