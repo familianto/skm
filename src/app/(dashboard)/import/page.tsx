@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useCallback, useMemo, useRef } from 'react';
+import Link from 'next/link';
 import Papa from 'papaparse';
 import { PageTitle } from '@/components/layout/page-title';
 import { Card } from '@/components/ui/card';
@@ -8,7 +9,6 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table';
-import { Loading } from '@/components/ui/loading';
 import { useToast } from '@/components/ui/toast';
 import { useKategori } from '@/hooks/use-kategori';
 import { useRekening } from '@/hooks/use-rekening';
@@ -283,7 +283,7 @@ export default function ImportPage() {
             <p className="text-lg font-bold text-emerald-600">{importResult.imported} transaksi berhasil diimport!</p>
             <div className="flex gap-3 justify-center mt-4">
               <Button onClick={handleReset}>Import File Lain</Button>
-              <a href="/transaksi"><Button variant="secondary">Lihat Transaksi</Button></a>
+              <Link href="/transaksi"><Button variant="secondary">Lihat Transaksi</Button></Link>
             </div>
           </div>
         </Card>
