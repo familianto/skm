@@ -35,32 +35,28 @@
 │  │  /api/master/*                                       │     │
 │  └──────┬───────────────────────────────┬──────────────┘     │
 │         │                               │                     │
-│  ┌──────▼──────────┐           ┌────────▼──────────┐         │
-│  │ lib/             │           │ lib/               │         │
-│  │ google-sheets.ts │           │ google-drive.ts    │         │
-│  │                  │           │                    │         │
-│  │ - getRows()      │           │ - uploadFile()     │         │
-│  │ - appendRow()    │           │ - getFileUrl()     │         │
-│  │ - updateRow()    │           │ - deleteFile()     │         │
-│  │ - deleteRow()    │           │                    │         │
-│  │ - batchGet()     │           └────────┬──────────┘         │
-│  └──────┬──────────┘                     │                    │
-└─────────┼────────────────────────────────┼────────────────────┘
-          │                                │
-          ▼                                ▼
-┌──────────────────┐            ┌──────────────────┐
-│  Google Sheets   │            │  Google Drive     │
-│  API v4          │            │  API              │
-│                  │            │                   │
-│  Spreadsheet:    │            │  Folder:          │
-│  - master        │            │  - bukti/         │
-│  - transaksi     │            │  - logo/          │
-│  - kategori      │            │                   │
-│  - rekening_bank │            │                   │
-│  - audit_log     │            │                   │
-│  - anggota       │            │                   │
-│  - rekonsiliasi  │            │                   │
-└──────────────────┘            └──────────────────┘
+│  ┌──────▼───────────────────────────────────────────────┐     │
+│  │ lib/google-sheets.ts                                │     │
+│  │                                                      │     │
+│  │ - getRows()      - appendRow()    - batchGet()      │     │
+│  │ - updateRow()    - deleteRow()    - getRowById()    │     │
+│  └──────┬───────────────────────────────────────────────┘     │
+└─────────┼────────────────────────────────────────────────────┘
+          │
+          ▼
+┌──────────────────┐
+│  Google Sheets   │
+│  API v4          │
+│                  │
+│  Spreadsheet:    │    Logo & bukti transaksi disimpan
+│  - master        │    sebagai base64 data URL langsung
+│  - transaksi     │    di cell Google Sheets (kolom
+│  - kategori      │    logo_url dan bukti_url).
+│  - rekening_bank │
+│  - audit_log     │    Gambar di-resize & compress
+│  - anggota       │    client-side via Canvas API
+│  - rekonsiliasi  │    sebelum disimpan.
+└──────────────────┘
 ```
 
 ## Layer Architecture
@@ -144,16 +140,7 @@ class GoogleSheetsService {
 }
 ```
 
-**File pendukung**: `lib/google-drive.ts`
-
-```typescript
-// lib/google-drive.ts — File upload
-class GoogleDriveService {
-  uploadFile(file: Buffer, fileName: string, mimeType: string, folderId?: string): Promise<string>
-  getFileUrl(fileId: string): Promise<string>
-  deleteFile(fileId: string): Promise<void>
-}
-```
+**Catatan**: `lib/google-drive.ts` masih ada di codebase tapi **tidak digunakan** untuk upload logo/bukti. Logo dan bukti disimpan sebagai base64 data URL langsung di cell Google Sheets. Gambar di-resize client-side via Canvas API sebelum dikirim ke API.
 
 ### 4. Data Layer
 
@@ -207,7 +194,7 @@ Lihat `DATABASE_SCHEMA.md` untuk detail schema setiap sheet.
 3. Client submit form
 4. API Route menerima request
 5. Validasi input dengan Zod schema
-6. Jika ada bukti: upload ke Google Drive → dapat URL
+6. Jika ada bukti: upload terpisah via Canvas resize → base64 data URL → simpan di cell sheet
 7. Generate ID baru (TRX-YYYYMMDD-XXXX)
 8. Append row ke sheet `transaksi`
 9. Append row ke sheet `audit_log` (aksi: CREATE)
@@ -263,6 +250,6 @@ export async function POST(request: Request) {
 
 1. **Batch reads**: Gunakan `batchGet()` untuk membaca beberapa sheet sekaligus (1 API call vs N calls)
 2. **SWR caching**: Data di-cache di client, revalidate on focus/interval
-3. **Image compression**: Compress bukti foto di client sebelum upload (max 1MB)
+3. **Image resize & compress**: Bukti di-resize max 600px, logo max 200px, compress ke JPEG via Canvas API client-side, simpan sebagai base64 data URL di cell Sheets (max 50K chars per cell)
 4. **Lazy loading**: Gunakan Next.js dynamic imports untuk komponen berat (charts, PDF viewer)
 5. **Pagination**: Client-side pagination (semua data dibaca dari sheet, di-filter/paginate di client)

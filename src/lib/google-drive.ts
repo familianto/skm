@@ -17,7 +17,7 @@ class GoogleDriveService {
         client_email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
         private_key: process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
       },
-      scopes: ['https://www.googleapis.com/auth/drive.file'],
+      scopes: ['https://www.googleapis.com/auth/drive'],
     });
 
     this.drive = google.drive({ version: 'v3', auth });
@@ -50,6 +50,7 @@ class GoogleDriveService {
       requestBody: fileMetadata,
       media,
       fields: 'id',
+      supportsAllDrives: true,
     });
 
     const fileId = response.data.id;
@@ -62,6 +63,7 @@ class GoogleDriveService {
         role: 'reader',
         type: 'anyone',
       },
+      supportsAllDrives: true,
     });
 
     return fileId;
@@ -86,7 +88,7 @@ class GoogleDriveService {
    */
   async deleteFile(fileId: string): Promise<void> {
     const client = await this.getClient();
-    await client.files.delete({ fileId });
+    await client.files.delete({ fileId, supportsAllDrives: true });
   }
 }
 

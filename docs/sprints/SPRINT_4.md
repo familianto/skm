@@ -1,87 +1,104 @@
-# Sprint 4: Reconciliation & Additional
+# Sprint 4: Dashboard, Laporan & Export
 
 **Durasi**: 2 minggu
-**Tujuan**: Fitur rekonsiliasi bank, void/koreksi transaksi, dan upload bukti transaksi.
+**Tujuan**: Dashboard dengan visualisasi keuangan dan export laporan ke PDF/Excel.
 
 ## Prasyarat
 
-- Sprint 2 selesai (CRUD transaksi berfungsi)
+- Sprint 2 selesai (CRUD transaksi berfungsi, ada data transaksi untuk ditampilkan)
 
 ## Deliverables
 
-### 1. Void Transaksi
+### 1. Dashboard API
 
-- [ ] `POST /api/transaksi/[id]/void`:
-  - Validasi: transaksi harus berstatus `AKTIF`
-  - Wajib: `reason` (alasan void)
-  - Update fields: `status → VOID`, `void_reason`, `void_date`
-  - Audit log: `VOID`
-- [ ] UI: Tombol "Void" di detail transaksi
-  - Modal konfirmasi dengan input alasan
-  - Tampilkan warning: "Transaksi yang di-void tidak bisa di-undo"
-  - Setelah void: refresh data, tampilkan badge VOID
+- [ ] `GET /api/dashboard/summary`:
+  - Hitung total masuk, total keluar, saldo
+  - Jumlah transaksi
+  - Filter by tahun dan bulan
+  - Data per rekening (saldo per rekening)
+- [ ] `GET /api/dashboard/chart-data`:
+  - `type=monthly-trend`: data masuk/keluar per bulan
+  - `type=category-breakdown`: data per kategori (masuk dan keluar terpisah)
+  - Filter by tahun
 
-### 2. Koreksi Transaksi
+### 2. Halaman Dashboard
 
-- [ ] `POST /api/transaksi/[id]/koreksi`:
-  - Buat transaksi baru dengan `koreksi_dari_id` menunjuk ke transaksi asli
-  - Transaksi asli tetap `AKTIF` (tidak di-void otomatis)
-  - User bisa memilih untuk void transaksi asli secara terpisah
-  - Audit log: `KOREKSI`
-- [ ] UI: Tombol "Koreksi" di detail transaksi
-  - Buka form transaksi baru, pre-fill data dari transaksi asli
-  - Label "Koreksi dari: TRX-XXXX"
-  - Option: void transaksi asli bersamaan
+- [ ] `app/(dashboard)/page.tsx`:
+  - **Kartu Ringkasan** (3 cards):
+    - Total Pemasukan (hijau, ikon ↑)
+    - Total Pengeluaran (merah, ikon ↓)
+    - Saldo (biru, ikon 💰)
+  - **Filter Periode**:
+    - Dropdown tahun
+    - Dropdown bulan (opsional, bisa "Semua")
+  - **Grafik Tren Bulanan**:
+    - Line chart / bar chart
+    - X-axis: bulan (Jan-Des)
+    - Y-axis: nominal (Rupiah)
+    - 2 series: Pemasukan, Pengeluaran
+  - **Grafik Kategori**:
+    - Pie chart atau horizontal bar chart
+    - Tab: Pemasukan / Pengeluaran
+    - Tampilkan top 5 kategori + "Lainnya"
+  - **Transaksi Terakhir**:
+    - 5 transaksi terbaru
+    - Link "Lihat Semua" ke halaman transaksi
+  - **Saldo per Rekening**:
+    - List rekening dengan saldo masing-masing
 
-### 3. Upload Bukti Transaksi
+### 3. Chart Components
 
-- [ ] `POST /api/upload/bukti`:
-  - Terima multipart/form-data (file + transaksi_id)
-  - Validasi: file type (JPG, PNG), max size
-  - Upload ke Google Drive folder `bukti/`
-  - Set file permission: viewable by anyone with link
-  - Update `bukti_url` di sheet transaksi
-  - Audit log: `UPDATE`
-- [ ] Client-side image compression:
-  - Compress sebelum upload (target: max 1MB)
-  - Library: browser-image-compression
-  - Show progress indicator
-- [ ] UI di form transaksi:
-  - File input / kamera capture
-  - Preview thumbnail sebelum upload
-  - Progress bar saat upload
-- [ ] UI di detail transaksi:
-  - Thumbnail bukti (klik untuk full size)
-  - Link download
-  - Tombol ganti bukti
+- [ ] Install Chart.js + react-chartjs-2 (atau Recharts)
+- [ ] `components/charts/monthly-trend.tsx`:
+  - Line/bar chart pemasukan vs pengeluaran per bulan
+  - Responsive
+  - Tooltip dengan format Rupiah
+- [ ] `components/charts/category-breakdown.tsx`:
+  - Pie/doughnut chart per kategori
+  - Legend dengan persentase
+  - Tab switch masuk/keluar
 
-### 4. Rekonsiliasi Bank
+### 4. Export PDF
 
-- [ ] `GET /api/rekonsiliasi`:
-  - List riwayat rekonsiliasi
-  - Include data rekening (join manual)
-- [ ] `POST /api/rekonsiliasi`:
-  - Input: `rekening_id`, `tanggal`, `saldo_bank`
-  - Hitung `saldo_sistem` dari sheet transaksi (saldo_awal + masuk - keluar)
-  - Hitung `selisih` = saldo_bank - saldo_sistem
-  - Set `status`: SESUAI (selisih = 0) atau TIDAK_SESUAI
-  - Audit log: `CREATE`
-- [ ] Halaman `app/(dashboard)/rekonsiliasi/page.tsx`:
-  - Pilih rekening bank (dropdown)
-  - Tampilkan saldo sistem saat ini
-  - Input saldo bank aktual
-  - Tombol "Rekonsiliasi"
-  - Hasil: saldo sistem vs saldo bank, selisih, status
-  - Riwayat rekonsiliasi per rekening (tabel)
+- [ ] Install jspdf atau @react-pdf/renderer
+- [ ] `GET /api/export/pdf`:
+  - Query params: tahun, bulan (opsional), type (ringkasan/detail)
+  - **Laporan Ringkasan**:
+    - Header: Logo + Nama Masjid + Periode
+    - Ringkasan: Total masuk, keluar, saldo
+    - Tabel: Per kategori breakdown
+    - Footer: Tanggal cetak, "Dibuat oleh SKM"
+  - **Laporan Detail**:
+    - Header: Logo + Nama Masjid + Periode
+    - Tabel: Semua transaksi (tanggal, deskripsi, masuk, keluar)
+    - Total di footer tabel
+- [ ] Tombol "Export PDF" di halaman Laporan
 
-### 5. Update Detail Transaksi
+### 5. Export Excel
 
-- [ ] Tambahkan ke halaman detail transaksi:
-  - Tombol Void (baru)
-  - Tombol Koreksi (baru)
-  - Upload/ganti bukti (baru)
-  - Riwayat koreksi (jika ada)
-  - Link ke transaksi asli (jika ini adalah koreksi)
+- [ ] Install xlsx atau exceljs
+- [ ] `GET /api/export/excel`:
+  - Query params: tahun, bulan (opsional)
+  - Sheet 1: "Ringkasan" — summary per kategori
+  - Sheet 2: "Detail Transaksi" — semua transaksi
+  - Header dengan nama masjid dan periode
+  - Format kolom jumlah sebagai currency
+- [ ] Tombol "Export Excel" di halaman Laporan
+
+### 6. Halaman Laporan
+
+- [ ] `app/(dashboard)/laporan/page.tsx`:
+  - Filter: tahun, bulan
+  - Pilihan tipe laporan: Ringkasan / Detail
+  - Tombol Download PDF
+  - Tombol Download Excel
+  - Preview ringkasan sebelum download
+
+### 7. Hooks
+
+- [ ] `hooks/use-dashboard.ts`:
+  - `useDashboardSummary(tahun, bulan?)`: fetch summary data
+  - `useChartData(type, tahun)`: fetch chart data
 
 ## File Baru
 
@@ -89,66 +106,74 @@
 src/
   app/
     (dashboard)/
-      rekonsiliasi/
-        page.tsx                # Halaman rekonsiliasi
+      page.tsx                  # Dashboard (update dari placeholder)
+      laporan/
+        page.tsx                # Halaman laporan & export
     api/
-      transaksi/
-        [id]/
-          void/
-            route.ts            # POST void
-          koreksi/
-            route.ts            # POST koreksi
-      upload/
-        bukti/
-          route.ts              # POST upload bukti
-      rekonsiliasi/
-        route.ts                # GET list, POST create
+      dashboard/
+        summary/
+          route.ts
+        chart-data/
+          route.ts
+      export/
+        pdf/
+          route.ts
+        excel/
+          route.ts
   components/
-    forms/
-      void-modal.tsx            # Modal konfirmasi void
-      upload-bukti.tsx          # Upload component dengan preview
+    charts/
+      monthly-trend.tsx
+      category-breakdown.tsx
     ui/
-      file-upload.tsx           # Generic file upload component
-      image-preview.tsx         # Image preview/lightbox
+      summary-card.tsx          # Kartu ringkasan (total masuk/keluar/saldo)
   hooks/
-    use-rekonsiliasi.ts
+    use-dashboard.ts
 ```
 
 ## API Routes
 
 | Method | Path | Deskripsi |
 |---|---|---|
-| POST | `/api/transaksi/[id]/void` | Void transaksi |
-| POST | `/api/transaksi/[id]/koreksi` | Koreksi transaksi |
-| POST | `/api/upload/bukti` | Upload bukti |
-| GET | `/api/rekonsiliasi` | List rekonsiliasi |
-| POST | `/api/rekonsiliasi` | Create rekonsiliasi |
-
-## Schema Changes
-
-Tidak ada kolom baru — semua kolom sudah didefinisikan di `DATABASE_SCHEMA.md` sejak awal. Sprint ini hanya mengaktifkan fitur yang menggunakan kolom-kolom tersebut (`void_reason`, `void_date`, `koreksi_dari_id`, `bukti_url`, dan sheet `rekonsiliasi`).
+| GET | `/api/dashboard/summary` | Ringkasan keuangan |
+| GET | `/api/dashboard/chart-data` | Data grafik |
+| GET | `/api/export/pdf` | Generate PDF |
+| GET | `/api/export/excel` | Generate Excel |
 
 ## Testing
 
-- [ ] Void: status berubah ke VOID, alasan tersimpan
-- [ ] Void: transaksi yang sudah VOID tidak bisa di-void lagi
-- [ ] Koreksi: transaksi baru terbuat dengan link ke asli
-- [ ] Upload: file terupload ke Google Drive, URL tersimpan
-- [ ] Upload: file > 4.5MB di-reject
-- [ ] Upload: compression berfungsi di client
-- [ ] Rekonsiliasi: saldo sistem terhitung benar
-- [ ] Rekonsiliasi: selisih dan status ditampilkan
-- [ ] Rekonsiliasi: riwayat tersimpan dan tampil
+- [ ] Dashboard summary: total masuk, keluar, saldo benar
+- [ ] Chart: data tren bulanan akurat
+- [ ] Chart: breakdown kategori akurat
+- [ ] Filter periode: data berubah sesuai filter
+- [ ] Export PDF: file valid, data benar, format rapi
+- [ ] Export Excel: file valid, data benar, 2 sheets
+- [ ] PDF header: logo dan nama masjid tampil
+- [ ] Responsive: dashboard dan grafik di mobile
 
 ## Definition of Done
 
-- [ ] Void transaksi berfungsi end-to-end
-- [ ] Koreksi transaksi berfungsi end-to-end
-- [ ] Upload bukti berfungsi (dengan compression)
-- [ ] Bukti tampil di detail transaksi
-- [ ] Rekonsiliasi bank berfungsi
-- [ ] Riwayat rekonsiliasi tersimpan
-- [ ] Semua operasi tercatat di audit log
+- [ ] Dashboard menampilkan ringkasan keuangan real-time
+- [ ] Grafik tren bulanan berfungsi dan akurat
+- [ ] Grafik kategori berfungsi dan akurat
+- [ ] Export PDF menghasilkan laporan yang rapi
+- [ ] Export Excel menghasilkan spreadsheet yang benar
+- [ ] Filter periode berfungsi di semua komponen
 - [ ] TypeScript: no errors
 - [ ] Tests pass
 - [ ] Build pass
+
+---
+
+## Post-Sprint Enhancement
+
+### Filter Kategori di Halaman Laporan (2026-03-28)
+
+Ditambahkan multi-select filter kategori di halaman Laporan (`/laporan`):
+
+- **UI**: Dropdown multi-select dengan checkbox, dikelompokkan berdasarkan jenis (Pemasukan / Pengeluaran)
+- **Default**: "Semua Kategori" (perilaku sama seperti sebelumnya)
+- **Preview**: Ringkasan di halaman berubah sesuai kategori yang dipilih
+- **Export PDF**: Query param `kategori` (comma-separated IDs). Judul PDF mencantumkan nama kategori yang difilter, dikelompokkan berdasarkan jenis ("Kategori Masuk: ..." / "Kategori Keluar: ..."). Teks kategori mengikuti margin tabel dan auto-wrap jika panjang
+- **Export Excel**: Query param `kategori` (comma-separated IDs). Header Excel mencantumkan nama kategori yang difilter
+- **API**: Parameter `kategori` ditambahkan ke `/api/dashboard/summary`, `/api/export/pdf`, dan `/api/export/excel`
+- **Use case**: Generate laporan khusus (misal: laporan pertanggungjawaban Qurban) dengan memilih kategori terkait

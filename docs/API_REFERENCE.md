@@ -70,6 +70,50 @@ Login dengan PIN.
 - Set HTTP-only session cookie
 - Tulis audit log (`LOGIN`)
 
+#### Rate Limiting
+
+Endpoint ini dilindungi oleh mekanisme rate limiting untuk mencegah brute force attack.
+
+| Parameter | Nilai |
+|---|---|
+| Maksimum percobaan | 5x berturut-turut |
+| Durasi lockout | 5 menit |
+| Warning threshold | Setelah gagal ke-3 |
+| Tracking | Server-side (in-memory per IP) + Client-side (localStorage) |
+
+**Response saat locked (429):**
+```json
+{
+  "success": false,
+  "error": "Terlalu banyak percobaan login. Silakan coba lagi nanti.",
+  "data": {
+    "locked": true,
+    "lockoutUntil": 1711234567890,
+    "remainingAttempts": 0
+  }
+}
+```
+
+**Response saat warning (401, setelah gagal ke-3):**
+```json
+{
+  "success": false,
+  "error": "PIN salah. Sisa 2 percobaan sebelum akun di-lock.",
+  "data": {
+    "locked": false,
+    "remainingAttempts": 2,
+    "attemptCount": 3
+  }
+}
+```
+
+**Behavior:**
+- Setelah 5x gagal berturut-turut → HTTP 429, locked selama 5 menit
+- Setelah gagal ke-3 → pesan warning dengan sisa percobaan
+- Login berhasil → reset counter ke 0
+- Lockout expired → counter otomatis reset
+- Client-side: countdown timer real-time, persist via localStorage
+
 ---
 
 ### `POST /api/auth/logout`
@@ -398,31 +442,58 @@ Buat catatan rekonsiliasi baru.
 
 ### `POST /api/upload/bukti`
 
-Upload bukti transaksi (gambar).
+Upload bukti transaksi sebagai base64 data URL.
 
-**Request**: `multipart/form-data`
+**Request**: `application/json`
 | Field | Type | Deskripsi |
 |---|---|---|
-| `file` | File | Gambar (JPG/PNG, max 1MB setelah compress) |
-| `transaksi_id` | string | ID transaksi terkait |
+| `transaksiId` | string | ID transaksi terkait |
+| `buktiDataUrl` | string | Base64 data URL gambar (di-resize client-side max 600px, JPEG 70%) |
 
 **Response (200):**
 ```json
 {
   "success": true,
   "data": {
-    "url": "https://drive.google.com/..."
+    "bukti_url": "data:image/jpeg;base64,..."
   }
 }
 ```
 
+**Validasi:**
+- Data URL harus dimulai dengan `data:image/`
+- Panjang maksimal 50.000 karakter (limit cell Google Sheets)
+
 **Side Effects:**
-- Upload file ke Google Drive folder `bukti/`
-- Update `bukti_url` di sheet transaksi
+- Update `bukti_url` di sheet transaksi dengan base64 data URL
+- Audit log: UPDATE
 
 ### `POST /api/upload/logo`
 
-Upload logo masjid. (Sprint 6)
+Upload logo masjid sebagai base64 data URL.
+
+**Request**: `application/json`
+| Field | Type | Deskripsi |
+|---|---|---|
+| `logoDataUrl` | string | Base64 data URL gambar (di-resize client-side max 200px, JPEG 80%) |
+
+**Response (200):**
+```json
+{
+  "success": true,
+  "data": {
+    "logo_url": "data:image/jpeg;base64,..."
+  }
+}
+```
+
+**Validasi:**
+- Data URL harus dimulai dengan `data:image/`
+- Panjang maksimal 50.000 karakter (limit cell Google Sheets)
+
+**Side Effects:**
+- Update `logo_url` di sheet master dengan base64 data URL
+- Audit log: UPDATE
 
 ---
 
@@ -437,6 +508,7 @@ Ambil ringkasan keuangan.
 |---|---|---|---|
 | `tahun` | string | current year | Tahun buku |
 | `bulan` | string | - | Bulan spesifik (opsional) |
+| `kategori` | string | - | Comma-separated kategori IDs (opsional). Filter transaksi berdasarkan kategori. |
 
 **Response (200):**
 ```json
@@ -454,6 +526,35 @@ Ambil ringkasan keuangan.
   }
 }
 ```
+
+### `GET /api/dashboard/cumulative`
+
+Ambil data kumulatif all-time (lintas tahun) beserta tren tahunan.
+
+**Query Parameters:** Tidak ada.
+
+**Response (200):**
+```json
+{
+  "success": true,
+  "data": {
+    "totalMasuk": 150000000,
+    "totalKeluar": 100000000,
+    "saldo": 50000000,
+    "jumlahTransaksi": 3208,
+    "yearlyTrend": [
+      { "tahun": "2024", "masuk": 20000000, "keluar": 15000000 },
+      { "tahun": "2025", "masuk": 80000000, "keluar": 55000000 },
+      { "tahun": "2026", "masuk": 50000000, "keluar": 30000000 }
+    ]
+  }
+}
+```
+
+**Catatan:**
+- Semua transaksi aktif (status `AKTIF`) dihitung, tanpa filter periode.
+- `yearlyTrend` diurutkan berdasarkan tahun ascending, dinamis dari data yang ada.
+- Tahun-tahun dengan data parsial (misal: 2024 hanya Desember) ditampilkan apa adanya.
 
 ### `GET /api/dashboard/chart-data`
 
@@ -491,6 +592,7 @@ Generate laporan PDF.
 | `tahun` | string | Tahun buku |
 | `bulan` | string | Bulan (opsional) |
 | `type` | enum | `ringkasan` atau `detail` |
+| `kategori` | string | Comma-separated kategori IDs (opsional). Jika diisi, hanya transaksi dari kategori tersebut yang dimasukkan. Judul PDF mencantumkan nama kategori yang difilter, dikelompokkan berdasarkan jenis (Kategori Masuk / Kategori Keluar). Teks kategori mengikuti margin tabel dan otomatis wrap jika terlalu panjang. |
 
 **Response**: PDF file (application/pdf)
 
@@ -503,6 +605,7 @@ Export data transaksi ke Excel.
 |---|---|---|
 | `tahun` | string | Tahun buku |
 | `bulan` | string | Bulan (opsional) |
+| `kategori` | string | Comma-separated kategori IDs (opsional). Jika diisi, hanya transaksi dari kategori tersebut yang dimasukkan. Header Excel akan mencantumkan nama kategori yang difilter. |
 
 **Response**: Excel file (application/vnd.openxmlformats-officedocument.spreadsheetml.sheet)
 

@@ -30,7 +30,7 @@ SKM adalah sistem manajemen keuangan masjid berbasis web yang bertujuan untuk me
 | Styling | Tailwind CSS | Mobile-first |
 | Backend | Next.js API Routes | Route Handlers |
 | Database | Google Sheets API v4 | Sheets sebagai DB |
-| File Storage | Google Drive | Upload bukti transaksi |
+| File Storage | Base64 Data URL (di Google Sheets) | Logo & bukti transaksi disimpan sebagai base64 |
 | Auth | PIN-based | Hash + cookie session |
 | Charts | Chart.js / Recharts | Dashboard visualisasi |
 | State | SWR + React Context | Client-side caching |
@@ -67,18 +67,17 @@ SKM adalah sistem manajemen keuangan masjid berbasis web yang bertujuan untuk me
 │  │  lib/  │  │     │  - rekonsiliasi  │
 │  │ google │  │     └──────────────────┘
 │  │-sheets │  │
-│  │  .ts   │  │     ┌──────────────────┐
-│  └───┬────┘  │     │  Google Drive    │
-│      └───────┼────▶│  (File Storage)  │
-│              │     │  - Bukti foto    │
-└──────────────┘     └──────────────────┘
+│  │  .ts   │  │     Logo & bukti disimpan
+│  └────────┘  │     sebagai base64 data URL
+│              │     langsung di cell Sheets
+└──────────────┘
 ```
 
 ### Data Flow
 
 1. **Baca data**: Client → SWR fetch → API Route → `lib/google-sheets.ts` → Google Sheets API → Spreadsheet
 2. **Tulis data**: Client → Form submit → API Route → Validasi (Zod) → `lib/google-sheets.ts` → Append/Update row → Audit log
-3. **Upload bukti**: Client → Compress image → API Route → `lib/google-drive.ts` → Google Drive → Return URL → Simpan URL di sheet transaksi
+3. **Upload bukti/logo**: Client → Resize & compress via Canvas API → Base64 data URL → API Route → Simpan di cell Google Sheets
 4. **Export**: Client → API Route → Baca data dari sheets → Generate PDF/Excel → Return file
 
 ## 4. Struktur Google Sheets
@@ -95,7 +94,9 @@ Lihat detail lengkap di `DATABASE_SCHEMA.md`.
 | `rekening_bank` | Daftar rekening bank masjid | Sprint 1 |
 | `audit_log` | Log semua perubahan data | Sprint 1 |
 | `anggota` | Data pengurus masjid (bendahara, dll) | Sprint 1 |
-| `rekonsiliasi` | Data rekonsiliasi bank | Sprint 4 |
+| `rekonsiliasi` | Data rekonsiliasi bank | Sprint 5 |
+| `donatur` | Data donatur masjid | Sprint 3 |
+| `reminder` | Log pengiriman reminder WA | Sprint 3 |
 
 ## 5. Fitur Utama
 
@@ -106,35 +107,40 @@ Lihat detail lengkap di `DATABASE_SCHEMA.md`.
 - Filter berdasarkan tanggal, kategori, jenis, status
 - Pagination untuk daftar transaksi
 
-### 5.2 Void & Koreksi (Sprint 4) — BARU
+### 5.2 Manajemen Donatur & Reminder WA (Sprint 3)
+- CRUD data donatur (tetap/insidental)
+- Komitmen donasi bulanan per donatur
+- Kirim reminder via WhatsApp (Fonnte API)
+- Template pesan bawaan + custom
+- Bulk send ke banyak donatur sekaligus
+- Riwayat pengiriman reminder
+
+### 5.3 Dashboard & Laporan (Sprint 4)
+- **Dashboard kumulatif lintas tahun**: Kartu all-time (total pemasukan, pengeluaran, saldo kumulatif) + bar chart tren tahunan (pemasukan vs pengeluaran per tahun, dinamis dari data)
+- **Kartu ringkasan per periode**: Total masuk, total keluar, saldo (filter tahun/bulan)
+- **Grafik tren bulanan**: Bar chart pemasukan vs pengeluaran per bulan
+- **Grafik kategori**: Pie/donut chart breakdown per kategori (top 5 + Lainnya)
+- **Filter periode**: Pilih tahun dan bulan
+- **Filter kategori**: Multi-select kategori untuk laporan (dikelompokkan per jenis MASUK/KELUAR)
+- **Export PDF**: Laporan keuangan format PDF (ringkasan/detail), dengan filter kategori opsional (dikelompokkan per jenis MASUK/KELUAR di judul)
+- **Export Excel**: Data transaksi format spreadsheet (2 sheets: Ringkasan + Detail), dengan filter kategori opsional
+
+### 5.4 Void & Koreksi (Sprint 5)
 - **Void**: Batalkan transaksi yang salah (status → VOID, wajib isi alasan)
 - **Koreksi**: Buat transaksi koreksi yang terhubung ke transaksi asli
 - Semua void/koreksi tercatat di audit log
 
-### 5.3 Upload Bukti Pengiriman (Sprint 4) — BARU
+### 5.5 Upload Bukti Transaksi (Sprint 5)
 - Upload foto bukti dari device (kamera/galeri)
-- Compress otomatis di client sebelum upload
-- Simpan di Google Drive, URL disimpan di sheet transaksi
-- Preview bukti di detail transaksi
+- Resize otomatis di client (max 600px) dan compress ke JPEG 70%
+- Simpan sebagai base64 data URL di kolom `bukti_url` sheet transaksi
+- Preview bukti di detail transaksi (lightbox viewer)
 
-### 5.4 Dashboard & Laporan (Sprint 3)
-- **Kartu ringkasan**: Total masuk, total keluar, saldo
-- **Grafik tren bulanan**: Line chart pemasukan vs pengeluaran
-- **Grafik kategori**: Pie/bar chart breakdown per kategori
-- **Filter periode**: Pilih rentang tanggal
-- **Export PDF**: Laporan keuangan format PDF
-- **Export Excel**: Data transaksi format spreadsheet
-
-### 5.5 Rekonsiliasi Bank (Sprint 4) — BARU
+### 5.6 Rekonsiliasi Bank (Sprint 5)
 - Input saldo bank aktual
 - Bandingkan dengan saldo sistem
 - Tampilkan selisih
 - Catat hasil rekonsiliasi
-
-### 5.6 Logo & Branding (Sprint 6) — BARU
-- Upload logo masjid
-- Logo tampil di header dan laporan PDF
-- Simpan di Google Drive
 
 ### 5.7 Autentikasi PIN (Sprint 1)
 - Login dengan PIN (bukan username/password)
@@ -142,6 +148,8 @@ Lihat detail lengkap di `DATABASE_SCHEMA.md`.
 - Session berbasis cookie (HTTP-only)
 - Middleware proteksi untuk semua halaman kecuali login
 - Cocok untuk device bersama di masjid
+- **Rate limiting**: Maksimal 5x percobaan login gagal berturut-turut, setelahnya akun di-lock selama 5 menit dengan countdown timer real-time
+- **Warning visual**: Peringatan sisa percobaan setelah gagal ke-3 dengan border merah pada input
 
 ### 5.8 Import CSV Rekening Koran — BARU
 - Import transaksi dari CSV rekening koran bank
@@ -157,6 +165,17 @@ Lihat detail lengkap di `DATABASE_SCHEMA.md`.
 - Import data rekening bank dari file
 - Setup saldo awal
 - Pantau saldo per rekening
+### 5.8 TV Display Publik (Sprint 6)
+- Halaman read-only untuk ditampilkan di TV/monitor masjid
+- Ringkasan keuangan dan grafik sederhana
+- Auto-refresh setiap 5 menit
+- Tidak perlu login
+
+### 5.9 Logo & Branding (Sprint 6)
+- Upload logo masjid
+- Resize otomatis di client (max 200px) dan compress ke JPEG 80%
+- Simpan sebagai base64 data URL di kolom `logo_url` sheet master
+- Logo tampil di sidebar, halaman publik, dan laporan PDF
 
 ### 5.10 Multi-Masjid / Adopter (Sprint 6)
 - Dokumentasi adopsi untuk masjid lain
@@ -186,13 +205,13 @@ Lihat detail di `SPRINT_PLAN.md` dan file individual di `sprints/`.
 
 | Sprint | Nama | Estimasi | Status |
 |---|---|---|---|
-| 0 | Setup Wizard | 1 minggu | Belum dimulai |
-| 1 | Foundation | 2 minggu | Belum dimulai |
-| 2 | Core Transactions | 2 minggu | Belum dimulai |
-| 3 | Dashboard & Export | 2 minggu | Belum dimulai |
-| 4 | Reconciliation & Additional | 2 minggu | Belum dimulai |
-| 5 | Communication & Display | 1-2 minggu | Belum dimulai |
-| 6 | Settings, Polish & Reusability | 1-2 minggu | Belum dimulai |
+| 0 | Setup Wizard | 1 minggu | ✅ Done |
+| 1 | Foundation | 2 minggu | ✅ Done |
+| 2 | Core Transactions | 2 minggu | ✅ Done |
+| 3 | Donatur & Reminder WA | 1-2 minggu | ✅ Done |
+| 4 | Dashboard, Laporan & Export | 2 minggu | ✅ Done |
+| 5 | Rekonsiliasi Bank | 2 minggu | ✅ Done |
+| 6 | TV Display, Settings & Polish | 1-2 minggu | ✅ Done |
 
 ## 9. Saran Fitur Masa Depan (Backlog)
 
@@ -203,8 +222,8 @@ Fitur-fitur berikut **tidak termasuk** dalam scope v2.1, tapi bisa ditambahkan d
 3. **Keyboard Shortcut Dashboard** — Navigasi cepat via keyboard
 4. **Multi-Bahasa (i18n)** — Support bahasa selain Indonesia
 5. **Recurring Transactions** — Transaksi berulang (listrik bulanan, dll)
-6. **Dashboard Publik untuk Jamaah** — Halaman publik tanpa login
-7. **Notifikasi WhatsApp** — Kirim laporan via WhatsApp
+6. **Scheduled WA Reminders** — Reminder otomatis terjadwal (via Vercel Cron)
+7. **Donation Tracking per Donatur** — Hubungkan donatur ke transaksi untuk lacak total donasi
 8. **Mobile App (PWA)** — Progressive Web App untuk mobile
 
 ## 10. Estimasi Biaya Operasional
@@ -213,7 +232,7 @@ Fitur-fitur berikut **tidak termasuk** dalam scope v2.1, tapi bisa ditambahkan d
 
 | Komponen | Biaya/Bulan |
 |---|---|
-| Google Sheets + Drive | Gratis (15GB per Google account) |
+| Google Sheets | Gratis (logo & bukti disimpan sebagai base64 di Sheets) |
 | Vercel Hosting (Free tier) | Gratis |
 | Domain (opsional) | Rp 12.000 - Rp 150.000/tahun |
 | **Total** | **Rp 0 - Rp 12.500/bulan** |

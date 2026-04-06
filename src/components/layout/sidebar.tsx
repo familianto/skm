@@ -11,15 +11,21 @@ const navItems = [
   { href: '/kategori', label: 'Kategori', icon: 'M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A2 2 0 013 12V7a4 4 0 014-4z' },
   { href: '/rekening', label: 'Rekening', icon: 'M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z' },
   { href: '/import', label: 'Import CSV', icon: 'M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12' },
+  { href: '/donatur', label: 'Donatur', icon: 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z' },
+  { href: '/reminder', label: 'Reminder WA', icon: 'M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z' },
+  { href: '/rekonsiliasi', label: 'Rekonsiliasi', icon: 'M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z' },
   { href: '/laporan', label: 'Laporan', icon: 'M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z' },
   { href: '/pengaturan', label: 'Pengaturan', icon: 'M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z' },
 ];
 
+const TV_DISPLAY_ICON = 'M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z';
+
 interface SidebarProps {
   masjidName?: string;
+  logoUrl?: string;
 }
 
-export function Sidebar({ masjidName = 'SKM' }: SidebarProps) {
+export function Sidebar({ masjidName = 'SKM', logoUrl }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -33,8 +39,28 @@ export function Sidebar({ masjidName = 'SKM' }: SidebarProps) {
     <>
       {/* Logo */}
       <div className="px-4 py-6 border-b border-emerald-700">
-        <h1 className="text-xl font-bold text-white">{masjidName}</h1>
-        <p className="text-emerald-200 text-xs mt-1">Sistem Keuangan Masjid</p>
+        <div className="flex items-center gap-3">
+          {logoUrl ? (
+            /* eslint-disable-next-line @next/next/no-img-element */
+            <img
+              src={logoUrl}
+              alt="Logo"
+              width={40}
+              height={40}
+              className="w-10 h-10 rounded-full object-cover border-2 border-emerald-600 shrink-0"
+            />
+          ) : (
+            <div className="w-10 h-10 rounded-full bg-emerald-600 flex items-center justify-center shrink-0">
+              <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+              </svg>
+            </div>
+          )}
+          <div className="min-w-0">
+            <h1 className="text-lg font-bold text-white truncate">{masjidName}</h1>
+            <p className="text-emerald-200 text-xs">Sistem Keuangan Masjid</p>
+          </div>
+        </div>
       </div>
 
       {/* Nav */}
@@ -62,8 +88,22 @@ export function Sidebar({ masjidName = 'SKM' }: SidebarProps) {
         })}
       </nav>
 
-      {/* Logout */}
-      <div className="px-3 py-4 border-t border-emerald-700">
+      {/* TV Display + Logout */}
+      <div className="px-3 py-4 border-t border-emerald-700 space-y-1">
+        <a
+          href="/publik"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-sm font-medium text-emerald-100 hover:bg-emerald-700/50 transition-colors"
+        >
+          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d={TV_DISPLAY_ICON} />
+          </svg>
+          TV Display
+          <svg className="w-3 h-3 ml-auto opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+          </svg>
+        </a>
         <button
           onClick={handleLogout}
           className="flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-sm font-medium text-emerald-100 hover:bg-emerald-700/50 transition-colors"

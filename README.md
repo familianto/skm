@@ -5,11 +5,11 @@ Sistem manajemen keuangan masjid berbasis web yang transparan, akuntabel, dan mu
 ## Fitur Utama
 
 - **Pencatatan Transaksi** — Catat pemasukan dan pengeluaran dengan kategori dan rekening bank
-- **Dashboard Real-time** — Ringkasan keuangan dengan grafik tren dan breakdown kategori
+- **Dashboard Real-time** — Ringkasan keuangan kumulatif lintas tahun, tren tahunan, grafik tren bulanan, dan breakdown kategori
 - **Rekonsiliasi Bank** — Bandingkan saldo sistem dengan saldo bank aktual
 - **Void & Koreksi** — Batalkan atau koreksi transaksi yang salah dengan audit trail
 - **Upload Bukti** — Lampirkan foto bukti transaksi (struk, kwitansi)
-- **Export Laporan** — Download laporan dalam format PDF atau Excel
+- **Export Laporan** — Download laporan dalam format PDF atau Excel, dengan filter kategori per jenis (Masuk/Keluar)
 - **Display Publik** — Halaman read-only untuk ditampilkan di TV/monitor masjid
 - **Multi-Masjid** — Dapat diadopsi oleh masjid lain dengan mudah
 
@@ -20,7 +20,7 @@ Sistem manajemen keuangan masjid berbasis web yang transparan, akuntabel, dan mu
 | Frontend | Next.js 16 (App Router) + TypeScript |
 | Styling | Tailwind CSS 4 |
 | Database | Google Sheets API v4 |
-| File Storage | Google Drive |
+| File Storage | Base64 Data URL (di Google Sheets) |
 | Auth | PIN-based (bcrypt + JWT) |
 | Validation | Zod v4 |
 | Hosting | Vercel |
@@ -67,13 +67,13 @@ CLAUDE.md                       # Panduan untuk AI-assisted development
 
 | Sprint | Nama | Status | Deskripsi |
 |---|---|---|---|
-| 0 | Setup Wizard | Done | Inisialisasi project, koneksi Google Sheets |
-| 1 | Foundation | Done | Auth PIN, CRUD master data, layout UI |
+| 0 | Setup Wizard | ✅ Done | Inisialisasi project, koneksi Google Sheets |
+| 1 | Foundation | ✅ Done | Auth PIN, CRUD master data, layout UI |
 | 2 | Core Transactions | ✅ Done | CRUD transaksi keuangan |
-| 3 | Dashboard & Export | - | Grafik, ringkasan, export PDF/Excel |
-| 4 | Reconciliation | - | Rekonsiliasi bank, void/koreksi, upload bukti |
-| 5 | Communication | - | Halaman publik, template pesan |
-| 6 | Polish | - | Pengaturan, logo, optimization, multi-masjid |
+| 3 | Donatur & Reminder WA | ✅ Done | Manajemen donatur, reminder WhatsApp via Fonnte |
+| 4 | Dashboard & Export | ✅ Done | Grafik, ringkasan, export PDF/Excel |
+| 5 | Rekonsiliasi Bank | ✅ Done | Rekonsiliasi bank, void/koreksi, upload bukti |
+| 6 | TV Display, Settings & Polish | ✅ Done | Display publik, pengaturan, logo, optimization |
 
 Detail setiap sprint: [`docs/SPRINT_PLAN.md`](docs/SPRINT_PLAN.md)
 

@@ -1,97 +1,150 @@
-# Sprint 5: Communication & Display
+# Sprint 5: Rekonsiliasi Bank
 
-**Durasi**: 1-2 minggu
-**Tujuan**: Halaman display publik dan fitur komunikasi/notifikasi.
+**Durasi**: 2 minggu
+**Tujuan**: Fitur rekonsiliasi bank, void/koreksi transaksi, dan upload bukti transaksi.
 
 ## Prasyarat
 
-- Sprint 3 selesai (dashboard dan data visualisasi tersedia)
+- Sprint 2 selesai (CRUD transaksi berfungsi)
 
 ## Deliverables
 
-### 1. Halaman Publik (Public Display)
+### 1. Void Transaksi
 
-- [ ] `app/publik/page.tsx` (di luar group `(dashboard)`, tanpa auth):
-  - Nama dan logo masjid
-  - Ringkasan keuangan bulan ini:
-    - Total pemasukan
-    - Total pengeluaran
-    - Saldo
-  - Grafik sederhana (tren 6 bulan terakhir)
-  - Daftar transaksi terakhir (5-10 item, tanpa detail sensitif)
-  - Footer: "Dikelola dengan SKM"
-  - **Tidak perlu login** — read-only untuk jamaah
-  - Design: clean, besar, bisa ditampilkan di TV/monitor masjid
+- [ ] `POST /api/transaksi/[id]/void`:
+  - Validasi: transaksi harus berstatus `AKTIF`
+  - Wajib: `reason` (alasan void)
+  - Update fields: `status → VOID`, `void_reason`, `void_date`
+  - Audit log: `VOID`
+- [ ] UI: Tombol "Void" di detail transaksi
+  - Modal konfirmasi dengan input alasan
+  - Tampilkan warning: "Transaksi yang di-void tidak bisa di-undo"
+  - Setelah void: refresh data, tampilkan badge VOID
 
-### 2. API Publik
+### 2. Koreksi Transaksi
 
-- [ ] `GET /api/publik/ringkasan`:
-  - Return data yang aman untuk publik
-  - Tidak include audit log, PIN, atau data sensitif
-  - Cache response (SWR revalidate setiap 5 menit)
-- [ ] Middleware: endpoint `/api/publik/*` tidak perlu auth
+- [ ] `POST /api/transaksi/[id]/koreksi`:
+  - Buat transaksi baru dengan `koreksi_dari_id` menunjuk ke transaksi asli
+  - Transaksi asli tetap `AKTIF` (tidak di-void otomatis)
+  - User bisa memilih untuk void transaksi asli secara terpisah
+  - Audit log: `KOREKSI`
+- [ ] UI: Tombol "Koreksi" di detail transaksi
+  - Buka form transaksi baru, pre-fill data dari transaksi asli
+  - Label "Koreksi dari: TRX-XXXX"
+  - Option: void transaksi asli bersamaan
 
-### 3. Template Pesan (Opsional)
+### 3. Upload Bukti Transaksi
 
-- [ ] Template pesan WhatsApp/SMS untuk laporan:
-  - Laporan harian: "Pemasukan hari ini: Rp X, Pengeluaran: Rp Y"
-  - Laporan bulanan: ringkasan bulan
-  - Copy-to-clipboard button
-- [ ] `app/(dashboard)/komunikasi/page.tsx`:
-  - Pilih template pesan
-  - Preview pesan dengan data aktual
-  - Tombol "Salin ke Clipboard"
-  - Link "Kirim via WhatsApp" (wa.me deep link)
+- [ ] `POST /api/upload/bukti`:
+  - Terima JSON body `{ transaksiId, buktiDataUrl }`
+  - Validasi: data URL harus `data:image/*`, max 50.000 karakter
+  - Simpan base64 data URL langsung di kolom `bukti_url` sheet transaksi
+  - Audit log: `UPDATE`
+- [ ] Client-side image resize & compress:
+  - Resize via Canvas API (max 600x600px)
+  - Compress ke JPEG 70% quality
+  - Validasi tipe file (JPG/PNG) dan ukuran (max 500KB) sebelum resize
+- [ ] UI di form transaksi:
+  - File input / kamera capture
+  - Preview thumbnail sebelum upload
+- [ ] UI di detail transaksi:
+  - Thumbnail bukti (klik untuk lightbox full size)
+  - Tombol ganti bukti
 
-### 4. Auto-refresh untuk Display
+### 4. Rekonsiliasi Bank
 
-- [ ] Halaman publik auto-refresh setiap 5 menit
-- [ ] Gunakan SWR `refreshInterval`
-- [ ] Fullscreen mode (hide browser chrome via F11 instruction)
+- [ ] `GET /api/rekonsiliasi`:
+  - List riwayat rekonsiliasi
+  - Include data rekening (join manual)
+- [ ] `POST /api/rekonsiliasi`:
+  - Input: `rekening_id`, `tanggal`, `saldo_bank`
+  - Hitung `saldo_sistem` dari sheet transaksi (saldo_awal + masuk - keluar)
+  - Hitung `selisih` = saldo_bank - saldo_sistem
+  - Set `status`: SESUAI (selisih = 0) atau TIDAK_SESUAI
+  - Audit log: `CREATE`
+- [ ] Halaman `app/(dashboard)/rekonsiliasi/page.tsx`:
+  - Pilih rekening bank (dropdown)
+  - Tampilkan saldo sistem saat ini
+  - Input saldo bank aktual
+  - Tombol "Rekonsiliasi"
+  - Hasil: saldo sistem vs saldo bank, selisih, status
+  - Riwayat rekonsiliasi per rekening (tabel)
+
+### 5. Update Detail Transaksi
+
+- [ ] Tambahkan ke halaman detail transaksi:
+  - Tombol Void (baru)
+  - Tombol Koreksi (baru)
+  - Upload/ganti bukti (baru)
+  - Riwayat koreksi (jika ada)
+  - Link ke transaksi asli (jika ini adalah koreksi)
 
 ## File Baru
 
 ```
 src/
   app/
-    publik/
-      page.tsx                  # Halaman publik (no auth)
-      layout.tsx                # Layout publik (tanpa sidebar)
     (dashboard)/
-      komunikasi/
-        page.tsx                # Template pesan
+      rekonsiliasi/
+        page.tsx                # Halaman rekonsiliasi
     api/
-      publik/
-        ringkasan/
-          route.ts              # GET ringkasan publik
+      transaksi/
+        [id]/
+          void/
+            route.ts            # POST void
+          koreksi/
+            route.ts            # POST koreksi
+      upload/
+        bukti/
+          route.ts              # POST upload bukti
+      rekonsiliasi/
+        route.ts                # GET list, POST create
   components/
-    publik/
-      public-summary.tsx        # Komponen ringkasan publik
-      public-chart.tsx          # Grafik sederhana untuk publik
+    forms/
+      void-modal.tsx            # Modal konfirmasi void
+      upload-bukti.tsx          # Upload component dengan preview
+    ui/
+      file-upload.tsx           # Generic file upload component
+      image-preview.tsx         # Image preview/lightbox
+  hooks/
+    use-rekonsiliasi.ts
 ```
 
 ## API Routes
 
-| Method | Path | Auth | Deskripsi |
-|---|---|---|---|
-| GET | `/api/publik/ringkasan` | Tidak | Ringkasan untuk publik |
+| Method | Path | Deskripsi |
+|---|---|---|
+| POST | `/api/transaksi/[id]/void` | Void transaksi |
+| POST | `/api/transaksi/[id]/koreksi` | Koreksi transaksi |
+| POST | `/api/upload/bukti` | Upload bukti |
+| GET | `/api/rekonsiliasi` | List rekonsiliasi |
+| POST | `/api/rekonsiliasi` | Create rekonsiliasi |
+
+## Schema Changes
+
+Tidak ada kolom baru — semua kolom sudah didefinisikan di `DATABASE_SCHEMA.md` sejak awal. Sprint ini hanya mengaktifkan fitur yang menggunakan kolom-kolom tersebut (`void_reason`, `void_date`, `koreksi_dari_id`, `bukti_url`, dan sheet `rekonsiliasi`).
 
 ## Testing
 
-- [ ] Halaman publik: bisa diakses tanpa login
-- [ ] Halaman publik: tidak menampilkan data sensitif
-- [ ] Halaman publik: auto-refresh berfungsi
-- [ ] Template pesan: data aktual ter-inject ke template
-- [ ] Copy to clipboard: berfungsi
-- [ ] WhatsApp link: terbuka dengan pesan yang benar
+- [ ] Void: status berubah ke VOID, alasan tersimpan
+- [ ] Void: transaksi yang sudah VOID tidak bisa di-void lagi
+- [ ] Koreksi: transaksi baru terbuat dengan link ke asli
+- [ ] Upload: bukti tersimpan sebagai base64 di sheet
+- [ ] Upload: data URL > 50K chars di-reject
+- [ ] Upload: resize & compress berfungsi di client
+- [ ] Rekonsiliasi: saldo sistem terhitung benar
+- [ ] Rekonsiliasi: selisih dan status ditampilkan
+- [ ] Rekonsiliasi: riwayat tersimpan dan tampil
 
 ## Definition of Done
 
-- [ ] Halaman publik bisa diakses tanpa login
-- [ ] Data yang ditampilkan akurat dan tidak sensitif
-- [ ] Auto-refresh berfungsi
-- [ ] Template pesan siap pakai
-- [ ] Responsive di TV/monitor dan HP
+- [ ] Void transaksi berfungsi end-to-end
+- [ ] Koreksi transaksi berfungsi end-to-end
+- [ ] Upload bukti berfungsi (dengan compression)
+- [ ] Bukti tampil di detail transaksi
+- [ ] Rekonsiliasi bank berfungsi
+- [ ] Riwayat rekonsiliasi tersimpan
+- [ ] Semua operasi tercatat di audit log
 - [ ] TypeScript: no errors
 - [ ] Tests pass
 - [ ] Build pass
