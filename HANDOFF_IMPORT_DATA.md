@@ -17,6 +17,7 @@
 | 5 | Batch import API endpoint | Done |
 | 6 | Duplikat detection | Done |
 | 7 | Dokumentasi bank template guide | Done |
+| 8 | Filter tanggal (date range) di preview | Done |
 
 ---
 
@@ -50,6 +51,14 @@ Implementasi lengkap di `src/lib/bank-templates/muamalat.ts`:
 - Setiap sub-baris punya kategori dan jumlah sendiri.
 - Validasi: total split harus sama dengan jumlah original (ditampilkan real-time).
 - Saat import, setiap split jadi transaksi terpisah dengan deskripsi `[Split: NamaKategori]`.
+
+### Filter Tanggal (Date Range)
+- 2 input date: "Dari Tanggal" dan "Sampai Tanggal", diletakkan antara ringkasan dan tabel preview.
+- Default: seluruh rentang data CSV (tanggal terkecil s.d. terbesar).
+- Filter hanya mengubah tampilan preview dan data yang akan diimport, tidak mengubah data CSV yang sudah di-parse.
+- Ringkasan (Total, Auto-mapped, Review, Split, Duplikat) ikut berubah sesuai filter.
+- Tombol konfirmasi menampilkan jumlah transaksi yang terfilter.
+- Use case: CSV berisi Jan–Mar, tapi Jan–Feb sudah diimport sebelumnya — user bisa filter hanya Maret.
 
 ### Duplikat Detection
 - Client-side check: tanggal + jumlah + keterangan dibandingkan dengan transaksi existing.

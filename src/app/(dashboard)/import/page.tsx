@@ -31,6 +31,8 @@ export default function ImportPage() {
   const [importing, setImporting] = useState(false);
   const [imported, setImported] = useState(false);
   const [importResult, setImportResult] = useState<{ imported: number } | null>(null);
+  const [filterDateFrom, setFilterDateFrom] = useState('');
+  const [filterDateTo, setFilterDateTo] = useState('');
 
   // Resolve rekening ID for the selected bank
   const rekeningId = useMemo(() => {
@@ -83,6 +85,12 @@ export default function ImportPage() {
         setRows(parsed);
         setImported(false);
         setImportResult(null);
+        // Set default date range from parsed data
+        if (parsed.length > 0) {
+          const dates = parsed.map((r) => r.tanggal).sort();
+          setFilterDateFrom(dates[0]);
+          setFilterDateTo(dates[dates.length - 1]);
+        }
         toast(`${parsed.length} transaksi berhasil diparsing`);
       },
       error: () => {
@@ -148,20 +156,29 @@ export default function ImportPage() {
     }));
   }, []);
 
-  // Summary stats
-  const summary = useMemo(() => {
-    const total = rows.length;
-    const auto = rows.filter((r) => r.status === 'auto').length;
-    const review = rows.filter((r) => r.status === 'review').length;
-    const split = rows.filter((r) => r.status === 'split').length;
-    const duplicates = rows.filter((r) => r.isDuplicate).length;
-    return { total, auto, review, split, duplicates };
-  }, [rows]);
+  // Filtered rows by date range
+  const filteredRows = useMemo(() => {
+    return rows.filter((r) => {
+      if (filterDateFrom && r.tanggal < filterDateFrom) return false;
+      if (filterDateTo && r.tanggal > filterDateTo) return false;
+      return true;
+    });
+  }, [rows, filterDateFrom, filterDateTo]);
 
-  // Check if all rows are ready to import
+  // Summary stats (based on filtered rows)
+  const summary = useMemo(() => {
+    const total = filteredRows.length;
+    const auto = filteredRows.filter((r) => r.status === 'auto').length;
+    const review = filteredRows.filter((r) => r.status === 'review').length;
+    const split = filteredRows.filter((r) => r.status === 'split').length;
+    const duplicates = filteredRows.filter((r) => r.isDuplicate).length;
+    return { total, auto, review, split, duplicates };
+  }, [filteredRows]);
+
+  // Check if all filtered rows are ready to import
   const canImport = useMemo(() => {
-    if (rows.length === 0) return false;
-    return rows.every((r) => {
+    if (filteredRows.length === 0) return false;
+    return filteredRows.every((r) => {
       if (r.status === 'split' && r.splitRows && r.splitRows.length > 0) {
         // All splits must have kategori and jumlah, and total must match
         const splitsValid = r.splitRows.every((s) => s.kategori_id && s.jumlah > 0);
@@ -170,7 +187,7 @@ export default function ImportPage() {
       }
       return r.kategori_id !== '';
     });
-  }, [rows]);
+  }, [filteredRows]);
 
   // Handle import
   const handleImport = async () => {
@@ -184,7 +201,7 @@ export default function ImportPage() {
       // Build items: expand split rows
       const items: { tanggal: string; jenis: TransaksiJenis; kategori_id: string; deskripsi: string; jumlah: number; rekening_id: string }[] = [];
 
-      for (const row of rows) {
+      for (const row of filteredRows) {
         if (row.status === 'split' && row.splitRows && row.splitRows.length > 0) {
           for (const split of row.splitRows) {
             items.push({
@@ -233,6 +250,8 @@ export default function ImportPage() {
     setRows([]);
     setImported(false);
     setImportResult(null);
+    setFilterDateFrom('');
+    setFilterDateTo('');
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
@@ -316,6 +335,35 @@ export default function ImportPage() {
             </Card>
           </div>
 
+          {/* Date range filter */}
+          <Card className="mt-4">
+            <div className="flex flex-wrap items-end gap-4">
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1">Dari Tanggal</label>
+                <input
+                  type="date"
+                  value={filterDateFrom}
+                  onChange={(e) => setFilterDateFrom(e.target.value)}
+                  className="block rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1">Sampai Tanggal</label>
+                <input
+                  type="date"
+                  value={filterDateTo}
+                  onChange={(e) => setFilterDateTo(e.target.value)}
+                  className="block rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                />
+              </div>
+              {filteredRows.length !== rows.length && (
+                <span className="text-xs text-gray-500">
+                  Menampilkan {filteredRows.length} dari {rows.length} transaksi
+                </span>
+              )}
+            </div>
+          </Card>
+
           {/* Preview table */}
           <Card padding={false} className="mt-4">
             <div className="overflow-x-auto">
@@ -332,7 +380,7 @@ export default function ImportPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {rows.map((row) => (
+                  {filteredRows.map((row) => (
                     <RowGroup
                       key={row.key}
                       row={row}
@@ -351,7 +399,7 @@ export default function ImportPage() {
           {/* Confirm button */}
           <div className="mt-4 flex gap-3 items-center">
             <Button onClick={handleImport} disabled={importing || !canImport}>
-              {importing ? 'Mengimport...' : `Konfirmasi Import (${rows.length} transaksi)`}
+              {importing ? 'Mengimport...' : `Konfirmasi Import (${filteredRows.length} transaksi)`}
             </Button>
             {!canImport && (
               <span className="text-sm text-amber-600">Semua transaksi harus memiliki kategori sebelum import.</span>
