@@ -151,6 +151,20 @@ Lihat detail lengkap di `DATABASE_SCHEMA.md`.
 - **Rate limiting**: Maksimal 5x percobaan login gagal berturut-turut, setelahnya akun di-lock selama 5 menit dengan countdown timer real-time
 - **Warning visual**: Peringatan sisa percobaan setelah gagal ke-3 dengan border merah pada input
 
+### 5.8 Import CSV Rekening Koran — BARU
+- Import transaksi dari CSV rekening koran bank
+- Arsitektur extensible: bank template per bank (saat ini: Bank Muamalat)
+- Auto-kategorisasi berdasarkan pattern rules di keterangan transaksi
+- Preview tabel dengan status: Auto / Review / Perlu Split
+- Split handler untuk transaksi gabungan (misal Setor Tunai)
+- Duplikat detection (tanggal + jumlah + keterangan)
+- Batch insert ke sheet Transaksi via API
+- Template bank disimpan di `src/lib/bank-templates/` — lihat `docs/BANK_TEMPLATES.md`
+
+### 5.9 Import Master Bank & Rekonsiliasi (Sprint 4) — BARU
+- Import data rekening bank dari file
+- Setup saldo awal
+- Pantau saldo per rekening
 ### 5.8 TV Display Publik (Sprint 6)
 - Halaman read-only untuk ditampilkan di TV/monitor masjid
 - Ringkasan keuangan dan grafik sederhana

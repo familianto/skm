@@ -302,6 +302,46 @@ Buat transaksi koreksi.
 - Buat transaksi baru dengan `koreksi_dari_id` menunjuk ke transaksi asli
 - Tulis audit log (`KOREKSI`)
 
+### `POST /api/transaksi/import`
+
+Batch import transaksi dari CSV rekening koran bank.
+
+**Request Body:**
+```json
+{
+  "items": [
+    {
+      "tanggal": "2026-03-28",
+      "jenis": "MASUK",
+      "kategori_id": "KAT-20260406-0002",
+      "deskripsi": "PURCHASE QRIS ACQ ...",
+      "jumlah": 150000,
+      "rekening_id": "REK-20260101-0001"
+    }
+  ]
+}
+```
+
+**Validation:**
+- `items`: Array of 1-500 transaksi
+- Each item follows the same schema as `POST /api/transaksi`
+
+**Response (201):**
+```json
+{
+  "success": true,
+  "data": {
+    "imported": 25,
+    "ids": ["TRX-20260328-0001", "TRX-20260328-0002", "..."]
+  }
+}
+```
+
+**Side Effects:**
+- Append rows ke sheet transaksi (satu per item)
+- Tulis audit log (`CREATE`, entitas_id: `BATCH_IMPORT`)
+- Setiap transaksi mendapat ID unik `TRX-YYYYMMDD-XXXX`
+
 ---
 
 ## Kategori Endpoints (Sprint 1)
