@@ -384,7 +384,7 @@ export default function ImportPage() {
                     <TableHead className="text-right">Jumlah</TableHead>
                     <TableHead>Kategori</TableHead>
                     <TableHead>Status</TableHead>
-                    <TableHead>Aksi</TableHead>
+                    <TableHead className="text-center">Aksi</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -489,7 +489,7 @@ function RowGroup({ row, kategoris, onKategoriChange, onAddSplit, onUpdateSplit,
           )}
         </TableCell>
         <TableCell>{statusBadge()}</TableCell>
-        <TableCell>
+        <TableCell className="text-center">
           {row.status === 'split' && (
             <Button variant="ghost" size="sm" onClick={() => onAddSplit(row.key)}>
               + Split

@@ -190,7 +190,7 @@ export default function TransaksiPage() {
                     </button>
                   </TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Aksi</TableHead>
+                  <TableHead className="text-center">Aksi</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -204,7 +204,7 @@ export default function TransaksiPage() {
                       {t.jenis === TransaksiJenis.MASUK ? '+' : '-'}{formatRupiah(t.jumlah)}
                     </TableCell>
                     <TableCell><Badge label={t.status} /></TableCell>
-                    <TableCell className="text-right">
+                    <TableCell className="text-center">
                       <Link href={`/transaksi/${t.id}`}>
                         <Button variant="ghost" size="sm">Detail</Button>
                       </Link>

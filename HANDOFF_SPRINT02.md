@@ -156,3 +156,11 @@ Sprint 3 akan mengimplementasi dashboard real-time dengan chart dan export lapor
 ## Environment Requirements
 
 Tidak ada perubahan environment variables dari Sprint 1. Semua konfigurasi yang ada sudah cukup untuk Sprint 2.
+
+---
+
+## Post-Sprint UI/UX Updates (Sprint 7 — 6 April 2026)
+
+Komponen yang dibuat di Sprint 2 dan diupdate di Sprint 7:
+- **Transaksi page**: Kolom Aksi diubah ke text-center, format Rupiah ditambah spasi ("Rp 1.234.567")
+- **Badge MASUK/KELUAR**: Style diubah ke subtle (bg-emerald-50/bg-red-50 dengan ring border)

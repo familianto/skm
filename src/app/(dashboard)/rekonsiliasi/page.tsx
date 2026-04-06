@@ -91,7 +91,7 @@ export default function RekonsiliasiPage() {
 
       {/* Form */}
       <Card>
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="max-w-2xl space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Rekening Bank</label>
             <select

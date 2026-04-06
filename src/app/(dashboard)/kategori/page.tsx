@@ -128,7 +128,7 @@ export default function KategoriPage() {
                 <TableHead>Nama</TableHead>
                 <TableHead>Jenis</TableHead>
                 <TableHead>Deskripsi</TableHead>
-                <TableHead className="text-right">Aksi</TableHead>
+                <TableHead className="text-center">Aksi</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -137,7 +137,7 @@ export default function KategoriPage() {
                   <TableCell className="font-medium">{k.nama}</TableCell>
                   <TableCell><Badge label={k.jenis} /></TableCell>
                   <TableCell className="text-gray-500">{k.deskripsi || '-'}</TableCell>
-                  <TableCell className="text-right space-x-2">
+                  <TableCell className="text-center space-x-2">
                     <Button variant="ghost" size="sm" onClick={() => openEdit(k)}>Edit</Button>
                     <Button variant="ghost" size="sm" onClick={() => handleDelete(k.id, k.nama)}>Hapus</Button>
                   </TableCell>

@@ -117,7 +117,7 @@ export default function RekeningPage() {
                 <TableHead>No. Rekening</TableHead>
                 <TableHead>Atas Nama</TableHead>
                 <TableHead className="text-right">Saldo Awal</TableHead>
-                <TableHead className="text-right">Aksi</TableHead>
+                <TableHead className="text-center">Aksi</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -127,7 +127,7 @@ export default function RekeningPage() {
                   <TableCell>{r.nomor_rekening}</TableCell>
                   <TableCell>{r.atas_nama}</TableCell>
                   <TableCell className="text-right">{formatRupiah(r.saldo_awal)}</TableCell>
-                  <TableCell className="text-right space-x-2">
+                  <TableCell className="text-center space-x-2">
                     <Button variant="ghost" size="sm" onClick={() => openEdit(r)}>Edit</Button>
                     <Button variant="ghost" size="sm" onClick={() => handleDelete(r.id, r.nama_bank)}>Hapus</Button>
                   </TableCell>

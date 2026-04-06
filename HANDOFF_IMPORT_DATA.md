@@ -115,3 +115,11 @@ docs/API_REFERENCE.md               # + POST /api/transaksi/import
 3. **Hanya Bank Muamalat** — Template bank lain (BSI, BRI, Mandiri) belum ada. Arsitektur sudah extensible.
 4. **Duplikat check basic** — Hanya cek tanggal + jumlah + keterangan. Bisa false positive jika ada transaksi berbeda dengan kombinasi yang sama.
 5. **No undo** — Setelah import, tidak ada fitur batch undo. Harus void satu per satu.
+
+---
+
+## UI/UX Updates (Sprint 7 — 6 April 2026)
+
+- Kolom Aksi di tabel preview diubah ke `text-center` untuk konsistensi
+- Badge status (Auto, Review, Perlu Split, Duplikat) menggunakan style subtle/muted baru
+- Format Rupiah sekarang menggunakan spasi: "Rp 1.234.567"

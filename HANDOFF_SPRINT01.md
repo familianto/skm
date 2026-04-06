@@ -149,3 +149,13 @@ NEXT_PUBLIC_APP_NAME=SKM
 NEXT_PUBLIC_APP_VERSION=2.1
 PIN_SALT=                       # Tidak dipakai saat ini (bcryptjs auto-salt)
 ```
+
+---
+
+## Post-Sprint UI/UX Updates (Sprint 7 — 6 April 2026)
+
+Komponen yang dibuat di Sprint 1 dan diupdate di Sprint 7:
+- **Sidebar**: Menu diubah dari flat list menjadi grouped sections (Utama, Laporan, Pengaturan, Lainnya)
+- **Badge**: Style diubah menjadi subtle/muted (light background + ring border)
+- **Table**: Header font-weight diubah ke semibold, kolom Aksi alignment text-center
+- **Card**: Sudah sesuai (shadow-sm + border-gray-200), tidak ada perubahan
