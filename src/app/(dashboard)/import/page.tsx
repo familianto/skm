@@ -169,13 +169,19 @@ export default function ImportPage() {
 
   // Summary stats (based on filtered rows)
   const summary = useMemo(() => {
-    const total = filteredRows.length;
-    const auto = filteredRows.filter((r) => r.status === 'auto').length;
-    const review = filteredRows.filter((r) => r.status === 'review').length;
-    const split = filteredRows.filter((r) => r.status === 'split').length;
-    const duplicates = filteredRows.filter((r) => r.isDuplicate).length;
+    const filtered = rows.filter((r) => {
+      const rowDate = r.tanggal.slice(0, 10);
+      if (filterDateFrom && rowDate < filterDateFrom) return false;
+      if (filterDateTo && rowDate > filterDateTo) return false;
+      return true;
+    });
+    const total = filtered.length;
+    const auto = filtered.filter((r) => r.status === 'auto').length;
+    const review = filtered.filter((r) => r.status === 'review').length;
+    const split = filtered.filter((r) => r.status === 'split').length;
+    const duplicates = filtered.filter((r) => r.isDuplicate).length;
     return { total, auto, review, split, duplicates };
-  }, [filteredRows]);
+  }, [rows, filterDateFrom, filterDateTo]);
 
   // Check if all filtered rows are ready to import
   const canImport = useMemo(() => {
