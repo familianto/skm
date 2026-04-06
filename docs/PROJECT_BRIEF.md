@@ -116,7 +116,8 @@ Lihat detail lengkap di `DATABASE_SCHEMA.md`.
 - Riwayat pengiriman reminder
 
 ### 5.3 Dashboard & Laporan (Sprint 4)
-- **Kartu ringkasan**: Total masuk, total keluar, saldo
+- **Dashboard kumulatif lintas tahun**: Kartu all-time (total pemasukan, pengeluaran, saldo kumulatif) + bar chart tren tahunan (pemasukan vs pengeluaran per tahun, dinamis dari data)
+- **Kartu ringkasan per periode**: Total masuk, total keluar, saldo (filter tahun/bulan)
 - **Grafik tren bulanan**: Bar chart pemasukan vs pengeluaran per bulan
 - **Grafik kategori**: Pie/donut chart breakdown per kategori (top 5 + Lainnya)
 - **Filter periode**: Pilih tahun dan bulan
