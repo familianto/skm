@@ -274,6 +274,12 @@ Fitur-fitur berikut **tidak termasuk** dalam scope v2.1, tapi bisa ditambahkan d
 
 ## Changelog
 
+### v2.2.1 (7 April 2026)
+- **Filter Rekening** di halaman Transaksi (dropdown + URL `?rekening=ID`)
+- **Filter Rekening** di halaman Laporan (preview + PDF/Excel export ikut terfilter)
+- **Dashboard "Saldo per Rekening"** rows sekarang clickable — navigate ke `/transaksi?rekening=ID`
+- API `/api/dashboard/summary`, `/api/export/pdf`, `/api/export/excel` menerima query param `rekening`
+
 ### v2.2 (7 April 2026)
 - **Fitur baru: Kelompok Anggaran** — Pengelompokan beberapa kategori (MASUK+KELUAR) yang saling berkaitan untuk pelaporan terpadu (misal: Qurban, Ramadhan)
 - Halaman Kelompok Anggaran (sidebar > Pengaturan) dengan card grid + form create/edit modal
