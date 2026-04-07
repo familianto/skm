@@ -207,9 +207,12 @@ export default function TransaksiDetailPage({ params }: { params: Promise<{ id: 
         </dl>
       </Card>
 
-      <div className="mt-4">
+      <div className="mt-4 flex gap-2">
         <Link href="/transaksi">
           <Button variant="secondary">Kembali ke Daftar</Button>
+        </Link>
+        <Link href="/transaksi/baru">
+          <Button>+ Tambah Transaksi</Button>
         </Link>
       </div>
 
