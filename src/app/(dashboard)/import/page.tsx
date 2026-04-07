@@ -30,9 +30,10 @@ export default function ImportPage() {
   const [rows, setRows] = useState<ImportRow[]>([]);
   const [importing, setImporting] = useState(false);
   const [imported, setImported] = useState(false);
-  const [importResult, setImportResult] = useState<{ imported: number } | null>(null);
+  const [importResult, setImportResult] = useState<{ imported: number; failed: number; errors: string[] } | null>(null);
   const [filterDateFrom, setFilterDateFrom] = useState('');
   const [filterDateTo, setFilterDateTo] = useState('');
+  const [importProgress, setImportProgress] = useState<{ current: number; total: number; succeeded: number } | null>(null);
 
   // Resolve rekening ID for the selected bank
   const rekeningId = useMemo(() => {
@@ -207,7 +208,7 @@ export default function ImportPage() {
     });
   }, [filteredRows]);
 
-  // Handle import
+  // Handle import — chunked, with progress and partial-success reporting
   const handleImport = async () => {
     if (!rekeningId) {
       toast('Rekening bank tidak ditemukan. Pastikan rekening Bank Muamalat sudah terdaftar.', 'error');
@@ -215,15 +216,22 @@ export default function ImportPage() {
     }
 
     setImporting(true);
+    setImportResult(null);
     try {
-      // Build items: expand split rows
+      // Build items: expand split rows. Format tanggal as "YYYY-MM-DD 00:00:00"
+      // (SKM convention for imported transactions).
       const items: { tanggal: string; jenis: TransaksiJenis; kategori_id: string; deskripsi: string; jumlah: number; rekening_id: string }[] = [];
+      const formatTanggalForImport = (t: string) => {
+        const datePart = t.slice(0, 10);
+        return `${datePart} 00:00:00`;
+      };
 
       for (const row of filteredRows) {
+        const tanggal = formatTanggalForImport(row.tanggal);
         if (row.status === 'split' && row.splitRows && row.splitRows.length > 0) {
           for (const split of row.splitRows) {
             items.push({
-              tanggal: row.tanggal,
+              tanggal,
               jenis: row.jenis,
               kategori_id: split.kategori_id,
               deskripsi: `${row.keterangan} [Split: ${split.kategoriLabel}]`,
@@ -233,7 +241,7 @@ export default function ImportPage() {
           }
         } else {
           items.push({
-            tanggal: row.tanggal,
+            tanggal,
             jenis: row.jenis,
             kategori_id: row.kategori_id,
             deskripsi: row.keterangan,
@@ -243,24 +251,63 @@ export default function ImportPage() {
         }
       }
 
-      const res = await fetch('/api/transaksi/import', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ items }),
-      });
-
-      const data = await res.json();
-      if (data.success) {
-        setImported(true);
-        setImportResult(data.data);
-        toast(`${data.data.imported} transaksi berhasil diimport`);
-      } else {
-        toast(data.error || 'Gagal mengimport', 'error');
+      // Chunk into batches of 100 — keeps each request well under serverless
+      // timeout and Google Sheets API rate limits.
+      const CHUNK_SIZE = 100;
+      const chunks: typeof items[] = [];
+      for (let i = 0; i < items.length; i += CHUNK_SIZE) {
+        chunks.push(items.slice(i, i + CHUNK_SIZE));
       }
-    } catch {
-      toast('Terjadi kesalahan saat import', 'error');
+
+      let succeeded = 0;
+      let failed = 0;
+      const errors: string[] = [];
+      setImportProgress({ current: 0, total: chunks.length, succeeded: 0 });
+
+      for (let i = 0; i < chunks.length; i++) {
+        setImportProgress({ current: i + 1, total: chunks.length, succeeded });
+        try {
+          const res = await fetch('/api/transaksi/import', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ items: chunks[i] }),
+          });
+          const data = await res.json();
+          if (data.success && data.data) {
+            succeeded += data.data.imported;
+            setImportProgress({ current: i + 1, total: chunks.length, succeeded });
+          } else {
+            failed += chunks[i].length;
+            errors.push(`Batch ${i + 1}: ${data.error || `HTTP ${res.status}`}`);
+          }
+        } catch (err) {
+          failed += chunks[i].length;
+          const msg = err instanceof Error ? err.message : String(err);
+          errors.push(`Batch ${i + 1}: ${msg}`);
+        }
+
+        // Small delay between chunks to be polite to Google Sheets API
+        if (i < chunks.length - 1) {
+          await new Promise((resolve) => setTimeout(resolve, 300));
+        }
+      }
+
+      setImported(true);
+      setImportResult({ imported: succeeded, failed, errors });
+
+      if (failed === 0) {
+        toast(`${succeeded} transaksi berhasil diimport`);
+      } else if (succeeded === 0) {
+        toast(`Import gagal — ${failed} transaksi tidak tersimpan`, 'error');
+      } else {
+        toast(`${succeeded} berhasil, ${failed} gagal — lihat detail`, 'error');
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Terjadi kesalahan saat import';
+      toast(msg, 'error');
     } finally {
       setImporting(false);
+      setImportProgress(null);
     }
   };
 
@@ -316,9 +363,30 @@ export default function ImportPage() {
       {/* Import result */}
       {imported && importResult && (
         <Card className="mt-4">
-          <div className="text-center py-4">
-            <p className="text-lg font-bold text-emerald-600">{importResult.imported} transaksi berhasil diimport!</p>
-            <div className="flex gap-3 justify-center mt-4">
+          <div className="py-4 space-y-3">
+            <div className="text-center">
+              {importResult.imported > 0 && (
+                <p className="text-lg font-bold text-emerald-600">
+                  {importResult.imported} transaksi berhasil diimport
+                </p>
+              )}
+              {importResult.failed > 0 && (
+                <p className="text-sm font-medium text-red-600 mt-1">
+                  {importResult.failed} transaksi gagal
+                </p>
+              )}
+            </div>
+            {importResult.errors.length > 0 && (
+              <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-xs text-red-800 max-h-40 overflow-y-auto">
+                <p className="font-semibold mb-1">Detail error:</p>
+                <ul className="space-y-1">
+                  {importResult.errors.map((e, i) => (
+                    <li key={i}>• {e}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            <div className="flex gap-3 justify-center">
               <Button onClick={handleReset}>Import File Lain</Button>
               <Link href="/transaksi"><Button variant="secondary">Lihat Transaksi</Button></Link>
             </div>
@@ -415,13 +483,32 @@ export default function ImportPage() {
             </div>
           </Card>
 
-          {/* Confirm button */}
-          <div className="mt-4 flex gap-3 items-center">
-            <Button onClick={handleImport} disabled={importing || !canImport}>
-              {importing ? 'Mengimport...' : `Konfirmasi Import (${filteredRows.length} transaksi)`}
-            </Button>
-            {!canImport && (
-              <span className="text-sm text-amber-600">Semua transaksi harus memiliki kategori sebelum import.</span>
+          {/* Confirm button + progress */}
+          <div className="mt-4 space-y-2">
+            <div className="flex gap-3 items-center">
+              <Button onClick={handleImport} disabled={importing || !canImport}>
+                {importing
+                  ? (importProgress
+                    ? `Mengimport batch ${importProgress.current}/${importProgress.total}...`
+                    : 'Mengimport...')
+                  : `Konfirmasi Import (${filteredRows.length} transaksi)`}
+              </Button>
+              {!canImport && !importing && (
+                <span className="text-sm text-amber-600">Semua transaksi harus memiliki kategori sebelum import.</span>
+              )}
+              {importing && importProgress && (
+                <span className="text-sm text-gray-600">
+                  {importProgress.succeeded} transaksi tersimpan
+                </span>
+              )}
+            </div>
+            {importing && importProgress && (
+              <div className="w-full bg-gray-200 rounded-full h-2 max-w-md">
+                <div
+                  className="bg-emerald-500 h-2 rounded-full transition-all"
+                  style={{ width: `${(importProgress.current / importProgress.total) * 100}%` }}
+                />
+              </div>
             )}
           </div>
         </>

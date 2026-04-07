@@ -71,6 +71,23 @@ class GoogleSheetsService {
   }
 
   /**
+   * Append multiple rows to a sheet in a single API call.
+   * Much more efficient than calling appendRow in a loop.
+   */
+  async appendRows(sheetName: string, rows: (string | number | boolean)[][]): Promise<void> {
+    if (rows.length === 0) return;
+    const client = await this.getClient();
+    await client.spreadsheets.values.append({
+      spreadsheetId: this.spreadsheetId,
+      range: `${sheetName}!A:A`,
+      valueInputOption: 'RAW',
+      requestBody: {
+        values: rows.map((r) => r.map((v) => String(v))),
+      },
+    });
+  }
+
+  /**
    * Update a specific row (by 1-based row index)
    */
   async updateRow(sheetName: string, rowIndex: number, values: (string | number | boolean)[]): Promise<void> {
