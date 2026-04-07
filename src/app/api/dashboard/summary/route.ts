@@ -30,6 +30,8 @@ export interface DashboardSummary {
   totalKeluar: number;
   saldo: number;
   jumlahTransaksi: number;
+  jumlahMasuk: number;
+  jumlahKeluar: number;
   saldoPerRekening: {
     rekening_id: string;
     nama_bank: string;
@@ -78,13 +80,11 @@ export async function GET(request: NextRequest) {
       transaksis = transaksis.filter(t => kategoriIds.includes(t.kategori_id));
     }
 
-    const totalMasuk = transaksis
-      .filter(t => t.jenis === TransaksiJenis.MASUK)
-      .reduce((sum, t) => sum + t.jumlah, 0);
+    const masukTx = transaksis.filter(t => t.jenis === TransaksiJenis.MASUK);
+    const keluarTx = transaksis.filter(t => t.jenis === TransaksiJenis.KELUAR);
 
-    const totalKeluar = transaksis
-      .filter(t => t.jenis === TransaksiJenis.KELUAR)
-      .reduce((sum, t) => sum + t.jumlah, 0);
+    const totalMasuk = masukTx.reduce((sum, t) => sum + t.jumlah, 0);
+    const totalKeluar = keluarTx.reduce((sum, t) => sum + t.jumlah, 0);
 
     // Calculate saldo per rekening (all-time active transactions, no period filter)
     const aktifTransaksi = allTransaksi.filter(t => t.status === TransaksiStatus.AKTIF);
@@ -108,6 +108,8 @@ export async function GET(request: NextRequest) {
       totalKeluar,
       saldo: totalMasuk - totalKeluar,
       jumlahTransaksi: transaksis.length,
+      jumlahMasuk: masukTx.length,
+      jumlahKeluar: keluarTx.length,
       saldoPerRekening,
     };
 

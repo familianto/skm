@@ -167,31 +167,27 @@ export default function DashboardPage() {
       {summaryLoading ? (
         <Loading className="my-8" />
       ) : summary ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
           <SummaryCard
             title="Total Pemasukan"
             value={formatRupiah(summary.totalMasuk)}
             icon="↑"
             color="green"
-            subtitle={`${summary.jumlahTransaksi} transaksi`}
+            subtitle={`${formatCount(summary.jumlahMasuk || 0)} transaksi`}
           />
           <SummaryCard
             title="Total Pengeluaran"
             value={formatRupiah(summary.totalKeluar)}
             icon="↓"
             color="red"
+            subtitle={`${formatCount(summary.jumlahKeluar || 0)} transaksi`}
           />
           <SummaryCard
             title="Saldo Periode"
             value={formatRupiah(summary.saldo)}
             icon="$"
             color="blue"
-          />
-          <SummaryCard
-            title="Jumlah Transaksi"
-            value={summary.jumlahTransaksi.toString()}
-            icon="#"
-            color="gray"
+            subtitle={`${formatCount(summary.jumlahTransaksi)} transaksi total`}
           />
         </div>
       ) : null}
