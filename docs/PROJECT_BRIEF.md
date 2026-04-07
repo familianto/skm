@@ -283,6 +283,16 @@ Fitur-fitur berikut **tidak termasuk** dalam scope v2.1, tapi bisa ditambahkan d
 
 ## Changelog
 
+### v2.3 (7 April 2026) — Sprint 8
+- **Fitur baru: Mutasi Internal** — Pemindahan dana antar rekening (Bank ↔ Kas Tunai dst.)
+- 1 mutasi = 2 baris transaksi (KELUAR di rekening asal + MASUK di rekening tujuan) dihubungkan via kolom baru `mutasi_ref` (format `MUT-YYYYMMDD-NNNN`) di sheet `transaksi`
+- Kategori baru "Mutasi Internal" dengan jenis `MUTASI` (auto-create saat mutasi pertama dibuat)
+- Form Tambah Transaksi: tab ketiga **Mutasi** — input Dari Rekening, Ke Rekening, Jumlah, Deskripsi, Tanggal (kategori auto = Mutasi Internal, readonly)
+- Halaman Transaksi: badge `MUTASI` (slate), filter jenis menambahkan opsi "Mutasi", baris mutasi dikecualikan dari ringkasan Masuk/Keluar/Saldo
+- Detail transaksi: menampilkan info "Mutasi dari [rekening asal] ke [rekening tujuan]" + link ke pasangan
+- Void/Edit pada salah satu baris mutasi otomatis ikut meng-void/edit pasangannya
+- Mutasi **dikecualikan** dari semua perhitungan Pemasukan/Pengeluaran (Dashboard summary & cumulative, chart-data, Laporan, Export PDF/Excel, ringkasan Publik), tetapi **disertakan** dalam Saldo per Rekening agar saldo tetap akurat
+
 ### v2.2 (7 April 2026)
 - **Fitur baru: Kelompok Anggaran** — Pengelompokan beberapa kategori (MASUK+KELUAR) yang saling berkaitan untuk pelaporan terpadu (misal: Qurban, Ramadhan)
 - Halaman Kelompok Anggaran (sidebar > Pengaturan) dengan card grid + form create/edit modal
