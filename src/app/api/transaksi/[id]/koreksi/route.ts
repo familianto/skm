@@ -60,7 +60,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     await sheetsService.appendRow(SHEET_NAMES.TRANSAKSI, [
       newId, tanggal, jenis, kategori_id, deskripsi, jumlah.toString(),
       rekening_id, '', TransaksiStatus.AKTIF, '', '', originalId,
-      createdBy, now, now,
+      createdBy, now, now, '',
     ]);
 
     await logAudit(
@@ -90,6 +90,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
           existingTrx.created_by,
           existingTrx.created_at,
           now,
+          existingTrx.mutasi_ref || '',
         ];
         await sheetsService.updateRow(SHEET_NAMES.TRANSAKSI, original.rowIndex, voidedRow);
 

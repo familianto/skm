@@ -182,7 +182,13 @@ export default function TransaksiPage() {
   const filtered = useMemo(() => {
     let result = [...transaksis];
 
-    if (filterJenis) result = result.filter((t) => t.jenis === filterJenis);
+    if (filterJenis) {
+      if (filterJenis === 'MUTASI') {
+        result = result.filter((t) => !!t.mutasi_ref);
+      } else {
+        result = result.filter((t) => t.jenis === filterJenis && !t.mutasi_ref);
+      }
+    }
     if (filterStatus) result = result.filter((t) => t.status === filterStatus);
     if (filterKategoriIds.length > 0) result = result.filter((t) => filterKategoriIds.includes(t.kategori_id));
     if (filterDateFrom) result = result.filter((t) => t.tanggal >= filterDateFrom);
@@ -205,11 +211,11 @@ export default function TransaksiPage() {
 
   // Totals
   const totalMasuk = useMemo(
-    () => filtered.filter((t) => t.jenis === TransaksiJenis.MASUK && t.status === TransaksiStatus.AKTIF).reduce((s, t) => s + t.jumlah, 0),
+    () => filtered.filter((t) => t.jenis === TransaksiJenis.MASUK && t.status === TransaksiStatus.AKTIF && !t.mutasi_ref).reduce((s, t) => s + t.jumlah, 0),
     [filtered]
   );
   const totalKeluar = useMemo(
-    () => filtered.filter((t) => t.jenis === TransaksiJenis.KELUAR && t.status === TransaksiStatus.AKTIF).reduce((s, t) => s + t.jumlah, 0),
+    () => filtered.filter((t) => t.jenis === TransaksiJenis.KELUAR && t.status === TransaksiStatus.AKTIF && !t.mutasi_ref).reduce((s, t) => s + t.jumlah, 0),
     [filtered]
   );
 
@@ -295,6 +301,7 @@ export default function TransaksiPage() {
               <option value="">Semua</option>
               <option value="MASUK">Pemasukan</option>
               <option value="KELUAR">Pengeluaran</option>
+              <option value="MUTASI">Mutasi</option>
             </select>
           </div>
           <div>
@@ -387,7 +394,9 @@ export default function TransaksiPage() {
                   return (
                     <TableRow key={t.id}>
                       <TableCell className="whitespace-nowrap align-top">{formatTanggal(t.tanggal)}</TableCell>
-                      <TableCell className="align-top"><Badge label={t.jenis} /></TableCell>
+                      <TableCell className="align-top">
+                        {t.mutasi_ref ? <Badge label="MUTASI" /> : <Badge label={t.jenis} />}
+                      </TableCell>
                       <TableCell className="align-top">{kategoriMap[t.kategori_id] || t.kategori_id}</TableCell>
                       <TableCell className="max-w-[260px] align-top">
                         <button
@@ -409,8 +418,8 @@ export default function TransaksiPage() {
                           </svg>
                         </button>
                       </TableCell>
-                      <TableCell className={`font-medium whitespace-nowrap align-top ${t.jenis === TransaksiJenis.MASUK ? 'text-emerald-600' : 'text-red-600'}`}>
-                        {t.jenis === TransaksiJenis.MASUK ? '+' : '-'}{formatRupiah(t.jumlah)}
+                      <TableCell className={`font-medium whitespace-nowrap align-top ${t.mutasi_ref ? 'text-slate-600' : t.jenis === TransaksiJenis.MASUK ? 'text-emerald-600' : 'text-red-600'}`}>
+                        {t.mutasi_ref ? '' : t.jenis === TransaksiJenis.MASUK ? '+' : '-'}{formatRupiah(t.jumlah)}
                       </TableCell>
                       <TableCell className="align-top"><Badge label={t.status} /></TableCell>
                       <TableCell className="text-center align-top">

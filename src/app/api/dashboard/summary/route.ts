@@ -57,8 +57,8 @@ export async function GET(request: NextRequest) {
     const allTransaksi = transaksiRows.map(rowToTransaksi);
     const rekeningList = rekeningRows.map(rowToRekening).filter(r => r.is_active);
 
-    // Filter active transaksi only
-    let transaksis = allTransaksi.filter(t => t.status === TransaksiStatus.AKTIF);
+    // Filter active transaksi only — exclude mutasi internal (not real income/expense)
+    let transaksis = allTransaksi.filter(t => t.status === TransaksiStatus.AKTIF && !t.mutasi_ref);
 
     // Apply period filter — tahun=all means all years
     if (tahun && tahun !== 'all') {

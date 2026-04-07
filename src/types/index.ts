@@ -5,6 +5,7 @@
 export enum TransaksiJenis {
   MASUK = 'MASUK',
   KELUAR = 'KELUAR',
+  MUTASI = 'MUTASI',
 }
 
 export enum TransaksiStatus {
@@ -88,6 +89,7 @@ export interface Transaksi {
   created_by: string;
   created_at: string;
   updated_at: string;
+  mutasi_ref: string;
 }
 
 export interface Kategori {
