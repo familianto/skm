@@ -327,3 +327,62 @@ Task 1 (standardisasi card Kelompok dengan layout fixed + pindah menu ke Utama) 
 - Sidebar: Kelompok Anggaran sudah berada di group Utama antara Transaksi dan Import CSV
 
 Tidak ada perubahan tambahan yang diperlukan untuk Task 1 di sprint A4 ini.
+
+---
+
+## Post-Sprint Updates — Transaksi Search & Expandable Deskripsi (April 2026)
+
+### Konteks
+User membutuhkan cara cepat menemukan transaksi spesifik di antara ribuan baris dan melihat deskripsi panjang tanpa harus klik ke halaman detail.
+
+### Deliverables
+
+| # | Item | Status |
+|---|---|---|
+| 1 | Input search "Cari Deskripsi" di filter bar (case-insensitive partial match) | Done |
+| 2 | Debounce 300ms via setTimeout di useEffect | Done |
+| 3 | Tombol clear (X) di dalam input untuk reset cepat | Done |
+| 4 | Search ikut update sticky summary bar (Total/Masuk/Keluar/Saldo) | Done |
+| 5 | Search bisa dikombinasikan dengan filter lain (jenis, status, kategori, tanggal) | Done |
+| 6 | Deskripsi expandable per-row (chevron icon, klik untuk expand/collapse) | Done |
+| 7 | Layout: deskripsi expand ke bawah, kolom lain tidak shift | Done |
+| 8 | State expand pakai `Set<string>` agar O(1) toggle | Done |
+
+### Keputusan Teknis
+
+**Debounce search** — Pakai setTimeout di useEffect (bukan useDeferredValue) karena lebih predictable dan kompatibel dengan flow pagination reset:
+```typescript
+useEffect(() => {
+  const t = setTimeout(() => {
+    setSearchQuery(searchInput.trim().toLowerCase());
+    setPage(1);
+  }, 300);
+  return () => clearTimeout(t);
+}, [searchInput]);
+```
+
+**Filter bar grid** — Diubah dari `lg:grid-cols-5` → `lg:grid-cols-6`. Search input ditaruh sebagai slot pertama (paling kiri), diikuti Jenis, Status, Kategori, Dari Tanggal, Sampai Tanggal.
+
+**Expanded state** — `Set<string>` memungkinkan O(1) `has()`, `add()`, `delete()` tanpa array manipulation. Toggle helper:
+```typescript
+const toggleExpanded = (id: string) => {
+  setExpandedKeys((prev) => {
+    const next = new Set(prev);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    return next;
+  });
+};
+```
+
+**Layout stability** — Cell deskripsi diberi `max-w-[260px] align-top`. Saat collapsed, span pakai `truncate`. Saat expanded, span pakai `whitespace-normal break-words`. Width tidak berubah, hanya height.
+
+**Performa** — Filter berjalan di array yang sudah di-load (client-side). Untuk 3000+ baris, search adalah single pass `array.filter()` di memo — cukup cepat. Pagination tetap dilakukan setelah filter+sort, jadi rendering hanya 20 row per halaman.
+
+### File Diubah
+
+| File | Perubahan |
+|---|---|
+| `src/app/(dashboard)/transaksi/page.tsx` | + state `searchInput`/`searchQuery`/`expandedKeys`, + debounce useEffect, + filter di useMemo, + UI input search dengan clear button, + toggle di kolom Deskripsi dengan chevron icon |
+| `docs/PROJECT_BRIEF.md` | Section 5.1 ditambah catatan search dan expandable deskripsi |
+| `HANDOFF_SPRINT02.md` | Catatan post-sprint update |
+| `HANDOFF_SPRINT03.md` | Catatan referensi pola search untuk replikasi |
