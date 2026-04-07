@@ -49,6 +49,11 @@ const SHEET_HEADERS: Record<string, string[]> = {
     'id', 'rekening_id', 'tanggal', 'saldo_bank', 'saldo_sistem',
     'selisih', 'status', 'catatan', 'created_at',
   ],
+  kelompok: [
+    'id', 'nama', 'deskripsi', 'warna',
+    'kategori_masuk', 'kategori_keluar',
+    'created_at', 'updated_at',
+  ],
 };
 
 const DEFAULT_CATEGORIES = [

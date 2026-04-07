@@ -174,3 +174,90 @@ Implementasi di `src/components/layout/sidebar.tsx`:
 | `docs/PROJECT_BRIEF.md` | Changelog v2.1.2 |
 | `docs/API_REFERENCE.md` | Updated dashboard & export endpoint docs |
 | `HANDOFF_IMPORT_DATA.md` | Sprint A2 notes |
+
+---
+
+# Sprint A3: Kelompok Anggaran (v2.2)
+
+**Tanggal**: 2026-04-07
+**Branch**: `claude/kelompok-anggaran-feature`
+**Status**: Selesai
+
+## Deliverables Sprint A3
+
+| # | Deliverable | Status |
+|---|---|---|
+| 1 | Sheet baru `kelompok` dengan 8 kolom (id, nama, deskripsi, warna, kategori_masuk, kategori_keluar, timestamps) | Done |
+| 2 | Type `Kelompok` ditambahkan ke `src/types/index.ts` | Done |
+| 3 | ID_PREFIXES.KELOMPOK = 'KEL' | Done |
+| 4 | API `/api/kelompok` — GET (list), POST (create) | Done |
+| 5 | API `/api/kelompok/[id]` — GET, PUT, DELETE (hard delete) | Done |
+| 6 | API `/api/dashboard/kelompok` — ringkasan saldo per kelompok | Done |
+| 7 | Hook `useKelompok()` dan `useKelompokSummary()` | Done |
+| 8 | Halaman `/kelompok` — card grid + modal form create/edit | Done |
+| 9 | Custom `KategoriPicker` dengan chip + dropdown (click outside handler) | Done |
+| 10 | Color picker dengan 8 preset warna | Done |
+| 11 | Sidebar menu "Kelompok Anggaran" di group Pengaturan | Done |
+| 12 | Dashboard section "Ringkasan per Kelompok" dengan card dan bar chart | Done |
+| 13 | Laporan: dropdown filter "Kelompok" auto-populate selectedKategori | Done |
+| 14 | ConfirmDialog component baru — reusable confirmation dialog | Done |
+| 15 | Toast notifications: berhasil disimpan / diupdate / dihapus | Done |
+| 16 | Dialog konfirmasi UPDATE: "Apakah Anda yakin ingin mengupdate kelompok ini?" | Done |
+| 17 | Dialog konfirmasi DELETE dengan tombol merah "Ya, Hapus" | Done |
+| 18 | Seed script update untuk auto-create sheet baru | Done |
+| 19 | Dokumentasi: PROJECT_BRIEF, API_REFERENCE, HANDOFF | Done |
+
+## Keputusan Teknis Sprint A3
+
+### 1. Data Model
+- Kategori IDs disimpan sebagai comma-separated string di 2 kolom (`kategori_masuk`, `kategori_keluar`) — sederhana, mudah dibaca di Google Sheets
+- Alternative yang tidak dipilih: tabel junction terpisah (terlalu kompleks untuk 1-2 kelompok per masjid)
+- 1 kategori bisa masuk ke banyak kelompok (no unique constraint)
+
+### 2. Delete Strategy
+- **Hard delete** — row di-blank (bukan soft delete dengan `is_active`) karena kelompok adalah organisasional, bukan entitas transaksional. Audit log tetap dicatat.
+- Filter di list API: `.filter(k => k.id)` untuk skip blanked rows.
+
+### 3. Laporan Integration (No API Change)
+- Dropdown Kelompok di Laporan **hanya memanipulasi state `selectedKategori`** di frontend. Ketika kelompok dipilih, otomatis `selectedKategori` di-set ke gabungan `kategori_masuk + kategori_keluar` kelompok tersebut.
+- Keuntungan: **tidak perlu modifikasi API `dashboard/summary`, export PDF, atau export Excel** — filter kategori yang sudah ada cukup
+- Jika user mengedit kategori manual setelah pilih kelompok, dropdown kelompok auto-reset ke "Semua"
+
+### 4. KategoriPicker Component
+- Custom component inline di `kelompok/page.tsx` (tidak di-extract karena spesifik)
+- Click outside handler via `mousedown` listener pada document
+- Dropdown hanya menampilkan kategori yang **belum dipilih** (mencegah duplikat)
+- Chip dapat dihapus via tombol X dengan warna sesuai jenis (emerald/red)
+
+### 5. ConfirmDialog Component Baru
+- Reusable: `src/components/ui/confirm-dialog.tsx`
+- Membungkus `Modal` dengan prop `variant: 'primary' | 'danger'` untuk warna tombol confirm
+- Bisa digunakan di fitur lain di masa depan (gantikan `window.confirm()`)
+
+### 6. Dashboard Section
+- Conditional render: hanya muncul jika `kelompokSummary.length > 0` (hide jika belum ada kelompok)
+- Border-left 4px dengan warna kelompok sebagai visual identifier
+- Bar chart manual (div-based) untuk konsistensi dengan existing `CategoryBarChart` pattern
+
+## File Baru Sprint A3
+
+- `src/app/api/kelompok/route.ts`
+- `src/app/api/kelompok/[id]/route.ts`
+- `src/app/api/dashboard/kelompok/route.ts`
+- `src/hooks/use-kelompok.ts`
+- `src/app/(dashboard)/kelompok/page.tsx`
+- `src/components/ui/confirm-dialog.tsx`
+
+## File yang Diubah Sprint A3
+
+| File | Perubahan |
+|---|---|
+| `src/lib/constants.ts` | Tambah SHEET_NAMES.KELOMPOK, ID_PREFIXES.KELOMPOK, SHEET_HEADERS kelompok |
+| `src/lib/google-sheets.ts` | Tambah mapping KELOMPOK → 'kelompok' |
+| `src/types/index.ts` | Tambah interface Kelompok |
+| `src/components/layout/sidebar.tsx` | Tambah link "Kelompok Anggaran" di group Pengaturan |
+| `src/app/(dashboard)/page.tsx` | Tambah section "Ringkasan per Kelompok" |
+| `src/app/(dashboard)/laporan/page.tsx` | Tambah dropdown Kelompok (5 kolom grid) |
+| `scripts/seed.ts` | Tambah header kelompok untuk auto-setup |
+| `docs/PROJECT_BRIEF.md` | Section 5.11 Kelompok Anggaran + changelog v2.2 |
+| `docs/API_REFERENCE.md` | Dokumentasi endpoint `/api/kelompok` dan `/api/dashboard/kelompok` |

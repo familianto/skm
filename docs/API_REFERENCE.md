@@ -590,6 +590,98 @@ Ambil data untuk grafik.
 
 ---
 
+## Kelompok Endpoints (v2.2)
+
+### `GET /api/kelompok`
+
+Ambil daftar semua kelompok anggaran.
+
+**Response (200):**
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": "KEL-20260407-0001",
+      "nama": "Qurban 1447H",
+      "deskripsi": "Pelaksanaan qurban tahun 1447H",
+      "warna": "#059669",
+      "kategori_masuk": ["KAT-20260406-0009", "KAT-20260406-0008"],
+      "kategori_keluar": ["KAT-20260406-0028"],
+      "created_at": "2026-04-07T00:00:00Z",
+      "updated_at": "2026-04-07T00:00:00Z"
+    }
+  ],
+  "meta": { "total": 1 }
+}
+```
+
+### `POST /api/kelompok`
+
+Buat kelompok baru.
+
+**Request Body:**
+```json
+{
+  "nama": "Qurban 1447H",
+  "deskripsi": "Opsional",
+  "warna": "#059669",
+  "kategori_masuk": ["KAT-001", "KAT-002"],
+  "kategori_keluar": ["KAT-010"]
+}
+```
+
+**Validasi:**
+- `nama`: wajib, tidak boleh kosong
+- Minimal salah satu dari `kategori_masuk` atau `kategori_keluar` harus terisi
+
+**Response (201):** Kelompok object.
+
+### `PUT /api/kelompok/[id]`
+
+Update kelompok.
+
+**Request Body:** Sama dengan POST.
+
+**Response (200):** Updated Kelompok object.
+
+### `DELETE /api/kelompok/[id]`
+
+Hapus kelompok (hard delete — row dikosongkan).
+
+**Response (200):** `{ "success": true }`
+
+### `GET /api/dashboard/kelompok`
+
+Ringkasan saldo per kelompok (dihitung dari transaksi aktif).
+
+**Response (200):**
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": "KEL-20260407-0001",
+      "nama": "Qurban 1447H",
+      "warna": "#059669",
+      "totalMasuk": 50000000,
+      "totalKeluar": 30000000,
+      "saldo": 20000000,
+      "jumlahKategoriMasuk": 2,
+      "jumlahKategoriKeluar": 1,
+      "jumlahTransaksi": 45
+    }
+  ]
+}
+```
+
+**Catatan:**
+- Total dihitung dari transaksi aktif (status AKTIF) yang `kategori_id` termasuk dalam `kategori_masuk` atau `kategori_keluar` kelompok
+- 1 kategori bisa masuk ke banyak kelompok — total per kelompok independen
+- Tidak ada filter periode (ringkasan all-time)
+
+---
+
 ## Export Endpoints (Sprint 3)
 
 ### `GET /api/export/pdf`

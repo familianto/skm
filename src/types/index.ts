@@ -167,6 +167,17 @@ export interface Reminder {
   created_at: string;
 }
 
+export interface Kelompok {
+  id: string;
+  nama: string;
+  deskripsi: string;
+  warna: string;
+  kategori_masuk: string[];
+  kategori_keluar: string[];
+  created_at: string;
+  updated_at: string;
+}
+
 // ============================================================
 // Session
 // ============================================================

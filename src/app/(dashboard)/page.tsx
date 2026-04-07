@@ -10,6 +10,7 @@ import { YearlyTrendChart } from '@/components/charts/yearly-trend';
 import { CategoryBarChart } from '@/components/charts/category-bar';
 import { Loading } from '@/components/ui/loading';
 import { useDashboardSummary, useChartData, useCumulativeDashboard } from '@/hooks/use-dashboard';
+import { useKelompokSummary } from '@/hooks/use-kelompok';
 import { useTransaksi } from '@/hooks/use-transaksi';
 import { formatRupiah, formatTanggal } from '@/lib/utils';
 import { APP_CONFIG } from '@/lib/constants';
@@ -46,6 +47,7 @@ export default function DashboardPage() {
   const [cumulativeCatJenis, setCumulativeCatJenis] = useState<'masuk' | 'keluar'>('keluar');
 
   const { data: cumulative, loading: cumulativeLoading } = useCumulativeDashboard();
+  const { data: kelompokSummary, loading: kelompokLoading } = useKelompokSummary();
   const { data: summary, loading: summaryLoading } = useDashboardSummary(tahun, bulan || undefined);
   const { data: trendData, loading: trendLoading } = useChartData('monthly-trend', tahun);
   const { data: categoryData, loading: categoryLoading } = useChartData('category-breakdown', tahun, categoryJenis);
@@ -309,6 +311,63 @@ export default function DashboardPage() {
           </div>
         </Card>
       </div>
+
+      {/* Ringkasan per Kelompok */}
+      {!kelompokLoading && kelompokSummary.length > 0 && (
+        <div className="mt-8">
+          <div className="border-t border-gray-200 pt-6 mb-4">
+            <h2 className="text-lg font-semibold text-gray-900">Ringkasan per Kelompok</h2>
+            <p className="text-xs text-gray-400 mt-1">
+              1 kategori bisa masuk ke beberapa kelompok. Total per kelompok bersifat independen.
+            </p>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {kelompokSummary.map(k => {
+              const maxValue = Math.max(k.totalMasuk, k.totalKeluar, 1);
+              const masukWidth = (k.totalMasuk / maxValue) * 100;
+              const keluarWidth = (k.totalKeluar / maxValue) * 100;
+              return (
+                <div
+                  key={k.id}
+                  className="bg-white rounded-xl border border-gray-200 shadow-sm p-5"
+                  style={{ borderLeftWidth: '4px', borderLeftColor: k.warna }}
+                >
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="min-w-0 flex-1">
+                      <h3 className="font-semibold text-gray-900 truncate">{k.nama}</h3>
+                      <p className="text-xs text-gray-500">{k.jumlahTransaksi} transaksi</p>
+                    </div>
+                  </div>
+                  <p className="text-xs text-gray-500">Saldo</p>
+                  <p className={`text-lg font-bold mb-3 ${k.saldo >= 0 ? 'text-gray-900' : 'text-red-600'}`}>
+                    {formatRupiah(k.saldo)}
+                  </p>
+                  <div className="space-y-1.5">
+                    <div>
+                      <div className="flex justify-between text-xs mb-0.5">
+                        <span className="text-emerald-600">Masuk</span>
+                        <span className="text-gray-600">{formatRupiah(k.totalMasuk)}</span>
+                      </div>
+                      <div className="h-1.5 bg-emerald-100 rounded-full">
+                        <div className="h-1.5 bg-emerald-500 rounded-full" style={{ width: `${masukWidth}%` }} />
+                      </div>
+                    </div>
+                    <div>
+                      <div className="flex justify-between text-xs mb-0.5">
+                        <span className="text-red-600">Keluar</span>
+                        <span className="text-gray-600">{formatRupiah(k.totalKeluar)}</span>
+                      </div>
+                      <div className="h-1.5 bg-red-100 rounded-full">
+                        <div className="h-1.5 bg-red-500 rounded-full" style={{ width: `${keluarWidth}%` }} />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
