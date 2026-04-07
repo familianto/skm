@@ -105,6 +105,8 @@ Lihat detail lengkap di `DATABASE_SCHEMA.md`.
 - Pilih kategori dan rekening bank
 - Upload bukti transaksi (foto struk/kwitansi)
 - Filter berdasarkan tanggal, kategori, jenis, status
+- **Search deskripsi** (debounced 300ms, case-insensitive partial match) — bisa dikombinasikan dengan filter lain, tombol clear (X) di dalam input
+- **Deskripsi expandable**: kolom deskripsi default truncate 1 baris, klik untuk expand/collapse menampilkan teks lengkap (chevron icon sebagai visual hint)
 - Pagination untuk daftar transaksi
 
 ### 5.2 Manajemen Donatur & Reminder WA (Sprint 3)
@@ -181,6 +183,13 @@ Lihat detail lengkap di `DATABASE_SCHEMA.md`.
 - Dokumentasi adopsi untuk masjid lain
 - Fork repository → setup Google Cloud sendiri → deploy ke Vercel
 - Kustomisasi nama, logo, kategori
+
+### 5.8.1 Import CSV — Keterangan Informatif (v2.2)
+- **Expandable keterangan**: klik teks keterangan di tabel preview untuk expand row dan tampilkan keterangan lengkap (di-truncate secara default)
+- **Highlight keyword auto-categorize**: keyword yang menjadi alasan auto-categorize di-highlight dengan background kuning + bold di kolom keterangan, sesuai pattern rules per bank template
+- **Suggestion text untuk Review**: transaksi berstatus "Review" menampilkan saran kecil di bawah keterangan (misal: "Mengandung BMICMS01 — kemungkinan transfer CMS keluar") untuk membantu user memilih kategori
+- Highlight keywords dan suggestion mapping disimpan sebagai bagian dari `BankTemplate` di `src/lib/bank-templates/<bank>.ts` — reusable per bank
+- RowGroup di-`memo()` agar expand/collapse 1 row tidak re-render seluruh tabel (performa baik untuk 1000+ baris)
 
 ### 5.11 Kelompok Anggaran (v2.2)
 - Pengelompokan beberapa kategori terkait (MASUK + KELUAR) untuk pelaporan terpadu
@@ -279,6 +288,15 @@ Fitur-fitur berikut **tidak termasuk** dalam scope v2.1, tapi bisa ditambahkan d
 - **Filter Rekening** di halaman Laporan (preview + PDF/Excel export ikut terfilter)
 - **Dashboard "Saldo per Rekening"** rows sekarang clickable — navigate ke `/transaksi?rekening=ID`
 - API `/api/dashboard/summary`, `/api/export/pdf`, `/api/export/excel` menerima query param `rekening`
+### v2.3 (7 April 2026) — Sprint 8
+- **Fitur baru: Mutasi Internal** — Pemindahan dana antar rekening (Bank ↔ Kas Tunai dst.)
+- 1 mutasi = 2 baris transaksi (KELUAR di rekening asal + MASUK di rekening tujuan) dihubungkan via kolom baru `mutasi_ref` (format `MUT-YYYYMMDD-NNNN`) di sheet `transaksi`
+- Kategori baru "Mutasi Internal" dengan jenis `MUTASI` (auto-create saat mutasi pertama dibuat)
+- Form Tambah Transaksi: tab ketiga **Mutasi** — input Dari Rekening, Ke Rekening, Jumlah, Deskripsi, Tanggal (kategori auto = Mutasi Internal, readonly)
+- Halaman Transaksi: badge `MUTASI` (slate), filter jenis menambahkan opsi "Mutasi", baris mutasi dikecualikan dari ringkasan Masuk/Keluar/Saldo
+- Detail transaksi: menampilkan info "Mutasi dari [rekening asal] ke [rekening tujuan]" + link ke pasangan
+- Void/Edit pada salah satu baris mutasi otomatis ikut meng-void/edit pasangannya
+- Mutasi **dikecualikan** dari semua perhitungan Pemasukan/Pengeluaran (Dashboard summary & cumulative, chart-data, Laporan, Export PDF/Excel, ringkasan Publik), tetapi **disertakan** dalam Saldo per Rekening agar saldo tetap akurat
 
 ### v2.2 (7 April 2026)
 - **Fitur baru: Kelompok Anggaran** — Pengelompokan beberapa kategori (MASUK+KELUAR) yang saling berkaitan untuk pelaporan terpadu (misal: Qurban, Ramadhan)

@@ -161,6 +161,20 @@ function TransaksiPageInner() {
       setFilterRekening(rekeningParam);
     }
   }, [searchParams]);
+  // Search (debounced 300ms)
+  const [searchInput, setSearchInput] = useState<string>('');
+  const [searchQuery, setSearchQuery] = useState<string>('');
+
+  // Expanded description rows (per-row toggle)
+  const [expandedKeys, setExpandedKeys] = useState<Set<string>>(new Set());
+  const toggleExpanded = (id: string) => {
+    setExpandedKeys((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
 
   // Sorting — default ascending (oldest first) so date-filtered results show earliest first
   const [sortField, setSortField] = useState<SortField>('tanggal');
@@ -169,6 +183,15 @@ function TransaksiPageInner() {
   // Pagination
   const [page, setPage] = useState(1);
   const limit = APP_CONFIG.PAGINATION_LIMIT;
+
+  // Debounce search input → searchQuery (300ms) and reset to page 1
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setSearchQuery(searchInput.trim().toLowerCase());
+      setPage(1);
+    }, 300);
+    return () => clearTimeout(t);
+  }, [searchInput]);
 
   const kategoriMap = useMemo(() => {
     const map: Record<string, string> = {};
@@ -179,12 +202,19 @@ function TransaksiPageInner() {
   const filtered = useMemo(() => {
     let result = [...transaksis];
 
-    if (filterJenis) result = result.filter((t) => t.jenis === filterJenis);
+    if (filterJenis) {
+      if (filterJenis === 'MUTASI') {
+        result = result.filter((t) => !!t.mutasi_ref);
+      } else {
+        result = result.filter((t) => t.jenis === filterJenis && !t.mutasi_ref);
+      }
+    }
     if (filterStatus) result = result.filter((t) => t.status === filterStatus);
     if (filterKategoriIds.length > 0) result = result.filter((t) => filterKategoriIds.includes(t.kategori_id));
     if (filterRekening) result = result.filter((t) => t.rekening_id === filterRekening);
     if (filterDateFrom) result = result.filter((t) => t.tanggal >= filterDateFrom);
     if (filterDateTo) result = result.filter((t) => t.tanggal <= filterDateTo);
+    if (searchQuery) result = result.filter((t) => t.deskripsi.toLowerCase().includes(searchQuery));
 
     // Sort
     result.sort((a, b) => {
@@ -199,14 +229,15 @@ function TransaksiPageInner() {
 
     return result;
   }, [transaksis, filterJenis, filterStatus, filterKategoriIds, filterRekening, filterDateFrom, filterDateTo, sortField, sortOrder]);
+  }, [transaksis, filterJenis, filterStatus, filterKategoriIds, filterDateFrom, filterDateTo, searchQuery, sortField, sortOrder]);
 
   // Totals
   const totalMasuk = useMemo(
-    () => filtered.filter((t) => t.jenis === TransaksiJenis.MASUK && t.status === TransaksiStatus.AKTIF).reduce((s, t) => s + t.jumlah, 0),
+    () => filtered.filter((t) => t.jenis === TransaksiJenis.MASUK && t.status === TransaksiStatus.AKTIF && !t.mutasi_ref).reduce((s, t) => s + t.jumlah, 0),
     [filtered]
   );
   const totalKeluar = useMemo(
-    () => filtered.filter((t) => t.jenis === TransaksiJenis.KELUAR && t.status === TransaksiStatus.AKTIF).reduce((s, t) => s + t.jumlah, 0),
+    () => filtered.filter((t) => t.jenis === TransaksiJenis.KELUAR && t.status === TransaksiStatus.AKTIF && !t.mutasi_ref).reduce((s, t) => s + t.jumlah, 0),
     [filtered]
   );
 
@@ -232,6 +263,7 @@ function TransaksiPageInner() {
     : (sortOrder === 'asc' ? 'Jumlah terkecil' : 'Jumlah terbesar');
 
   const hasActiveFilters = filterJenis || filterStatus || filterKategoriIds.length > 0 || filterRekening || filterDateFrom || filterDateTo;
+  const hasActiveFilters = filterJenis || filterStatus || filterKategoriIds.length > 0 || filterDateFrom || filterDateTo || searchQuery;
 
   // Auto-scroll to table when filters change
   useEffect(() => {
@@ -239,6 +271,7 @@ function TransaksiPageInner() {
       tableRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
   }, [filterJenis, filterStatus, filterKategoriIds, filterRekening, filterDateFrom, filterDateTo]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [filterJenis, filterStatus, filterKategoriIds, filterDateFrom, filterDateTo, searchQuery]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div>
@@ -255,6 +288,34 @@ function TransaksiPageInner() {
       {/* Filters */}
       <Card>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4">
+          <div>
+            <label className="block text-xs font-medium text-gray-500 mb-1">Cari Deskripsi</label>
+            <div className="relative">
+              <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M11 19a8 8 0 100-16 8 8 0 000 16z" />
+              </svg>
+              <input
+                type="text"
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
+                placeholder="Cari deskripsi..."
+                className="block w-full rounded-lg border border-gray-300 pl-9 pr-9 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              />
+              {searchInput && (
+                <button
+                  type="button"
+                  onClick={() => setSearchInput('')}
+                  aria-label="Hapus pencarian"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-full text-gray-400 hover:text-gray-600 hover:bg-gray-100"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              )}
+            </div>
+          </div>
           <div>
             <label className="block text-xs font-medium text-gray-500 mb-1">Jenis</label>
             <select
@@ -265,6 +326,7 @@ function TransaksiPageInner() {
               <option value="">Semua</option>
               <option value="MASUK">Pemasukan</option>
               <option value="KELUAR">Pengeluaran</option>
+              <option value="MUTASI">Mutasi</option>
             </select>
           </div>
           <div>
@@ -365,23 +427,47 @@ function TransaksiPageInner() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {paginated.map((t) => (
-                  <TableRow key={t.id}>
-                    <TableCell className="whitespace-nowrap">{formatTanggal(t.tanggal)}</TableCell>
-                    <TableCell><Badge label={t.jenis} /></TableCell>
-                    <TableCell>{kategoriMap[t.kategori_id] || t.kategori_id}</TableCell>
-                    <TableCell className="max-w-[200px] truncate">{t.deskripsi}</TableCell>
-                    <TableCell className={`font-medium whitespace-nowrap ${t.jenis === TransaksiJenis.MASUK ? 'text-emerald-600' : 'text-red-600'}`}>
-                      {t.jenis === TransaksiJenis.MASUK ? '+' : '-'}{formatRupiah(t.jumlah)}
-                    </TableCell>
-                    <TableCell><Badge label={t.status} /></TableCell>
-                    <TableCell className="text-center">
-                      <Link href={`/transaksi/${t.id}`}>
-                        <Button variant="ghost" size="sm">Detail</Button>
-                      </Link>
-                    </TableCell>
-                  </TableRow>
-                ))}
+                {paginated.map((t) => {
+                  const isExpanded = expandedKeys.has(t.id);
+                  return (
+                    <TableRow key={t.id}>
+                      <TableCell className="whitespace-nowrap align-top">{formatTanggal(t.tanggal)}</TableCell>
+                      <TableCell className="align-top">
+                        {t.mutasi_ref ? <Badge label="MUTASI" /> : <Badge label={t.jenis} />}
+                      </TableCell>
+                      <TableCell className="align-top">{kategoriMap[t.kategori_id] || t.kategori_id}</TableCell>
+                      <TableCell className="max-w-[260px] align-top">
+                        <button
+                          type="button"
+                          onClick={() => toggleExpanded(t.id)}
+                          title={isExpanded ? 'Klik untuk tutup' : 'Klik untuk lihat deskripsi lengkap'}
+                          className="group flex items-start gap-1.5 w-full text-left hover:text-emerald-700"
+                        >
+                          <span className={isExpanded ? 'whitespace-normal break-words flex-1' : 'truncate flex-1'}>
+                            {t.deskripsi}
+                          </span>
+                          <svg
+                            className={`w-3.5 h-3.5 mt-0.5 shrink-0 text-gray-400 group-hover:text-emerald-600 transition-transform ${isExpanded ? 'rotate-180' : ''}`}
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                          >
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                          </svg>
+                        </button>
+                      </TableCell>
+                      <TableCell className={`font-medium whitespace-nowrap align-top ${t.mutasi_ref ? 'text-slate-600' : t.jenis === TransaksiJenis.MASUK ? 'text-emerald-600' : 'text-red-600'}`}>
+                        {t.mutasi_ref ? '' : t.jenis === TransaksiJenis.MASUK ? '+' : '-'}{formatRupiah(t.jumlah)}
+                      </TableCell>
+                      <TableCell className="align-top"><Badge label={t.status} /></TableCell>
+                      <TableCell className="text-center align-top">
+                        <Link href={`/transaksi/${t.id}`}>
+                          <Button variant="ghost" size="sm">Detail</Button>
+                        </Link>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
 

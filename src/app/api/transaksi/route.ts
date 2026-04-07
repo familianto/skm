@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { sheetsService } from '@/lib/google-sheets';
 import { SHEET_NAMES, SHEET_HEADERS, ID_PREFIXES } from '@/lib/constants';
 import { logAudit } from '@/lib/audit';
-import { transaksiCreateSchema } from '@/lib/validators';
-import { AuditAksi, TransaksiStatus } from '@/types';
+import { transaksiCreateSchema, transaksiMutasiCreateSchema } from '@/lib/validators';
+import { AuditAksi, TransaksiStatus, TransaksiJenis } from '@/types';
 import type { ApiResponse, Transaksi } from '@/types';
 import { nowISO } from '@/lib/utils';
 import { getSession } from '@/lib/auth';
@@ -64,6 +64,96 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
+    const now = nowISO();
+    const createdBy = session.role || 'Bendahara';
+
+    // ============================================================
+    // MUTASI: create a pair of rows (KELUAR + MASUK) with shared mutasi_ref
+    // ============================================================
+    if (body.jenis === TransaksiJenis.MUTASI) {
+      const parsedM = transaksiMutasiCreateSchema.safeParse(body);
+      if (!parsedM.success) {
+        return NextResponse.json<ApiResponse<null>>(
+          { success: false, error: parsedM.error.issues[0].message },
+          { status: 400 }
+        );
+      }
+      const { tanggal, deskripsi, jumlah, dari_rekening_id, ke_rekening_id } = parsedM.data;
+
+      // Find or create the "Mutasi Internal" kategori
+      const katRows = await sheetsService.getRows(SHEET_NAMES.KATEGORI);
+      const katHeaders = SHEET_HEADERS[SHEET_NAMES.KATEGORI];
+      let mutasiKatId = '';
+      for (const r of katRows) {
+        const obj: Record<string, string> = {};
+        katHeaders.forEach((h, i) => { obj[h] = r[i] || ''; });
+        if (obj.jenis === 'MUTASI' && obj.nama === 'Mutasi Internal') {
+          mutasiKatId = obj.id;
+          break;
+        }
+      }
+      if (!mutasiKatId) {
+        mutasiKatId = await sheetsService.getNextId(ID_PREFIXES.KATEGORI);
+        await sheetsService.appendRow(SHEET_NAMES.KATEGORI, [
+          mutasiKatId, 'Mutasi Internal', 'MUTASI',
+          'Pemindahan dana antar rekening', 'TRUE', now,
+        ]);
+      }
+
+      // Generate mutasi_ref id (format MUT-YYYYMMDD-NNNN)
+      const today = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+      const trxRows = await sheetsService.getRows(SHEET_NAMES.TRANSAKSI);
+      const mutasiRefIdx = SHEET_HEADERS[SHEET_NAMES.TRANSAKSI].indexOf('mutasi_ref');
+      let maxRef = 0;
+      const refPrefix = `MUT-${today}-`;
+      for (const r of trxRows) {
+        const ref = r[mutasiRefIdx] || '';
+        if (ref.startsWith(refPrefix)) {
+          const n = parseInt(ref.slice(refPrefix.length), 10);
+          if (n > maxRef) maxRef = n;
+        }
+      }
+      const mutasiRef = `${refPrefix}${String(maxRef + 1).padStart(4, '0')}`;
+
+      // Generate two sequential transaksi IDs
+      const idOut = await sheetsService.getNextId(ID_PREFIXES.TRANSAKSI);
+      // Bump counter manually for second id (same prefix/date)
+      const parts = idOut.split('-');
+      const baseCounter = parseInt(parts[2], 10);
+      const idIn = `${parts[0]}-${parts[1]}-${String(baseCounter + 1).padStart(4, '0')}`;
+
+      const rowOut = [
+        idOut, tanggal, TransaksiJenis.KELUAR, mutasiKatId, deskripsi, jumlah.toString(),
+        dari_rekening_id, '', TransaksiStatus.AKTIF, '', '', '',
+        createdBy, now, now, mutasiRef,
+      ];
+      const rowIn = [
+        idIn, tanggal, TransaksiJenis.MASUK, mutasiKatId, deskripsi, jumlah.toString(),
+        ke_rekening_id, '', TransaksiStatus.AKTIF, '', '', '',
+        createdBy, now, now, mutasiRef,
+      ];
+
+      await sheetsService.appendRows(SHEET_NAMES.TRANSAKSI, [rowOut, rowIn]);
+
+      await logAudit(
+        AuditAksi.CREATE, SHEET_NAMES.TRANSAKSI, mutasiRef,
+        JSON.stringify({ tipe: 'MUTASI', tanggal, jumlah, dari_rekening_id, ke_rekening_id, ids: [idOut, idIn] }),
+        createdBy
+      );
+
+      const trxOut: Transaksi = {
+        id: idOut, tanggal, jenis: TransaksiJenis.KELUAR, kategori_id: mutasiKatId,
+        deskripsi, jumlah, rekening_id: dari_rekening_id,
+        bukti_url: '', status: TransaksiStatus.AKTIF,
+        void_reason: '', void_date: '', koreksi_dari_id: '',
+        created_by: createdBy, created_at: now, updated_at: now, mutasi_ref: mutasiRef,
+      };
+      return NextResponse.json<ApiResponse<Transaksi>>(
+        { success: true, data: trxOut },
+        { status: 201 }
+      );
+    }
+
     const parsed = transaksiCreateSchema.safeParse(body);
 
     if (!parsed.success) {
@@ -75,15 +165,13 @@ export async function POST(request: NextRequest) {
 
     const { tanggal, jenis, kategori_id, deskripsi, jumlah, rekening_id } = parsed.data;
     const id = await sheetsService.getNextId(ID_PREFIXES.TRANSAKSI);
-    const now = nowISO();
-    const createdBy = session.role || 'Bendahara';
 
     // columns: id, tanggal, jenis, kategori_id, deskripsi, jumlah, rekening_id,
-    //          bukti_url, status, void_reason, void_date, koreksi_dari_id, created_by, created_at, updated_at
+    //          bukti_url, status, void_reason, void_date, koreksi_dari_id, created_by, created_at, updated_at, mutasi_ref
     await sheetsService.appendRow(SHEET_NAMES.TRANSAKSI, [
       id, tanggal, jenis, kategori_id, deskripsi, jumlah.toString(),
       rekening_id, '', TransaksiStatus.AKTIF, '', '', '',
-      createdBy, now, now,
+      createdBy, now, now, '',
     ]);
 
     await logAudit(
@@ -96,7 +184,7 @@ export async function POST(request: NextRequest) {
       id, tanggal, jenis, kategori_id, deskripsi, jumlah, rekening_id,
       bukti_url: '', status: TransaksiStatus.AKTIF,
       void_reason: '', void_date: '', koreksi_dari_id: '',
-      created_by: createdBy, created_at: now, updated_at: now,
+      created_by: createdBy, created_at: now, updated_at: now, mutasi_ref: '',
     };
 
     return NextResponse.json<ApiResponse<Transaksi>>(

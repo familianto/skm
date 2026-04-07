@@ -164,3 +164,28 @@ Tidak ada perubahan environment variables dari Sprint 1. Semua konfigurasi yang 
 Komponen yang dibuat di Sprint 2 dan diupdate di Sprint 7:
 - **Transaksi page**: Kolom Aksi diubah ke text-center, format Rupiah ditambah spasi ("Rp 1.234.567")
 - **Badge MASUK/KELUAR**: Style diubah ke subtle (bg-emerald-50/bg-red-50 dengan ring border)
+
+---
+
+## Post-Sprint Updates — Search & Expandable Deskripsi (April 2026)
+
+Komponen Transaksi page (dibuat di Sprint 2) dapat update fitur:
+
+- **Search Deskripsi**:
+  - Input search baru di filter bar (sejajar dengan filter Jenis/Status/Kategori/Tanggal), grid berubah dari 5 → 6 kolom
+  - State `searchInput` (immediate, controlled) → `searchQuery` (debounced 300ms via setTimeout di useEffect)
+  - Filter di-apply dalam memo `filtered` dengan `t.deskripsi.toLowerCase().includes(searchQuery)`
+  - Search reset page ke 1 saat query berubah (di-handle di efek debounce)
+  - Tombol clear (X) di dalam input untuk reset cepat
+  - Search ikut update sticky summary bar dan totals (Masuk/Keluar/Saldo)
+  - Bisa dikombinasikan dengan semua filter existing (jenis, status, kategori, tanggal)
+
+- **Deskripsi Expandable**:
+  - State `expandedKeys: Set<string>` di parent komponen, helper `toggleExpanded(id)`
+  - Default render: `truncate` (1 baris dengan ellipsis)
+  - Klik teks → expand `whitespace-normal break-words` (multi-line, expand ke bawah)
+  - Visual hint: chevron icon kecil di kanan teks, rotasi 180° saat expanded
+  - Cell dibuat `align-top` agar layout tidak shift saat 1 row expand
+  - `max-w-[260px]` untuk pertahankan lebar kolom — expand hanya menambah tinggi
+
+Lihat juga catatan di HANDOFF_SPRINT07.md.

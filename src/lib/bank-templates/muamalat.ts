@@ -114,8 +114,72 @@ const keluarRules: PatternRule[] = [
 ];
 
 // ============================================================
+// Highlight keywords (untuk UI highlight di kolom Keterangan)
+// ============================================================
+
+const HIGHLIGHT_KEYWORDS = {
+  masuk: [
+    'PURCHASE QRIS ACQ',
+    'CDT TRF BENFC BIFAST',
+    'TRANSFER DARI',
+    'INTERNAL TRANSFER',
+    'SETOR TUNAI',
+    'ATMOFFUS',
+    'FLIPTECH LENTERA INSPIRASI',
+    'FLIPTECH',
+    'karpet',
+    'waqaf',
+    'wakaf',
+    'zakat',
+    'TPQ',
+  ],
+  keluar: [
+    'DBT TRF CHARGE',
+    'TRANSAKSI PAYROLL BMI',
+    'PAYROLL',
+    'BMICMS01',
+    'A IMRON ROSADI',
+    'BIFAST',
+  ],
+};
+
+// ============================================================
+// Review suggestion (untuk status='review')
+// ============================================================
+
+function getReviewSuggestion(row: ParsedBankRow): string | null {
+  const k = row.keterangan;
+
+  // KELUAR-specific suggestions
+  if (row.debit > 0) {
+    if (/BMICMS01/i.test(k)) {
+      return 'Mengandung BMICMS01 — kemungkinan transfer CMS keluar';
+    }
+    if (/A IMRON ROSADI/i.test(k)) {
+      return 'Mengandung A IMRON ROSADI — perlu verifikasi tujuan transfer';
+    }
+    if (/TRANSFER DARI.*MUABIDJA.*KE.*IDJA/i.test(k)) {
+      return 'Transfer BiFast keluar — pilih kategori yang sesuai';
+    }
+    if (/BIFAST/i.test(k)) {
+      return 'Transfer BiFast keluar — pilih kategori yang sesuai';
+    }
+  }
+
+  // Generic fallback
+  return 'Tidak cocok pattern otomatis — pilih kategori manual';
+}
+
+// ============================================================
 // Parser
 // ============================================================
+
+// Map month abbreviations (English + Indonesian) to 1-based month numbers
+const MONTH_MAP: Record<string, string> = {
+  jan: '01', feb: '02', mar: '03', apr: '04', may: '05', mei: '05',
+  jun: '06', jul: '07', aug: '08', agu: '08', ags: '08', sep: '09',
+  oct: '10', okt: '10', nov: '11', dec: '12', des: '12',
+};
 
 function parseDate(dateStr: string): string {
   const s = dateStr.trim();
@@ -127,11 +191,19 @@ function parseDate(dateStr: string): string {
     return `${yyyy}-${mm.padStart(2, '0')}-${dd.padStart(2, '0')}`;
   }
 
-  // "DD-MM-YYYY" (dash with day first, year is 4 digits at end)
+  // Dash-separated: handle DD-MM-YYYY (numeric) and DD-MMM-YYYY (text month)
   const dashParts = s.split('-');
-  if (dashParts.length === 3 && dashParts[2].length === 4 && /^\d+$/.test(dashParts[1])) {
-    const [dd, mm, yyyy] = dashParts;
-    return `${yyyy}-${mm.padStart(2, '0')}-${dd.padStart(2, '0')}`;
+  if (dashParts.length === 3 && dashParts[2].length === 4) {
+    const [dd, mid, yyyy] = dashParts;
+    // DD-MM-YYYY (numeric month)
+    if (/^\d+$/.test(mid)) {
+      return `${yyyy}-${mid.padStart(2, '0')}-${dd.padStart(2, '0')}`;
+    }
+    // DD-MMM-YYYY (text month, e.g. "02-Mar-2026")
+    const monthNum = MONTH_MAP[mid.toLowerCase()];
+    if (monthNum) {
+      return `${yyyy}-${monthNum}-${dd.padStart(2, '0')}`;
+    }
   }
 
   // Already "YYYY-MM-DD" or "YYYY-MM-DD HH:MM:SS" — return date part only
@@ -139,10 +211,13 @@ function parseDate(dateStr: string): string {
     return s.slice(0, 10);
   }
 
-  // Fallback: try native Date parsing
+  // Fallback: native Date parsing using LOCAL components (not toISOString — which is UTC)
   const d = new Date(s);
   if (!isNaN(d.getTime())) {
-    return d.toISOString().slice(0, 10);
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
   }
 
   return s;
@@ -164,6 +239,8 @@ export const muamalatTemplate: BankTemplate = {
   bankName: 'Bank Muamalat',
   headerRowsToSkip: 8,
   rekeningId: '', // will be resolved at import time from SKM rekening data
+  highlightKeywords: HIGHLIGHT_KEYWORDS,
+  getReviewSuggestion,
 
   parseRow(row: string[]): ParsedBankRow | null {
     // CSV columns: Nomor Referensi, Tgl Transaksi, Tgl Efektif, Debit, Kredit, Saldo, Keterangan
@@ -207,6 +284,7 @@ export const muamalatTemplate: BankTemplate = {
           kategori_id: rule.kategori_id,
           status: rule.status,
           kategoriLabel: rule.kategoriLabel,
+          reviewSuggestion: rule.status === 'review' ? getReviewSuggestion(row) ?? undefined : undefined,
         };
       }
     }
@@ -220,6 +298,7 @@ export const muamalatTemplate: BankTemplate = {
       kategori_id: '',
       status: 'review',
       kategoriLabel: '',
+      reviewSuggestion: getReviewSuggestion(row) ?? undefined,
     };
   },
 };

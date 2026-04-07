@@ -258,6 +258,37 @@ Buat transaksi baru.
 }
 ```
 
+**Variant: MUTASI (pemindahan dana antar rekening) — Sprint 8**
+
+Saat `jenis` = `MUTASI`, endpoint ini membuat **2 baris transaksi sekaligus** (KELUAR di rekening asal + MASUK di rekening tujuan) yang dihubungkan dengan kolom `mutasi_ref` (format `MUT-YYYYMMDD-NNNN`). Kategori "Mutasi Internal" dengan jenis `MUTASI` dibuat otomatis bila belum ada.
+
+**Request Body (mutasi):**
+```json
+{
+  "jenis": "MUTASI",
+  "tanggal": "2026-03-07",
+  "deskripsi": "Tambah petty cash",
+  "jumlah": 2000000,
+  "dari_rekening_id": "REK-20260101-0001",
+  "ke_rekening_id": "REK-20260101-0002"
+}
+```
+
+**Validasi:**
+- `dari_rekening_id` ≠ `ke_rekening_id`
+
+**Response (201):** mengembalikan baris KELUAR (rekening asal). Field `mutasi_ref` berisi ID mutasi yang sama untuk kedua baris.
+
+**Side Effects:**
+- Append 2 baris ke sheet `transaksi` dalam 1 batch call
+- Auto-create kategori "Mutasi Internal" (jenis `MUTASI`) jika belum ada
+- Audit log `CREATE` dengan entitas_id = `mutasi_ref` dan detail berisi kedua transaksi ID
+- **Mutasi tidak dihitung sebagai pemasukan/pengeluaran** di Dashboard, Laporan, Export, dan Publik (filter `!mutasi_ref`), tapi **tetap mempengaruhi Saldo per Rekening**.
+
+**Catatan untuk PUT/Void mutasi:**
+- `PUT /api/transaksi/[id]`: jika baris memiliki `mutasi_ref`, perubahan `tanggal`, `deskripsi`, `jumlah` di-mirror ke baris pasangan. Field `rekening_id` tetap per-baris.
+- `POST /api/transaksi/[id]/void`: jika baris memiliki `mutasi_ref`, baris pasangan ikut di-void dengan alasan yang sama.
+
 ### `GET /api/transaksi/[id]`
 
 Ambil detail satu transaksi.

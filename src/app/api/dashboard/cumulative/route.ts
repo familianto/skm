@@ -50,7 +50,7 @@ export async function GET() {
 
     const transaksis = transaksiRows
       .map(rowToTransaksi)
-      .filter(t => t.status === TransaksiStatus.AKTIF);
+      .filter(t => t.status === TransaksiStatus.AKTIF && !t.mutasi_ref);
 
     const kategoriHeaders = SHEET_HEADERS[SHEET_NAMES.KATEGORI];
     const kategoriMap = new Map<string, string>();

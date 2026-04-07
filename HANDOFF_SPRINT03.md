@@ -190,3 +190,12 @@ Komponen yang dibuat di Sprint 3 dan diupdate di Sprint 7:
 - **Donatur page**: Kolom Aksi diubah ke text-center
 - **Badge TETAP/INSIDENTAL**: Style diubah ke grayscale muted
 - **Format Rupiah**: Komitmen donasi sekarang menggunakan spasi ("Rp 1.234.567")
+
+---
+
+## Post-Sprint Updates — Search & Expandable Deskripsi (April 2026)
+
+Tidak ada perubahan langsung di Sprint 3 (Donatur/Reminder), tetapi pola
+"search input + debounce + clear button" yang dipakai di Transaksi page
+bisa direplikasi ke Donatur page jika dibutuhkan nanti. Lihat
+HANDOFF_SPRINT02.md untuk detail teknis.

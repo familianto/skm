@@ -77,6 +77,17 @@ export const transaksiCreateSchema = z.object({
   rekening_id: z.string().min(1, 'Rekening wajib dipilih'),
 });
 
+export const transaksiMutasiCreateSchema = z.object({
+  tanggal: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Tanggal harus format YYYY-MM-DD'),
+  deskripsi: z.string().min(1, 'Deskripsi wajib diisi').max(255),
+  jumlah: z.number().int('Jumlah harus bilangan bulat').positive('Jumlah harus lebih dari 0'),
+  dari_rekening_id: z.string().min(1, 'Rekening asal wajib dipilih'),
+  ke_rekening_id: z.string().min(1, 'Rekening tujuan wajib dipilih'),
+}).refine((d) => d.dari_rekening_id !== d.ke_rekening_id, {
+  message: 'Rekening asal dan tujuan tidak boleh sama',
+  path: ['ke_rekening_id'],
+});
+
 export const transaksiUpdateSchema = z.object({
   tanggal: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Tanggal harus format YYYY-MM-DD').optional(),
   jenis: z.nativeEnum(TransaksiJenis).optional(),

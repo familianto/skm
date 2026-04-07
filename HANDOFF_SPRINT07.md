@@ -324,3 +324,125 @@ Implementasi di `src/components/layout/sidebar.tsx`:
 | `src/app/api/export/pdf/route.ts` | Fetch rekening rows + filter + add Rekening line in PDF header |
 | `src/app/api/export/excel/route.ts` | Fetch rekening rows + filter + append rekening to periode |
 | `docs/PROJECT_BRIEF.md` | Changelog v2.2.1 |
+## Sprint A4 Updates (April 2026) — Import CSV Informative Description
+
+### Konteks
+Saat user import CSV rekening koran, kolom Keterangan di tabel preview perlu lebih informatif agar mudah dipetakan ke kategori yang tepat — terutama untuk transaksi yang masuk status `review`.
+
+### Deliverables
+
+| # | Item | Status |
+|---|---|---|
+| 1 | Expandable Keterangan: tap baris untuk tampilkan keterangan lengkap (default truncate) | Done |
+| 2 | Highlight keyword auto-categorize: bg-yellow + bold pada match | Done |
+| 3 | Suggestion text untuk status Review (teks abu-abu kecil di bawah keterangan) | Done |
+| 4 | `highlightKeywords` dan `getReviewSuggestion` ditambahkan ke `BankTemplate` interface | Done |
+| 5 | Implementasi `HIGHLIGHT_KEYWORDS` + `getReviewSuggestion()` di `muamalat.ts` | Done |
+| 6 | RowGroup di-`memo()` agar expand/collapse 1 row tidak re-render seluruh tabel | Done |
+| 7 | Update docs PROJECT_BRIEF.md (section 5.8.1) dan BANK_TEMPLATES.md | Done |
+
+### Keputusan Teknis Sprint A4
+
+**Highlight Keywords disimpan di template, bukan di UI**
+- Setiap bank punya pattern unik → keywords harus disimpan di `lib/bank-templates/<bank>.ts`
+- Field baru: `highlightKeywords: { masuk: string[]; keluar: string[] }` di `BankTemplate`
+- UI di import page baca dari template, bangun regex sekali (memoized per `bankId`)
+- Bank baru cukup tambahkan keywords sendiri → otomatis dapat highlight tanpa ubah UI
+
+**`buildHighlightRegex()` helper**
+- Sort keywords longest-first agar phrase panjang match sebelum sub-word
+- Escape special regex chars
+- Return single combined regex `(kw1|kw2|kw3)` dengan flag `gi`
+
+**`HighlightedText` component**
+- Tidak mutate prop `regex` (eslint react-hooks/immutability) → buat **fresh local regex** dari `regex.source` + `regex.flags`
+- Split text dengan local regex, test setiap part dengan non-global testRegex untuk wrap match dengan `<mark>`
+
+**Suggestion Text di kategorisasi (server logic, not UI)**
+- `getReviewSuggestion(row)` dipanggil di `categorize()` dan hasilnya disimpan di `CategorizedRow.reviewSuggestion`
+- UI hanya render `row.reviewSuggestion` jika status `review` dan kategori belum dipilih
+- Suggestion order: KELUAR-specific patterns dulu (BMICMS01, A IMRON ROSADI, BiFast), fallback generic
+
+**Performance**
+- `RowGroup` di-wrap dengan `memo()` agar React skip re-render saat parent state lain berubah
+- Expand state lokal di RowGroup (`useState`) agar toggle 1 row tidak menyebabkan re-render row lain
+- Highlight regex dibuat sekali per bankId via `useMemo`
+
+### File Diubah Sprint A4
+
+| File | Perubahan |
+|---|---|
+| `src/lib/bank-templates/types.ts` | Tambah `highlightKeywords`, `getReviewSuggestion?`, `reviewSuggestion?` |
+| `src/lib/bank-templates/muamalat.ts` | Tambah `HIGHLIGHT_KEYWORDS`, `getReviewSuggestion()`, populate `reviewSuggestion` di `categorize()` |
+| `src/app/(dashboard)/import/page.tsx` | Tambah `buildHighlightRegex`, `HighlightedText`, expand state, suggestion render, RowGroup `memo()` |
+| `docs/PROJECT_BRIEF.md` | Section 5.8.1 Import CSV Keterangan Informatif |
+| `docs/BANK_TEMPLATES.md` | Dokumentasi `highlightKeywords` & `getReviewSuggestion` di interface reference + Muamalat section |
+
+### Verifikasi Task 1 (Card Kelompok + Sidebar)
+
+Task 1 (standardisasi card Kelompok dengan layout fixed + pindah menu ke Utama) sudah diimplementasi sebelumnya di `claude/kelompok-anggaran-feature` (commit 405f047 di main):
+- Card: `flex flex-col h-full min-h-[280px]` + grid `items-stretch` → equal height
+- Layout: header → saldo → bar masuk/keluar → chip kategori (mt-auto)
+- Max 4 chip, MASUK first, "+n lainnya" jika lebih dari 4
+- Sidebar: Kelompok Anggaran sudah berada di group Utama antara Transaksi dan Import CSV
+
+Tidak ada perubahan tambahan yang diperlukan untuk Task 1 di sprint A4 ini.
+
+---
+
+## Post-Sprint Updates — Transaksi Search & Expandable Deskripsi (April 2026)
+
+### Konteks
+User membutuhkan cara cepat menemukan transaksi spesifik di antara ribuan baris dan melihat deskripsi panjang tanpa harus klik ke halaman detail.
+
+### Deliverables
+
+| # | Item | Status |
+|---|---|---|
+| 1 | Input search "Cari Deskripsi" di filter bar (case-insensitive partial match) | Done |
+| 2 | Debounce 300ms via setTimeout di useEffect | Done |
+| 3 | Tombol clear (X) di dalam input untuk reset cepat | Done |
+| 4 | Search ikut update sticky summary bar (Total/Masuk/Keluar/Saldo) | Done |
+| 5 | Search bisa dikombinasikan dengan filter lain (jenis, status, kategori, tanggal) | Done |
+| 6 | Deskripsi expandable per-row (chevron icon, klik untuk expand/collapse) | Done |
+| 7 | Layout: deskripsi expand ke bawah, kolom lain tidak shift | Done |
+| 8 | State expand pakai `Set<string>` agar O(1) toggle | Done |
+
+### Keputusan Teknis
+
+**Debounce search** — Pakai setTimeout di useEffect (bukan useDeferredValue) karena lebih predictable dan kompatibel dengan flow pagination reset:
+```typescript
+useEffect(() => {
+  const t = setTimeout(() => {
+    setSearchQuery(searchInput.trim().toLowerCase());
+    setPage(1);
+  }, 300);
+  return () => clearTimeout(t);
+}, [searchInput]);
+```
+
+**Filter bar grid** — Diubah dari `lg:grid-cols-5` → `lg:grid-cols-6`. Search input ditaruh sebagai slot pertama (paling kiri), diikuti Jenis, Status, Kategori, Dari Tanggal, Sampai Tanggal.
+
+**Expanded state** — `Set<string>` memungkinkan O(1) `has()`, `add()`, `delete()` tanpa array manipulation. Toggle helper:
+```typescript
+const toggleExpanded = (id: string) => {
+  setExpandedKeys((prev) => {
+    const next = new Set(prev);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    return next;
+  });
+};
+```
+
+**Layout stability** — Cell deskripsi diberi `max-w-[260px] align-top`. Saat collapsed, span pakai `truncate`. Saat expanded, span pakai `whitespace-normal break-words`. Width tidak berubah, hanya height.
+
+**Performa** — Filter berjalan di array yang sudah di-load (client-side). Untuk 3000+ baris, search adalah single pass `array.filter()` di memo — cukup cepat. Pagination tetap dilakukan setelah filter+sort, jadi rendering hanya 20 row per halaman.
+
+### File Diubah
+
+| File | Perubahan |
+|---|---|
+| `src/app/(dashboard)/transaksi/page.tsx` | + state `searchInput`/`searchQuery`/`expandedKeys`, + debounce useEffect, + filter di useMemo, + UI input search dengan clear button, + toggle di kolom Deskripsi dengan chevron icon |
+| `docs/PROJECT_BRIEF.md` | Section 5.1 ditambah catatan search dan expandable deskripsi |
+| `HANDOFF_SPRINT02.md` | Catatan post-sprint update |
+| `HANDOFF_SPRINT03.md` | Catatan referensi pola search untuk replikasi |

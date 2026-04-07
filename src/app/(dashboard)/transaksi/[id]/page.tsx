@@ -11,7 +11,7 @@ import { Loading } from '@/components/ui/loading';
 import { VoidModal } from '@/components/forms/void-modal';
 import { UploadBukti } from '@/components/forms/upload-bukti';
 import { ImagePreview } from '@/components/ui/image-preview';
-import { useTransaksiDetail } from '@/hooks/use-transaksi';
+import { useTransaksi, useTransaksiDetail } from '@/hooks/use-transaksi';
 import { useKategori } from '@/hooks/use-kategori';
 import { useRekening } from '@/hooks/use-rekening';
 import { useToast } from '@/components/ui/toast';
@@ -25,6 +25,7 @@ export default function TransaksiDetailPage({ params }: { params: Promise<{ id: 
   const { data: transaksi, loading, error, refetch } = useTransaksiDetail(id);
   const { data: kategoris } = useKategori();
   const { data: rekenings } = useRekening();
+  const { data: allTransaksi } = useTransaksi();
   const { toast } = useToast();
 
   const [voidOpen, setVoidOpen] = useState(false);
@@ -142,6 +143,34 @@ export default function TransaksiDetailPage({ params }: { params: Promise<{ id: 
             </>
           )}
 
+          {transaksi.mutasi_ref && (() => {
+            const pair = allTransaksi.find((t) => t.mutasi_ref === transaksi.mutasi_ref && t.id !== transaksi.id);
+            const dari = transaksi.jenis === TransaksiJenis.KELUAR ? transaksi : pair;
+            const ke = transaksi.jenis === TransaksiJenis.MASUK ? transaksi : pair;
+            const rekLabel = (rid?: string) => {
+              if (!rid) return '-';
+              const r = rekenings.find((x) => x.id === rid);
+              return r ? `${r.nama_bank} - ${r.nomor_rekening}` : rid;
+            };
+            return (
+              <div className="sm:col-span-2">
+                <dt className="text-sm font-medium text-gray-500">Mutasi Internal</dt>
+                <dd className="mt-1 text-sm text-gray-900">
+                  Mutasi dari <span className="font-medium">{rekLabel(dari?.rekening_id)}</span> ke <span className="font-medium">{rekLabel(ke?.rekening_id)}</span>
+                  {pair && (
+                    <>
+                      {' '}·{' '}
+                      <Link href={`/transaksi/${pair.id}`} className="text-emerald-600 hover:underline">
+                        Lihat pasangan ({pair.id})
+                      </Link>
+                    </>
+                  )}
+                  <div className="text-xs text-gray-500 mt-0.5">Ref: {transaksi.mutasi_ref}</div>
+                </dd>
+              </div>
+            );
+          })()}
+
           {transaksi.koreksi_dari_id && (
             <div>
               <dt className="text-sm font-medium text-gray-500">Koreksi dari</dt>
@@ -207,9 +236,12 @@ export default function TransaksiDetailPage({ params }: { params: Promise<{ id: 
         </dl>
       </Card>
 
-      <div className="mt-4">
+      <div className="mt-4 flex gap-2">
         <Link href="/transaksi">
           <Button variant="secondary">Kembali ke Daftar</Button>
+        </Link>
+        <Link href="/transaksi/baru">
+          <Button>+ Tambah Transaksi</Button>
         </Link>
       </div>
 

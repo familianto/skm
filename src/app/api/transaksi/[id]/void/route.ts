@@ -77,9 +77,43 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       existing.created_by,
       existing.created_at,
       now,
+      existing.mutasi_ref || '',
     ];
 
     await sheetsService.updateRow(SHEET_NAMES.TRANSAKSI, result.rowIndex, updated);
+
+    // If this is a mutasi pair row, void the pair row too
+    if (existing.mutasi_ref) {
+      const allRows = await sheetsService.getRows(SHEET_NAMES.TRANSAKSI);
+      const refIdx = SHEET_HEADERS[SHEET_NAMES.TRANSAKSI].indexOf('mutasi_ref');
+      const pairIndex = allRows.findIndex(
+        (r) => r[refIdx] === existing.mutasi_ref && r[0] !== id
+      );
+      if (pairIndex !== -1) {
+        const pairExisting = rowToTransaksi(allRows[pairIndex]);
+        if (pairExisting.status === TransaksiStatus.AKTIF) {
+          const pairVoid: string[] = [
+            pairExisting.id,
+            pairExisting.tanggal,
+            pairExisting.jenis,
+            pairExisting.kategori_id,
+            pairExisting.deskripsi,
+            pairExisting.jumlah.toString(),
+            pairExisting.rekening_id,
+            pairExisting.bukti_url,
+            TransaksiStatus.VOID,
+            parsed.data.reason,
+            today,
+            pairExisting.koreksi_dari_id,
+            pairExisting.created_by,
+            pairExisting.created_at,
+            now,
+            pairExisting.mutasi_ref || '',
+          ];
+          await sheetsService.updateRow(SHEET_NAMES.TRANSAKSI, pairIndex + 2, pairVoid);
+        }
+      }
+    }
 
     await logAudit(
       AuditAksi.VOID, SHEET_NAMES.TRANSAKSI, id,

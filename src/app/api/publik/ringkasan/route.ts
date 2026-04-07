@@ -74,11 +74,13 @@ export async function GET() {
     // All active transactions
     const allTransaksi = transaksiRows.map(rowToTransaksi);
     const aktifTransaksi = allTransaksi.filter(t => t.status === TransaksiStatus.AKTIF);
+    // Real income/expense exclude mutasi internal
+    const aktifNonMutasi = aktifTransaksi.filter(t => !t.mutasi_ref);
 
     // Current month filter
     const now = new Date();
     const currentMonthPrefix = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-    const bulanIniTx = aktifTransaksi.filter(t => t.tanggal.startsWith(currentMonthPrefix));
+    const bulanIniTx = aktifNonMutasi.filter(t => t.tanggal.startsWith(currentMonthPrefix));
 
     const totalMasuk = bulanIniTx
       .filter(t => t.jenis === TransaksiJenis.MASUK)
@@ -104,7 +106,7 @@ export async function GET() {
     for (let i = 5; i >= 0; i--) {
       const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
       const prefix = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-      const monthTx = aktifTransaksi.filter(t => t.tanggal.startsWith(prefix));
+      const monthTx = aktifNonMutasi.filter(t => t.tanggal.startsWith(prefix));
       tren6Bulan.push({
         bulan: MONTH_NAMES[d.getMonth()],
         masuk: monthTx.filter(t => t.jenis === TransaksiJenis.MASUK).reduce((s, t) => s + t.jumlah, 0),
@@ -113,7 +115,7 @@ export async function GET() {
     }
 
     // Last 10 transactions (safe for public - no sensitive fields)
-    const transaksiTerakhir = aktifTransaksi
+    const transaksiTerakhir = aktifNonMutasi
       .sort((a, b) => b.tanggal.localeCompare(a.tanggal) || b.created_at.localeCompare(a.created_at))
       .slice(0, 10)
       .map(t => ({

@@ -72,7 +72,7 @@ export async function GET(request: NextRequest) {
 
     // Filter: active transactions in the given year
     const transaksis = allTransaksi.filter(
-      t => t.status === TransaksiStatus.AKTIF && t.tanggal.startsWith(tahun)
+      t => t.status === TransaksiStatus.AKTIF && !t.mutasi_ref && t.tanggal.startsWith(tahun)
     );
 
     if (type === 'monthly-trend') {
