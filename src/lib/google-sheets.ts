@@ -164,6 +164,48 @@ class GoogleSheetsService {
   }
 
   /**
+   * Ensure a sheet tab exists: create it if missing, then set up headers.
+   * Safe to call on every request — cheap no-op if already initialized.
+   */
+  async ensureSheet(sheetName: string): Promise<void> {
+    const headers = SHEET_HEADERS[sheetName];
+    if (!headers) throw new Error(`Unknown sheet: ${sheetName}`);
+
+    const client = await this.getClient();
+
+    // Check if the sheet tab exists in the spreadsheet
+    const spreadsheet = await client.spreadsheets.get({
+      spreadsheetId: this.spreadsheetId,
+    });
+
+    const existingSheets = spreadsheet.data.sheets || [];
+    const sheetExists = existingSheets.some(
+      (s) => s.properties?.title === sheetName
+    );
+
+    if (!sheetExists) {
+      // Create the sheet tab
+      await client.spreadsheets.batchUpdate({
+        spreadsheetId: this.spreadsheetId,
+        requestBody: {
+          requests: [
+            {
+              addSheet: {
+                properties: {
+                  title: sheetName,
+                },
+              },
+            },
+          ],
+        },
+      });
+    }
+
+    // Ensure headers are set (setupHeaders is idempotent)
+    await this.setupHeaders(sheetName);
+  }
+
+  /**
    * Set up header row for a sheet (if not already present)
    */
   async setupHeaders(sheetName: string): Promise<void> {
