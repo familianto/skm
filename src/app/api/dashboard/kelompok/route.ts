@@ -44,6 +44,9 @@ export interface KelompokSummaryItem {
 
 export async function GET() {
   try {
+    // Auto-create sheet if missing (first-time use before any kelompok exists)
+    await sheetsService.ensureSheet(SHEET_NAMES.KELOMPOK);
+
     const [kelompokRows, transaksiRows] = await sheetsService.batchGet([
       `${SHEET_NAMES.KELOMPOK}!A2:ZZ`,
       `${SHEET_NAMES.TRANSAKSI}!A2:ZZ`,
@@ -79,9 +82,10 @@ export async function GET() {
       { success: true, data: summary }
     );
   } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error);
     console.error('GET /api/dashboard/kelompok error:', error);
     return NextResponse.json<ApiResponse<null>>(
-      { success: false, error: 'Gagal mengambil data ringkasan kelompok.' },
+      { success: false, error: `Gagal mengambil data ringkasan kelompok: ${msg}` },
       { status: 500 }
     );
   }

@@ -24,6 +24,9 @@ function rowToKelompok(row: string[]): Kelompok {
 
 export async function GET() {
   try {
+    // Auto-create sheet if it doesn't exist yet
+    await sheetsService.ensureSheet(SHEET_NAMES.KELOMPOK);
+
     const rows = await sheetsService.getRows(SHEET_NAMES.KELOMPOK);
     const kelompoks = rows.map(rowToKelompok).filter(k => k.id);
 
@@ -34,9 +37,10 @@ export async function GET() {
       { success: true, data: kelompoks, meta: { total: kelompoks.length } }
     );
   } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error);
     console.error('GET /api/kelompok error:', error);
     return NextResponse.json<ApiResponse<null>>(
-      { success: false, error: 'Gagal mengambil data kelompok.' },
+      { success: false, error: `Gagal mengambil data kelompok: ${msg}` },
       { status: 500 }
     );
   }
@@ -63,6 +67,9 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
+
+    // Auto-create sheet if it doesn't exist yet (first-time use)
+    await sheetsService.ensureSheet(SHEET_NAMES.KELOMPOK);
 
     const id = await sheetsService.getNextId(ID_PREFIXES.KELOMPOK);
     const now = nowISO();
@@ -96,9 +103,10 @@ export async function POST(request: NextRequest) {
       { status: 201 }
     );
   } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error);
     console.error('POST /api/kelompok error:', error);
     return NextResponse.json<ApiResponse<null>>(
-      { success: false, error: 'Gagal membuat kelompok.' },
+      { success: false, error: `Gagal membuat kelompok: ${msg}` },
       { status: 500 }
     );
   }

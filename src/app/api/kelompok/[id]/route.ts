@@ -27,6 +27,7 @@ function rowToKelompok(row: string[]): Kelompok {
 export async function GET(_request: NextRequest, { params }: RouteParams) {
   try {
     const { id } = await params;
+    await sheetsService.ensureSheet(SHEET_NAMES.KELOMPOK);
     const result = await sheetsService.getRowById(SHEET_NAMES.KELOMPOK, id);
     if (!result) {
       return NextResponse.json<ApiResponse<null>>(
@@ -38,9 +39,10 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
       { success: true, data: rowToKelompok(result.row) }
     );
   } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error);
     console.error('GET /api/kelompok/[id] error:', error);
     return NextResponse.json<ApiResponse<null>>(
-      { success: false, error: 'Gagal mengambil kelompok.' },
+      { success: false, error: `Gagal mengambil kelompok: ${msg}` },
       { status: 500 }
     );
   }
@@ -98,9 +100,10 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       { success: true, data: rowToKelompok(updated) }
     );
   } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error);
     console.error('PUT /api/kelompok/[id] error:', error);
     return NextResponse.json<ApiResponse<null>>(
-      { success: false, error: 'Gagal mengupdate kelompok.' },
+      { success: false, error: `Gagal mengupdate kelompok: ${msg}` },
       { status: 500 }
     );
   }
@@ -127,9 +130,10 @@ export async function DELETE(_request: NextRequest, { params }: RouteParams) {
 
     return NextResponse.json<ApiResponse<null>>({ success: true });
   } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error);
     console.error('DELETE /api/kelompok/[id] error:', error);
     return NextResponse.json<ApiResponse<null>>(
-      { success: false, error: 'Gagal menghapus kelompok.' },
+      { success: false, error: `Gagal menghapus kelompok: ${msg}` },
       { status: 500 }
     );
   }
