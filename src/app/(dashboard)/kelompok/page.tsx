@@ -265,7 +265,7 @@ export default function KelompokPage() {
           </div>
         </Card>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 items-stretch">
           {kelompoks.map(k => {
             const summary = summaryMap.get(k.id);
             const totalMasuk = summary?.totalMasuk || 0;
@@ -275,11 +275,13 @@ export default function KelompokPage() {
             const masukWidth = (totalMasuk / maxValue) * 100;
             const keluarWidth = (totalKeluar / maxValue) * 100;
 
+            // MASUK first, then KELUAR
             const allKats = [
               ...k.kategori_masuk.map(id => ({ id, jenis: 'MASUK' as const, nama: kategoriMap.get(id)?.nama || id })),
               ...k.kategori_keluar.map(id => ({ id, jenis: 'KELUAR' as const, nama: kategoriMap.get(id)?.nama || id })),
             ];
-            const previewKats = allKats.slice(0, 5);
+            const MAX_CHIPS = 4;
+            const previewKats = allKats.slice(0, MAX_CHIPS);
             const extraCount = allKats.length - previewKats.length;
 
             return (
@@ -287,8 +289,9 @@ export default function KelompokPage() {
                 key={k.id}
                 type="button"
                 onClick={() => openEdit(k)}
-                className="text-left bg-white rounded-xl border border-gray-200 shadow-sm p-5 hover:shadow-md transition-shadow"
+                className="text-left bg-white rounded-xl border border-gray-200 shadow-sm p-5 hover:shadow-md transition-shadow flex flex-col h-full min-h-[280px]"
               >
+                {/* 1. Header: icon + nama + jumlah kategori */}
                 <div className="flex items-start gap-3 mb-3">
                   <div
                     className="w-10 h-10 rounded-lg flex items-center justify-center shrink-0"
@@ -304,13 +307,15 @@ export default function KelompokPage() {
                   </div>
                 </div>
 
+                {/* 2. Saldo */}
                 <div className="mb-3">
                   <p className="text-xs text-gray-500">Saldo</p>
-                  <p className={`text-lg font-bold ${saldo >= 0 ? 'text-gray-900' : 'text-red-600'}`}>
+                  <p className={`text-lg font-bold ${saldo >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
                     {formatRupiah(saldo)}
                   </p>
                 </div>
 
+                {/* 3. Bar masuk/keluar */}
                 <div className="space-y-1.5 mb-3">
                   <div>
                     <div className="flex justify-between text-xs mb-0.5">
@@ -332,11 +337,12 @@ export default function KelompokPage() {
                   </div>
                 </div>
 
-                <div className="flex flex-wrap gap-1">
+                {/* 4. Chip kategori — stick to bottom so cards align */}
+                <div className="mt-auto pt-3 flex flex-wrap gap-1">
                   {previewKats.map(kat => (
                     <span
                       key={`${kat.jenis}-${kat.id}`}
-                      className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-medium ${
+                      className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-medium truncate max-w-[140px] ${
                         kat.jenis === 'MASUK'
                           ? 'bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-200'
                           : 'bg-red-50 text-red-700 ring-1 ring-inset ring-red-200'
