@@ -105,6 +105,8 @@ Lihat detail lengkap di `DATABASE_SCHEMA.md`.
 - Pilih kategori dan rekening bank
 - Upload bukti transaksi (foto struk/kwitansi)
 - Filter berdasarkan tanggal, kategori, jenis, status
+- **Search deskripsi** (debounced 300ms, case-insensitive partial match) — bisa dikombinasikan dengan filter lain, tombol clear (X) di dalam input
+- **Deskripsi expandable**: kolom deskripsi default truncate 1 baris, klik untuk expand/collapse menampilkan teks lengkap (chevron icon sebagai visual hint)
 - Pagination untuk daftar transaksi
 
 ### 5.2 Manajemen Donatur & Reminder WA (Sprint 3)
