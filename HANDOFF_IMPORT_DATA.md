@@ -128,3 +128,9 @@ docs/API_REFERENCE.md               # + POST /api/transaksi/import
 
 - Dashboard kumulatif sekarang menampilkan jumlah transaksi per jenis dan category breakdown all-time
 - Laporan support "Semua Tahun" mode — export PDF/Excel lintas tahun
+
+## Sprint A3 Updates (7 April 2026) — Kelompok Anggaran
+
+- Fitur baru "Kelompok Anggaran" untuk pelaporan terpadu lintas kategori (MASUK + KELUAR)
+- Dashboard tambahan section "Ringkasan per Kelompok"
+- Laporan tambahan dropdown filter Kelompok (ikut ter-export ke PDF/Excel via kategori filter)

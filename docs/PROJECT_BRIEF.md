@@ -182,6 +182,14 @@ Lihat detail lengkap di `DATABASE_SCHEMA.md`.
 - Fork repository → setup Google Cloud sendiri → deploy ke Vercel
 - Kustomisasi nama, logo, kategori
 
+### 5.11 Kelompok Anggaran (v2.2)
+- Pengelompokan beberapa kategori terkait (MASUK + KELUAR) untuk pelaporan terpadu
+- Contoh: Kelompok "Qurban" berisi kategori MASUK (Qurban Sapi, Qurban Kambing) + KELUAR (Qurban Operasional, Qurban Pembelian Hewan)
+- 1 kategori bisa masuk ke banyak kelompok — total per kelompok bersifat independen
+- Halaman Kelompok (sidebar > Pengaturan): card grid + form create/edit dengan chip kategori & color picker
+- Dashboard section "Ringkasan per Kelompok" — bar chart perbandingan masuk vs keluar per kelompok
+- Laporan dropdown filter Kelompok — auto-populate kategori, export PDF/Excel ikut terfilter
+
 ## 6. Target Pengguna
 
 | Peran | Akses | Deskripsi |
@@ -265,6 +273,14 @@ Fitur-fitur berikut **tidak termasuk** dalam scope v2.1, tapi bisa ditambahkan d
 ---
 
 ## Changelog
+
+### v2.2 (7 April 2026)
+- **Fitur baru: Kelompok Anggaran** — Pengelompokan beberapa kategori (MASUK+KELUAR) yang saling berkaitan untuk pelaporan terpadu (misal: Qurban, Ramadhan)
+- Halaman Kelompok Anggaran (sidebar > Pengaturan) dengan card grid + form create/edit modal
+- Dashboard: section "Ringkasan per Kelompok" dengan card dan bar chart perbandingan masuk/keluar per kelompok
+- Laporan: dropdown filter Kelompok — otomatis populate kategori saat kelompok dipilih, PDF/Excel export ikut terfilter
+- API baru: `/api/kelompok` (CRUD), `/api/dashboard/kelompok` (ringkasan)
+- Sheet baru: `kelompok` dengan kolom id, nama, deskripsi, warna, kategori_masuk, kategori_keluar, timestamps
 
 ### v2.1.2 (6 April 2026)
 - Transaksi: Multi-select kategori filter dengan checkbox dropdown
