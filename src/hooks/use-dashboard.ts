@@ -8,6 +8,8 @@ export interface DashboardSummary {
   totalKeluar: number;
   saldo: number;
   jumlahTransaksi: number;
+  jumlahMasuk: number;
+  jumlahKeluar: number;
   saldoPerRekening: {
     rekening_id: string;
     nama_bank: string;
