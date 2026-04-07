@@ -141,9 +141,9 @@ export default function TransaksiPage() {
   const [filterDateFrom, setFilterDateFrom] = useState<string>('');
   const [filterDateTo, setFilterDateTo] = useState<string>('');
 
-  // Sorting
+  // Sorting — default ascending (oldest first) so date-filtered results show earliest first
   const [sortField, setSortField] = useState<SortField>('tanggal');
-  const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
+  const [sortOrder, setSortOrder] = useState<SortOrder>('asc');
 
   // Pagination
   const [page, setPage] = useState(1);
@@ -204,6 +204,10 @@ export default function TransaksiPage() {
     if (sortField !== field) return ' ↕';
     return sortOrder === 'desc' ? ' ↓' : ' ↑';
   };
+
+  const sortLabel = sortField === 'tanggal'
+    ? (sortOrder === 'asc' ? 'Tanggal terlama' : 'Tanggal terbaru')
+    : (sortOrder === 'asc' ? 'Jumlah terkecil' : 'Jumlah terbesar');
 
   const hasActiveFilters = filterJenis || filterStatus || filterKategoriIds.length > 0 || filterDateFrom || filterDateTo;
 
@@ -285,12 +289,15 @@ export default function TransaksiPage() {
       {/* Sticky Summary Bar */}
       <div ref={tableRef} className="sticky top-0 z-10 bg-white border border-gray-200 rounded-lg shadow-sm mt-4 px-4 py-3">
         <div className="flex flex-wrap gap-4 justify-between items-center text-sm">
-          <div className="flex gap-4">
+          <div className="flex gap-4 items-center">
             <span className="text-emerald-600 font-medium">Masuk: {formatRupiah(totalMasuk)}</span>
             <span className="text-red-600 font-medium">Keluar: {formatRupiah(totalKeluar)}</span>
             <span className="font-bold">Saldo: {formatRupiah(totalMasuk - totalKeluar)}</span>
           </div>
-          <span className="text-gray-500">{filtered.length} transaksi</span>
+          <div className="flex gap-3 items-center">
+            <span className="text-xs text-gray-400">Diurutkan: {sortLabel}</span>
+            <span className="text-gray-500">{filtered.length} transaksi</span>
+          </div>
         </div>
       </div>
 
