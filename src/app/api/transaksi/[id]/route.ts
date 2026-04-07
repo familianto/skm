@@ -101,9 +101,42 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       existing.created_by,
       existing.created_at,
       now,
+      existing.mutasi_ref || '',
     ];
 
     await sheetsService.updateRow(SHEET_NAMES.TRANSAKSI, result.rowIndex, updated);
+
+    // If this is a mutasi pair row, mirror tanggal/jumlah/deskripsi to the pair row.
+    // Rekening stays per-row (they differ by design).
+    if (existing.mutasi_ref) {
+      const allRows = await sheetsService.getRows(SHEET_NAMES.TRANSAKSI);
+      const refIdx = SHEET_HEADERS[SHEET_NAMES.TRANSAKSI].indexOf('mutasi_ref');
+      const pairIndex = allRows.findIndex(
+        (r) => r[refIdx] === existing.mutasi_ref && r[0] !== id
+      );
+      if (pairIndex !== -1) {
+        const pairExisting = rowToTransaksi(allRows[pairIndex]);
+        const pairUpdated: string[] = [
+          pairExisting.id,
+          updates.tanggal ?? pairExisting.tanggal,
+          pairExisting.jenis,
+          pairExisting.kategori_id,
+          updates.deskripsi ?? pairExisting.deskripsi,
+          (updates.jumlah ?? pairExisting.jumlah).toString(),
+          pairExisting.rekening_id,
+          pairExisting.bukti_url,
+          pairExisting.status,
+          pairExisting.void_reason,
+          pairExisting.void_date,
+          pairExisting.koreksi_dari_id,
+          pairExisting.created_by,
+          pairExisting.created_at,
+          now,
+          pairExisting.mutasi_ref || '',
+        ];
+        await sheetsService.updateRow(SHEET_NAMES.TRANSAKSI, pairIndex + 2, pairUpdated);
+      }
+    }
 
     await logAudit(
       AuditAksi.UPDATE, SHEET_NAMES.TRANSAKSI, id,

@@ -59,7 +59,7 @@ export async function GET(request: NextRequest) {
 
     // Filter transactions
     let transaksis = transaksiRows.map(rowToTransaksi)
-      .filter(t => t.status === TransaksiStatus.AKTIF);
+      .filter(t => t.status === TransaksiStatus.AKTIF && !t.mutasi_ref);
 
     if (!isAllYears) {
       transaksis = transaksis.filter(t => t.tanggal.startsWith(tahun));

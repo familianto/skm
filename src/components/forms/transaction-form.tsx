@@ -37,7 +37,12 @@ export function TransactionForm({ initialData, mode, koreksiDariId }: Transactio
     deskripsi: initialData?.deskripsi || '',
     jumlah: initialData?.jumlah ? formatRupiah(initialData.jumlah.toString()) : '',
     rekening_id: initialData?.rekening_id || '',
+    dari_rekening_id: '',
+    ke_rekening_id: '',
   });
+
+  const isMutasi = form.jenis === TransaksiJenis.MUTASI;
+  const isMutasiCreate = isMutasi && mode === 'create' && !koreksiDariId;
 
   const { data: kategoris } = useKategori(form.jenis);
   const { data: rekenings } = useRekening();
@@ -60,14 +65,36 @@ export function TransactionForm({ initialData, mode, koreksiDariId }: Transactio
       return;
     }
 
-    const payload = {
-      tanggal: form.tanggal,
-      jenis: form.jenis,
-      kategori_id: form.kategori_id,
-      deskripsi: form.deskripsi,
-      jumlah,
-      rekening_id: form.rekening_id,
-    };
+    if (isMutasiCreate) {
+      if (!form.dari_rekening_id || !form.ke_rekening_id) {
+        toast('Rekening asal dan tujuan wajib dipilih', 'error');
+        setSubmitting(false);
+        return;
+      }
+      if (form.dari_rekening_id === form.ke_rekening_id) {
+        toast('Rekening asal dan tujuan tidak boleh sama', 'error');
+        setSubmitting(false);
+        return;
+      }
+    }
+
+    const payload = isMutasiCreate
+      ? {
+          jenis: TransaksiJenis.MUTASI,
+          tanggal: form.tanggal,
+          deskripsi: form.deskripsi,
+          jumlah,
+          dari_rekening_id: form.dari_rekening_id,
+          ke_rekening_id: form.ke_rekening_id,
+        }
+      : {
+          tanggal: form.tanggal,
+          jenis: form.jenis,
+          kategori_id: form.kategori_id,
+          deskripsi: form.deskripsi,
+          jumlah,
+          rekening_id: form.rekening_id,
+        };
 
     try {
       let url: string;
@@ -109,7 +136,9 @@ export function TransactionForm({ initialData, mode, koreksiDariId }: Transactio
     }
   };
 
-  const isValid = form.tanggal && form.kategori_id && form.deskripsi && form.jumlah && form.rekening_id;
+  const isValid = isMutasiCreate
+    ? !!(form.tanggal && form.deskripsi && form.jumlah && form.dari_rekening_id && form.ke_rekening_id && form.dari_rekening_id !== form.ke_rekening_id)
+    : !!(form.tanggal && form.kategori_id && form.deskripsi && form.jumlah && form.rekening_id);
 
   return (
     <Card>
@@ -123,38 +152,82 @@ export function TransactionForm({ initialData, mode, koreksiDariId }: Transactio
 
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">Jenis Transaksi</label>
-          <div className="flex gap-4">
-            {[TransaksiJenis.MASUK, TransaksiJenis.KELUAR].map((j) => (
-              <label key={j} className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="radio"
-                  name="jenis"
-                  value={j}
-                  checked={form.jenis === j}
-                  onChange={() => setForm((f) => ({ ...f, jenis: j }))}
-                  className="text-emerald-600 focus:ring-emerald-500"
-                />
-                <span className={`text-sm font-medium ${j === TransaksiJenis.MASUK ? 'text-emerald-700' : 'text-red-700'}`}>
-                  {j === TransaksiJenis.MASUK ? 'Pemasukan (MASUK)' : 'Pengeluaran (KELUAR)'}
-                </span>
-              </label>
-            ))}
+          <div className="inline-flex rounded-lg border border-gray-200 bg-gray-50 p-1">
+            {[
+              { v: TransaksiJenis.MASUK, label: 'Masuk', cls: 'text-emerald-700' },
+              { v: TransaksiJenis.KELUAR, label: 'Keluar', cls: 'text-red-700' },
+              { v: TransaksiJenis.MUTASI, label: 'Mutasi', cls: 'text-slate-700' },
+            ].map((j) => {
+              const active = form.jenis === j.v;
+              const disabled = mode === 'edit' || !!koreksiDariId;
+              return (
+                <button
+                  type="button"
+                  key={j.v}
+                  disabled={disabled && !active}
+                  onClick={() => setForm((f) => ({ ...f, jenis: j.v }))}
+                  className={`px-4 py-1.5 text-sm font-medium rounded-md transition ${active ? `bg-white shadow-sm ${j.cls}` : 'text-gray-500 hover:text-gray-700'} ${disabled && !active ? 'cursor-not-allowed opacity-50' : ''}`}
+                >
+                  {j.label}
+                </button>
+              );
+            })}
           </div>
         </div>
 
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Kategori</label>
-          <select
-            value={form.kategori_id}
-            onChange={(e) => setForm((f) => ({ ...f, kategori_id: e.target.value }))}
-            className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
-          >
-            <option value="">Pilih Kategori</option>
-            {kategoris.map((k) => (
-              <option key={k.id} value={k.id}>{k.nama}</option>
-            ))}
-          </select>
-        </div>
+        {isMutasiCreate ? (
+          <>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Kategori</label>
+              <input
+                type="text"
+                readOnly
+                value="Mutasi Internal"
+                className="block w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-500"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Dari Rekening</label>
+              <select
+                value={form.dari_rekening_id}
+                onChange={(e) => setForm((f) => ({ ...f, dari_rekening_id: e.target.value }))}
+                className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              >
+                <option value="">Pilih Rekening Asal</option>
+                {rekenings.map((r) => (
+                  <option key={r.id} value={r.id}>{r.nama_bank} - {r.nomor_rekening}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Ke Rekening</label>
+              <select
+                value={form.ke_rekening_id}
+                onChange={(e) => setForm((f) => ({ ...f, ke_rekening_id: e.target.value }))}
+                className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              >
+                <option value="">Pilih Rekening Tujuan</option>
+                {rekenings.filter(r => r.id !== form.dari_rekening_id).map((r) => (
+                  <option key={r.id} value={r.id}>{r.nama_bank} - {r.nomor_rekening}</option>
+                ))}
+              </select>
+            </div>
+          </>
+        ) : (
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Kategori</label>
+            <select
+              value={form.kategori_id}
+              onChange={(e) => setForm((f) => ({ ...f, kategori_id: e.target.value }))}
+              className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+            >
+              <option value="">Pilih Kategori</option>
+              {kategoris.map((k) => (
+                <option key={k.id} value={k.id}>{k.nama}</option>
+              ))}
+            </select>
+          </div>
+        )}
 
         <Input
           label="Deskripsi"
@@ -172,19 +245,21 @@ export function TransactionForm({ initialData, mode, koreksiDariId }: Transactio
           placeholder="Contoh: 1.500.000"
         />
 
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Rekening</label>
-          <select
-            value={form.rekening_id}
-            onChange={(e) => setForm((f) => ({ ...f, rekening_id: e.target.value }))}
-            className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
-          >
-            <option value="">Pilih Rekening</option>
-            {rekenings.map((r) => (
-              <option key={r.id} value={r.id}>{r.nama_bank} - {r.nomor_rekening}</option>
-            ))}
-          </select>
-        </div>
+        {!isMutasiCreate && (
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Rekening</label>
+            <select
+              value={form.rekening_id}
+              onChange={(e) => setForm((f) => ({ ...f, rekening_id: e.target.value }))}
+              className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+            >
+              <option value="">Pilih Rekening</option>
+              {rekenings.map((r) => (
+                <option key={r.id} value={r.id}>{r.nama_bank} - {r.nomor_rekening}</option>
+              ))}
+            </select>
+          </div>
+        )}
 
         {koreksiDariId && (
           <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg space-y-2">

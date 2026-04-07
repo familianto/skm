@@ -80,7 +80,7 @@ export async function POST(request: NextRequest) {
         id, item.tanggal, item.jenis, item.kategori_id, item.deskripsi,
         item.jumlah.toString(), item.rekening_id, '',
         TransaksiStatus.AKTIF, '', '', '',
-        createdBy, now, now,
+        createdBy, now, now, '',
       ];
     });
 

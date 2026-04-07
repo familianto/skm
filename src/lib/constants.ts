@@ -36,7 +36,7 @@ export const SHEET_HEADERS: Record<string, string[]> = {
   [SHEET_NAMES.TRANSAKSI]: [
     'id', 'tanggal', 'jenis', 'kategori_id', 'deskripsi', 'jumlah',
     'rekening_id', 'bukti_url', 'status', 'void_reason', 'void_date',
-    'koreksi_dari_id', 'created_by', 'created_at', 'updated_at',
+    'koreksi_dari_id', 'created_by', 'created_at', 'updated_at', 'mutasi_ref',
   ],
   [SHEET_NAMES.KATEGORI]: [
     'id', 'nama', 'jenis', 'deskripsi', 'is_active', 'created_at',
