@@ -1,5 +1,11 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 /**
  * Migrasi "Tambah Petty Cash" → Mutasi Internal (Google Apps Script)
+ *
+ * NOTE: This file is a Google Apps Script — `migrasiMutasiPettyCash` is the
+ * entry point invoked from the Apps Script editor UI, and `KAT_HEADERS` is
+ * a schema constant kept for documentation. Both look "unused" to ESLint but
+ * are intentional. Hence the eslint-disable above.
  *
  * CARA PAKAI:
  *   1. Buka Google Sheets target (SKM).

@@ -146,21 +146,14 @@ function TransaksiPageInner() {
   const tableRef = useRef<HTMLDivElement>(null);
   const searchParams = useSearchParams();
 
-  // Filters
+  // Filters — initial rekening read from URL query param via lazy init
   const [filterJenis, setFilterJenis] = useState<string>('');
   const [filterStatus, setFilterStatus] = useState<string>('');
   const [filterKategoriIds, setFilterKategoriIds] = useState<string[]>([]);
-  const [filterRekening, setFilterRekening] = useState<string>('');
+  const [filterRekening, setFilterRekening] = useState<string>(() => searchParams.get('rekening') || '');
   const [filterDateFrom, setFilterDateFrom] = useState<string>('');
   const [filterDateTo, setFilterDateTo] = useState<string>('');
 
-  // Initialize rekening filter from URL query param
-  useEffect(() => {
-    const rekeningParam = searchParams.get('rekening');
-    if (rekeningParam) {
-      setFilterRekening(rekeningParam);
-    }
-  }, [searchParams]);
   // Search (debounced 300ms)
   const [searchInput, setSearchInput] = useState<string>('');
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -228,8 +221,7 @@ function TransaksiPageInner() {
     });
 
     return result;
-  }, [transaksis, filterJenis, filterStatus, filterKategoriIds, filterRekening, filterDateFrom, filterDateTo, sortField, sortOrder]);
-  }, [transaksis, filterJenis, filterStatus, filterKategoriIds, filterDateFrom, filterDateTo, searchQuery, sortField, sortOrder]);
+  }, [transaksis, filterJenis, filterStatus, filterKategoriIds, filterRekening, filterDateFrom, filterDateTo, searchQuery, sortField, sortOrder]);
 
   // Totals
   const totalMasuk = useMemo(
@@ -262,16 +254,14 @@ function TransaksiPageInner() {
     ? (sortOrder === 'asc' ? 'Tanggal terlama' : 'Tanggal terbaru')
     : (sortOrder === 'asc' ? 'Jumlah terkecil' : 'Jumlah terbesar');
 
-  const hasActiveFilters = filterJenis || filterStatus || filterKategoriIds.length > 0 || filterRekening || filterDateFrom || filterDateTo;
-  const hasActiveFilters = filterJenis || filterStatus || filterKategoriIds.length > 0 || filterDateFrom || filterDateTo || searchQuery;
+  const hasActiveFilters = filterJenis || filterStatus || filterKategoriIds.length > 0 || filterRekening || filterDateFrom || filterDateTo || searchQuery;
 
   // Auto-scroll to table when filters change
   useEffect(() => {
     if (hasActiveFilters && tableRef.current) {
       tableRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
-  }, [filterJenis, filterStatus, filterKategoriIds, filterRekening, filterDateFrom, filterDateTo]); // eslint-disable-line react-hooks/exhaustive-deps
-  }, [filterJenis, filterStatus, filterKategoriIds, filterDateFrom, filterDateTo, searchQuery]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [filterJenis, filterStatus, filterKategoriIds, filterRekening, filterDateFrom, filterDateTo, searchQuery]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div>
@@ -287,8 +277,7 @@ function TransaksiPageInner() {
 
       {/* Filters */}
       <Card>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-4">
           <div>
             <label className="block text-xs font-medium text-gray-500 mb-1">Cari Deskripsi</label>
             <div className="relative">
