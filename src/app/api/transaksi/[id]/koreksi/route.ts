@@ -106,7 +106,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       id: newId, tanggal, jenis, kategori_id, deskripsi, jumlah, rekening_id,
       bukti_url: '', status: TransaksiStatus.AKTIF,
       void_reason: '', void_date: '', koreksi_dari_id: originalId,
-      created_by: createdBy, created_at: now, updated_at: now,
+      created_by: createdBy, created_at: now, updated_at: now, mutasi_ref: '',
     };
 
     return NextResponse.json<ApiResponse<Transaksi>>(
