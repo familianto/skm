@@ -47,6 +47,7 @@ export async function GET(request: NextRequest) {
     const bulan = searchParams.get('bulan');
     const kategoriParam = searchParams.get('kategori');
     const kategoriIds = kategoriParam ? kategoriParam.split(',').filter(Boolean) : [];
+    const rekeningId = searchParams.get('rekening') || '';
 
     // Batch fetch transaksi and rekening in a single API call
     const [transaksiRows, rekeningRows] = await sheetsService.batchGet([
@@ -78,6 +79,11 @@ export async function GET(request: NextRequest) {
     // Apply kategori filter
     if (kategoriIds.length > 0) {
       transaksis = transaksis.filter(t => kategoriIds.includes(t.kategori_id));
+    }
+
+    // Apply rekening filter
+    if (rekeningId) {
+      transaksis = transaksis.filter(t => t.rekening_id === rekeningId);
     }
 
     const masukTx = transaksis.filter(t => t.jenis === TransaksiJenis.MASUK);

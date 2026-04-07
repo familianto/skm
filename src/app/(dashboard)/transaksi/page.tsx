@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useMemo, useRef, useEffect } from 'react';
+import { Suspense, useState, useMemo, useRef, useEffect } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { PageTitle } from '@/components/layout/page-title';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -10,6 +11,7 @@ import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@
 import { Loading } from '@/components/ui/loading';
 import { useTransaksi } from '@/hooks/use-transaksi';
 import { useKategori } from '@/hooks/use-kategori';
+import { useRekening } from '@/hooks/use-rekening';
 import { TransaksiJenis, TransaksiStatus } from '@/types';
 import { formatRupiah, formatTanggal, paginateData } from '@/lib/utils';
 import { APP_CONFIG } from '@/lib/constants';
@@ -130,16 +132,35 @@ function KategoriMultiSelect({
 }
 
 export default function TransaksiPage() {
+  return (
+    <Suspense fallback={<Loading className="py-12" />}>
+      <TransaksiPageInner />
+    </Suspense>
+  );
+}
+
+function TransaksiPageInner() {
   const { data: transaksis, loading } = useTransaksi();
   const { data: kategoris } = useKategori();
+  const { data: rekenings } = useRekening();
   const tableRef = useRef<HTMLDivElement>(null);
+  const searchParams = useSearchParams();
 
   // Filters
   const [filterJenis, setFilterJenis] = useState<string>('');
   const [filterStatus, setFilterStatus] = useState<string>('');
   const [filterKategoriIds, setFilterKategoriIds] = useState<string[]>([]);
+  const [filterRekening, setFilterRekening] = useState<string>('');
   const [filterDateFrom, setFilterDateFrom] = useState<string>('');
   const [filterDateTo, setFilterDateTo] = useState<string>('');
+
+  // Initialize rekening filter from URL query param
+  useEffect(() => {
+    const rekeningParam = searchParams.get('rekening');
+    if (rekeningParam) {
+      setFilterRekening(rekeningParam);
+    }
+  }, [searchParams]);
 
   // Sorting — default ascending (oldest first) so date-filtered results show earliest first
   const [sortField, setSortField] = useState<SortField>('tanggal');
@@ -161,6 +182,7 @@ export default function TransaksiPage() {
     if (filterJenis) result = result.filter((t) => t.jenis === filterJenis);
     if (filterStatus) result = result.filter((t) => t.status === filterStatus);
     if (filterKategoriIds.length > 0) result = result.filter((t) => filterKategoriIds.includes(t.kategori_id));
+    if (filterRekening) result = result.filter((t) => t.rekening_id === filterRekening);
     if (filterDateFrom) result = result.filter((t) => t.tanggal >= filterDateFrom);
     if (filterDateTo) result = result.filter((t) => t.tanggal <= filterDateTo);
 
@@ -176,7 +198,7 @@ export default function TransaksiPage() {
     });
 
     return result;
-  }, [transaksis, filterJenis, filterStatus, filterKategoriIds, filterDateFrom, filterDateTo, sortField, sortOrder]);
+  }, [transaksis, filterJenis, filterStatus, filterKategoriIds, filterRekening, filterDateFrom, filterDateTo, sortField, sortOrder]);
 
   // Totals
   const totalMasuk = useMemo(
@@ -209,14 +231,14 @@ export default function TransaksiPage() {
     ? (sortOrder === 'asc' ? 'Tanggal terlama' : 'Tanggal terbaru')
     : (sortOrder === 'asc' ? 'Jumlah terkecil' : 'Jumlah terbesar');
 
-  const hasActiveFilters = filterJenis || filterStatus || filterKategoriIds.length > 0 || filterDateFrom || filterDateTo;
+  const hasActiveFilters = filterJenis || filterStatus || filterKategoriIds.length > 0 || filterRekening || filterDateFrom || filterDateTo;
 
   // Auto-scroll to table when filters change
   useEffect(() => {
     if (hasActiveFilters && tableRef.current) {
       tableRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
-  }, [filterJenis, filterStatus, filterKategoriIds, filterDateFrom, filterDateTo]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [filterJenis, filterStatus, filterKategoriIds, filterRekening, filterDateFrom, filterDateTo]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div>
@@ -232,7 +254,7 @@ export default function TransaksiPage() {
 
       {/* Filters */}
       <Card>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
           <div>
             <label className="block text-xs font-medium text-gray-500 mb-1">Jenis</label>
             <select
@@ -264,6 +286,19 @@ export default function TransaksiPage() {
               selected={filterKategoriIds}
               onChange={(ids) => { setFilterKategoriIds(ids); setPage(1); }}
             />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-500 mb-1">Rekening</label>
+            <select
+              value={filterRekening}
+              onChange={(e) => { setFilterRekening(e.target.value); setPage(1); }}
+              className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+            >
+              <option value="">Semua Rekening</option>
+              {rekenings.filter(r => r.is_active).map(r => (
+                <option key={r.id} value={r.id}>{r.nama_bank}{r.nomor_rekening ? ` - ${r.nomor_rekening}` : ''}</option>
+              ))}
+            </select>
           </div>
           <div>
             <label className="block text-xs font-medium text-gray-500 mb-1">Dari Tanggal</label>

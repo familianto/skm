@@ -292,9 +292,13 @@ export default function DashboardPage() {
             {summaryLoading ? (
               <Loading className="h-32" />
             ) : summary && summary.saldoPerRekening.length > 0 ? (
-              <div className="space-y-3">
+              <div className="space-y-1">
                 {summary.saldoPerRekening.map(rek => (
-                  <div key={rek.rekening_id} className="flex items-center justify-between py-2 border-b border-gray-100 last:border-0">
+                  <Link
+                    key={rek.rekening_id}
+                    href={`/transaksi?rekening=${encodeURIComponent(rek.rekening_id)}`}
+                    className="flex items-center justify-between py-2 px-2 -mx-2 rounded-lg border-b border-gray-100 last:border-0 hover:bg-gray-50 transition-colors"
+                  >
                     <div>
                       <p className="text-sm font-medium text-gray-900">{rek.nama_bank}</p>
                       <p className="text-xs text-gray-400">{rek.nomor_rekening}</p>
@@ -302,7 +306,7 @@ export default function DashboardPage() {
                     <span className="text-sm font-semibold text-blue-600">
                       {formatRupiah(rek.saldo)}
                     </span>
-                  </div>
+                  </Link>
                 ))}
               </div>
             ) : (

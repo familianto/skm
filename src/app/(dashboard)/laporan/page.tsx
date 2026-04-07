@@ -8,6 +8,7 @@ import { Loading } from '@/components/ui/loading';
 import { useDashboardSummary } from '@/hooks/use-dashboard';
 import { useKategori } from '@/hooks/use-kategori';
 import { useKelompok } from '@/hooks/use-kelompok';
+import { useRekening } from '@/hooks/use-rekening';
 import { formatRupiah } from '@/lib/utils';
 import { APP_CONFIG } from '@/lib/constants';
 import { TransaksiJenis } from '@/types';
@@ -186,11 +187,13 @@ export default function LaporanPage() {
   const [tipe, setTipe] = useState<'ringkasan' | 'detail'>('ringkasan');
   const [selectedKategori, setSelectedKategori] = useState<string[]>([]);
   const [selectedKelompok, setSelectedKelompok] = useState<string>('');
+  const [selectedRekening, setSelectedRekening] = useState<string>('');
   const [downloading, setDownloading] = useState<'pdf' | 'excel' | null>(null);
   const { toast } = useToast();
 
   const { data: kategoriList } = useKategori();
   const { data: kelompokList } = useKelompok();
+  const { data: rekeningList } = useRekening();
 
   // When kelompok changes, auto-populate selectedKategori with its categories
   function handleKelompokChange(id: string) {
@@ -209,11 +212,20 @@ export default function LaporanPage() {
     tahun,
     bulan || undefined,
     selectedKategori.length > 0 ? selectedKategori : undefined,
+    selectedRekening || undefined,
   );
 
   const periode = isAllYears
     ? (bulan ? `${BULAN_NAMES[parseInt(bulan, 10)]} (Semua Tahun)` : 'Semua Tahun')
     : (bulan ? `${BULAN_NAMES[parseInt(bulan, 10)]} ${tahun}` : `Tahun ${tahun}`);
+
+  const rekeningLabel = selectedRekening
+    ? rekeningList.find(r => r.id === selectedRekening)?.nama_bank || ''
+    : '';
+
+  const previewTitle = isAllYears
+    ? `Pemasukan dan Pengeluaran Semua Tahun${rekeningLabel ? ` — ${rekeningLabel}` : ''}`
+    : `Preview Ringkasan — ${periode}${rekeningLabel ? ` — ${rekeningLabel}` : ''}`;
 
   const kategoriLabel = selectedKategori.length > 0
     ? selectedKategori.map(id => kategoriList.find(k => k.id === id)?.nama || id).join(', ')
@@ -227,6 +239,9 @@ export default function LaporanPage() {
       if (format === 'pdf') params.set('type', tipe);
       if (selectedKategori.length > 0) {
         params.set('kategori', selectedKategori.join(','));
+      }
+      if (selectedRekening) {
+        params.set('rekening', selectedRekening);
       }
 
       const url = `/api/export/${format}?${params.toString()}`;
@@ -263,7 +278,7 @@ export default function LaporanPage() {
       {/* Filters */}
       <Card className="mb-6">
         <CardTitle>Filter Laporan</CardTitle>
-        <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+        <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Tahun</label>
             <select
@@ -302,6 +317,19 @@ export default function LaporanPage() {
             </select>
           </div>
           <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Rekening</label>
+            <select
+              value={selectedRekening}
+              onChange={e => setSelectedRekening(e.target.value)}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+            >
+              <option value="">Semua Rekening</option>
+              {rekeningList.filter(r => r.is_active).map(r => (
+                <option key={r.id} value={r.id}>{r.nama_bank}{r.nomor_rekening ? ` - ${r.nomor_rekening}` : ''}</option>
+              ))}
+            </select>
+          </div>
+          <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Kategori</label>
             <KategoriMultiSelect
               kategoriList={kategoriList}
@@ -329,7 +357,7 @@ export default function LaporanPage() {
       {/* Preview */}
       <Card className="mb-6">
         <CardTitle>
-          {isAllYears ? 'Pemasukan dan Pengeluaran Semua Tahun' : `Preview Ringkasan — ${periode}`}
+          {previewTitle}
           {kategoriLabel && (
             <span className="text-sm font-normal text-gray-500 ml-2">
               ({kategoriLabel})
