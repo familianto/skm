@@ -212,6 +212,7 @@ function getSheetNameByPrefix(prefixKey: string): string {
     REKONSILIASI: 'rekonsiliasi',
     DONATUR: 'donatur',
     REMINDER: 'reminder',
+    KELOMPOK: 'kelompok',
   };
   return mapping[prefixKey] || prefixKey.toLowerCase();
 }

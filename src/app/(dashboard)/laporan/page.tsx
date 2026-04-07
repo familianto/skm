@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Loading } from '@/components/ui/loading';
 import { useDashboardSummary } from '@/hooks/use-dashboard';
 import { useKategori } from '@/hooks/use-kategori';
+import { useKelompok } from '@/hooks/use-kelompok';
 import { formatRupiah } from '@/lib/utils';
 import { APP_CONFIG } from '@/lib/constants';
 import { TransaksiJenis } from '@/types';
@@ -184,10 +185,25 @@ export default function LaporanPage() {
   const [bulan, setBulan] = useState('');
   const [tipe, setTipe] = useState<'ringkasan' | 'detail'>('ringkasan');
   const [selectedKategori, setSelectedKategori] = useState<string[]>([]);
+  const [selectedKelompok, setSelectedKelompok] = useState<string>('');
   const [downloading, setDownloading] = useState<'pdf' | 'excel' | null>(null);
   const { toast } = useToast();
 
   const { data: kategoriList } = useKategori();
+  const { data: kelompokList } = useKelompok();
+
+  // When kelompok changes, auto-populate selectedKategori with its categories
+  function handleKelompokChange(id: string) {
+    setSelectedKelompok(id);
+    if (!id) {
+      setSelectedKategori([]);
+      return;
+    }
+    const k = kelompokList.find(k => k.id === id);
+    if (k) {
+      setSelectedKategori([...k.kategori_masuk, ...k.kategori_keluar]);
+    }
+  }
   const isAllYears = tahun === 'all';
   const { data: summary, loading: summaryLoading } = useDashboardSummary(
     tahun,
@@ -247,7 +263,7 @@ export default function LaporanPage() {
       {/* Filters */}
       <Card className="mb-6">
         <CardTitle>Filter Laporan</CardTitle>
-        <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Tahun</label>
             <select
@@ -273,11 +289,27 @@ export default function LaporanPage() {
             </select>
           </div>
           <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Kelompok</label>
+            <select
+              value={selectedKelompok}
+              onChange={e => handleKelompokChange(e.target.value)}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+            >
+              <option value="">Semua</option>
+              {kelompokList.map(k => (
+                <option key={k.id} value={k.id}>{k.nama}</option>
+              ))}
+            </select>
+          </div>
+          <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Kategori</label>
             <KategoriMultiSelect
               kategoriList={kategoriList}
               selected={selectedKategori}
-              onChange={setSelectedKategori}
+              onChange={(ids) => {
+                setSelectedKategori(ids);
+                setSelectedKelompok(''); // reset kelompok when kategori edited manually
+              }}
             />
           </div>
           <div>

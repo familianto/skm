@@ -9,6 +9,7 @@ export const SHEET_NAMES = {
   REKONSILIASI: 'rekonsiliasi',
   DONATUR: 'donatur',
   REMINDER: 'reminder',
+  KELOMPOK: 'kelompok',
 } as const;
 
 // ID prefixes for each entity
@@ -22,6 +23,7 @@ export const ID_PREFIXES = {
   REKONSILIASI: 'RKN',
   DONATUR: 'DON',
   REMINDER: 'RMD',
+  KELOMPOK: 'KEL',
 } as const;
 
 // Sheet headers — order must match column positions (A, B, C, ...)
@@ -60,6 +62,11 @@ export const SHEET_HEADERS: Record<string, string[]> = {
   [SHEET_NAMES.REMINDER]: [
     'id', 'donatur_id', 'tipe', 'pesan', 'nomor_tujuan',
     'status', 'response', 'sent_at', 'created_at',
+  ],
+  [SHEET_NAMES.KELOMPOK]: [
+    'id', 'nama', 'deskripsi', 'warna',
+    'kategori_masuk', 'kategori_keluar',
+    'created_at', 'updated_at',
   ],
 };
 
