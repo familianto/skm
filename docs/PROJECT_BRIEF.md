@@ -182,6 +182,13 @@ Lihat detail lengkap di `DATABASE_SCHEMA.md`.
 - Fork repository → setup Google Cloud sendiri → deploy ke Vercel
 - Kustomisasi nama, logo, kategori
 
+### 5.8.1 Import CSV — Keterangan Informatif (v2.2)
+- **Expandable keterangan**: klik teks keterangan di tabel preview untuk expand row dan tampilkan keterangan lengkap (di-truncate secara default)
+- **Highlight keyword auto-categorize**: keyword yang menjadi alasan auto-categorize di-highlight dengan background kuning + bold di kolom keterangan, sesuai pattern rules per bank template
+- **Suggestion text untuk Review**: transaksi berstatus "Review" menampilkan saran kecil di bawah keterangan (misal: "Mengandung BMICMS01 — kemungkinan transfer CMS keluar") untuk membantu user memilih kategori
+- Highlight keywords dan suggestion mapping disimpan sebagai bagian dari `BankTemplate` di `src/lib/bank-templates/<bank>.ts` — reusable per bank
+- RowGroup di-`memo()` agar expand/collapse 1 row tidak re-render seluruh tabel (performa baik untuk 1000+ baris)
+
 ### 5.11 Kelompok Anggaran (v2.2)
 - Pengelompokan beberapa kategori terkait (MASUK + KELUAR) untuk pelaporan terpadu
 - Contoh: Kelompok "Qurban" berisi kategori MASUK (Qurban Sapi, Qurban Kambing) + KELUAR (Qurban Operasional, Qurban Pembelian Hewan)

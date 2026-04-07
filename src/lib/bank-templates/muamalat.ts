@@ -114,6 +114,63 @@ const keluarRules: PatternRule[] = [
 ];
 
 // ============================================================
+// Highlight keywords (untuk UI highlight di kolom Keterangan)
+// ============================================================
+
+const HIGHLIGHT_KEYWORDS = {
+  masuk: [
+    'PURCHASE QRIS ACQ',
+    'CDT TRF BENFC BIFAST',
+    'TRANSFER DARI',
+    'INTERNAL TRANSFER',
+    'SETOR TUNAI',
+    'ATMOFFUS',
+    'FLIPTECH LENTERA INSPIRASI',
+    'FLIPTECH',
+    'karpet',
+    'waqaf',
+    'wakaf',
+    'zakat',
+    'TPQ',
+  ],
+  keluar: [
+    'DBT TRF CHARGE',
+    'TRANSAKSI PAYROLL BMI',
+    'PAYROLL',
+    'BMICMS01',
+    'A IMRON ROSADI',
+    'BIFAST',
+  ],
+};
+
+// ============================================================
+// Review suggestion (untuk status='review')
+// ============================================================
+
+function getReviewSuggestion(row: ParsedBankRow): string | null {
+  const k = row.keterangan;
+
+  // KELUAR-specific suggestions
+  if (row.debit > 0) {
+    if (/BMICMS01/i.test(k)) {
+      return 'Mengandung BMICMS01 — kemungkinan transfer CMS keluar';
+    }
+    if (/A IMRON ROSADI/i.test(k)) {
+      return 'Mengandung A IMRON ROSADI — perlu verifikasi tujuan transfer';
+    }
+    if (/TRANSFER DARI.*MUABIDJA.*KE.*IDJA/i.test(k)) {
+      return 'Transfer BiFast keluar — pilih kategori yang sesuai';
+    }
+    if (/BIFAST/i.test(k)) {
+      return 'Transfer BiFast keluar — pilih kategori yang sesuai';
+    }
+  }
+
+  // Generic fallback
+  return 'Tidak cocok pattern otomatis — pilih kategori manual';
+}
+
+// ============================================================
 // Parser
 // ============================================================
 
@@ -164,6 +221,8 @@ export const muamalatTemplate: BankTemplate = {
   bankName: 'Bank Muamalat',
   headerRowsToSkip: 8,
   rekeningId: '', // will be resolved at import time from SKM rekening data
+  highlightKeywords: HIGHLIGHT_KEYWORDS,
+  getReviewSuggestion,
 
   parseRow(row: string[]): ParsedBankRow | null {
     // CSV columns: Nomor Referensi, Tgl Transaksi, Tgl Efektif, Debit, Kredit, Saldo, Keterangan
@@ -207,6 +266,7 @@ export const muamalatTemplate: BankTemplate = {
           kategori_id: rule.kategori_id,
           status: rule.status,
           kategoriLabel: rule.kategoriLabel,
+          reviewSuggestion: rule.status === 'review' ? getReviewSuggestion(row) ?? undefined : undefined,
         };
       }
     }
@@ -220,6 +280,7 @@ export const muamalatTemplate: BankTemplate = {
       kategori_id: '',
       status: 'review',
       kategoriLabel: '',
+      reviewSuggestion: getReviewSuggestion(row) ?? undefined,
     };
   },
 };

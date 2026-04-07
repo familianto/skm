@@ -15,6 +15,19 @@ export interface BankTemplate {
   parseRow: (row: string[]) => ParsedBankRow | null;
   /** Apply pattern rules to categorize a parsed row */
   categorize: (row: ParsedBankRow) => CategorizedRow;
+  /**
+   * Keywords yang akan di-highlight di kolom keterangan untuk membantu user
+   * memahami alasan auto-categorize. Dipisah per jenis MASUK/KELUAR.
+   */
+  highlightKeywords: {
+    masuk: string[];
+    keluar: string[];
+  };
+  /**
+   * Hasilkan teks saran (kenapa perlu review) untuk transaksi berstatus 'review'.
+   * Dipanggil oleh UI per row. Return null jika tidak ada saran spesifik.
+   */
+  getReviewSuggestion?: (row: ParsedBankRow) => string | null;
 }
 
 export interface ParsedBankRow {
@@ -37,6 +50,8 @@ export interface CategorizedRow {
   status: ImportStatus;
   /** For display in the preview table */
   kategoriLabel: string;
+  /** Optional suggestion text for status='review' rows */
+  reviewSuggestion?: string;
 }
 
 export interface ImportRow extends CategorizedRow {
