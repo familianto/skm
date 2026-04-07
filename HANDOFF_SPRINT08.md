@@ -155,3 +155,60 @@ Kolom `mutasi_ref` baru ditambahkan **di akhir** SHEET_HEADERS sehingga:
 2. **Kategori "Mutasi Internal"** tidak bisa di-edit/hapus dari UI Kategori (best-effort: user diharapkan tidak mengutak-atik). Jika dihapus, mutasi pertama berikutnya akan auto re-create dengan ID baru.
 3. **Edit form mutasi belum disediakan UI khusus** — edit via halaman edit existing hanya merubah field non-rekening (tanggal, deskripsi, jumlah). Untuk mengganti rekening tujuan/asal, void mutasi lama lalu buat baru.
 4. **Koreksi mutasi**: tidak didukung secara khusus — gunakan void + buat ulang.
+
+---
+
+## Migrasi Data "Tambah Petty Cash" (Post-Sprint 8)
+
+Setelah fitur Mutasi Internal aktif, semua transaksi "tambah petty cash" yang sebelumnya di-exclude dari import CSV perlu dimasukkan kembali sebagai mutasi internal Bank → Kas Tunai.
+
+### Script Migrasi
+
+`scripts/migrate-mutasi-petty-cash.ts` — Node.js script (tsx) yang:
+1. Membaca daftar entry dari `scripts/data/petty-cash-entries.json` (file di-gitignore agar data RK tidak ter-commit)
+2. Connect ke Google Sheets via service account (env var existing)
+3. Auto-create kategori "Mutasi Internal" (jenis MUTASI) bila belum ada
+4. Untuk setiap entry: cek duplikat (tanggal+jumlah dengan kategori Mutasi Internal), bila belum ada generate `mutasi_ref` dan append 2 baris transaksi (KELUAR Bank + MASUK Kas Tunai) dalam 1 batch
+5. `created_by` di-set "Migrasi" untuk audit trail
+6. Mendukung flag `--dry-run` untuk preview tanpa menulis
+
+### Cara Pakai
+
+```bash
+# 1. Salin template dan isi dengan data dari sheet RK
+cp scripts/data/petty-cash-entries.example.json scripts/data/petty-cash-entries.json
+
+# 2. (Opsional) Override rekening default via env
+export DARI_REKENING_ID=REK-20260101-0001  # Bank
+export KE_REKENING_ID=REK-20260101-0002    # Kas Tunai
+
+# 3. Preview dulu
+npx tsx scripts/migrate-mutasi-petty-cash.ts --dry-run
+
+# 4. Eksekusi
+npx tsx scripts/migrate-mutasi-petty-cash.ts
+```
+
+### Format Data Source
+
+Cari di sheet "Mutasi RK Aljabar Desember" (Mei–Des 2025) dan "Mutasi RK Aljabar 2 April" (Jan–Mar 2026) baris dengan kolom Keterangan (col index 6) yang mengandung "tambah petty cash". Catat tanggal dan jumlah, kemudian masukkan ke `petty-cash-entries.json`:
+
+```json
+[
+  { "tanggal": "2025-05-12", "jumlah": 500000, "deskripsi": "Tambah petty cash" }
+]
+```
+
+### Verifikasi Setelah Migrasi
+
+- **Saldo Kas Tunai** di Dashboard harus berubah dari negatif menjadi mendekati saldo terakhir di RK
+- **Total Pemasukan & Pengeluaran** di Dashboard tetap sama (mutasi di-exclude oleh `!t.mutasi_ref`)
+- Count baris dengan `mutasi_ref != ''` di sheet transaksi = 2 × jumlah mutasi yang dimigrasi
+- Kolom `created_by` = "Migrasi" untuk semua baris hasil script ini
+- Filter "Mutasi" di halaman /transaksi menampilkan semua baris hasil migrasi dengan badge MUTASI
+
+### Catatan
+
+- Script aman untuk dijalankan ulang — duplicate detection menggunakan kombinasi tanggal+jumlah pada baris dengan kategori Mutasi Internal yang sudah ada
+- File `scripts/data/petty-cash-entries.json` di-gitignore (lihat `scripts/data/.gitignore`) — sumber data RK tidak ikut ter-commit
+- Tanggal eksekusi & jumlah aktual yang dimigrasi: **diisi setelah script dijalankan oleh maintainer**
