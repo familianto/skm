@@ -86,17 +86,19 @@ export default function DashboardPage() {
             />
           </div>
 
-          {cumulative.yearlyTrend.length > 0 && (
-            <Card className="mb-6">
-              <CardTitle>Tren Tahunan</CardTitle>
-              <div className="mt-4">
-                <YearlyTrendChart data={cumulative.yearlyTrend} />
-              </div>
-            </Card>
-          )}
+          {/* Yearly Trend + Category Breakdown side by side */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {cumulative.yearlyTrend.length > 0 && (
+              <Card>
+                <CardTitle>Tren Tahunan</CardTitle>
+                <div className="mt-4">
+                  <YearlyTrendChart data={cumulative.yearlyTrend} />
+                </div>
+              </Card>
+            )}
 
-          {/* Category Breakdown All-Time */}
-          <Card>
+            {/* Category Breakdown All-Time */}
+            <Card>
             <div className="flex items-center justify-between">
               <CardTitle>Top Kategori (All-Time)</CardTitle>
               <div className="flex gap-1">
@@ -129,6 +131,7 @@ export default function DashboardPage() {
               />
             </div>
           </Card>
+          </div>
         </div>
       ) : null}
 

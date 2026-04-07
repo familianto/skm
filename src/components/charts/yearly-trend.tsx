@@ -1,7 +1,7 @@
 'use client';
 
 import {
-  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
+  Line, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, Legend, Area, ComposedChart,
 } from 'recharts';
 import { formatRupiah } from '@/lib/utils';
@@ -53,7 +53,7 @@ export function YearlyTrendChart({ data }: YearlyTrendChartProps) {
   }
 
   return (
-    <ResponsiveContainer width="100%" height={300}>
+    <ResponsiveContainer width="100%" height={260}>
       <ComposedChart data={data} margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
         <defs>
           <linearGradient id="fillMasuk" x1="0" y1="0" x2="0" y2="1">
@@ -70,8 +70,8 @@ export function YearlyTrendChart({ data }: YearlyTrendChartProps) {
         <YAxis tickFormatter={formatYAxis} tick={{ fontSize: 12 }} />
         <Tooltip content={<CustomTooltip />} />
         <Legend />
-        <Area type="monotone" dataKey="masuk" name="Pemasukan" fill="url(#fillMasuk)" stroke="none" />
-        <Area type="monotone" dataKey="keluar" name="Pengeluaran" fill="url(#fillKeluar)" stroke="none" />
+        <Area type="monotone" dataKey="masuk" fill="url(#fillMasuk)" stroke="none" legendType="none" tooltipType="none" />
+        <Area type="monotone" dataKey="keluar" fill="url(#fillKeluar)" stroke="none" legendType="none" tooltipType="none" />
         <Line type="monotone" dataKey="masuk" name="Pemasukan" stroke="#059669" strokeWidth={2} dot={{ r: 5, fill: '#059669' }} activeDot={{ r: 7 }} />
         <Line type="monotone" dataKey="keluar" name="Pengeluaran" stroke="#dc2626" strokeWidth={2} dot={{ r: 5, fill: '#dc2626' }} activeDot={{ r: 7 }} />
       </ComposedChart>
