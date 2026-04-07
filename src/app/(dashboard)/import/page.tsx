@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useMemo, useRef } from 'react';
+import { useState, useCallback, useMemo, useRef, memo } from 'react';
 import Link from 'next/link';
 import Papa from 'papaparse';
 import { PageTitle } from '@/components/layout/page-title';
@@ -42,6 +42,16 @@ export default function ImportPage() {
     );
     return r?.id || rekenings[0]?.id || '';
   }, [rekenings]);
+
+  // Build highlight regex per bank template (memoized — runs once per bank)
+  const highlightRegex = useMemo(() => {
+    const template = getBankTemplate(bankId);
+    if (!template) return { masuk: null, keluar: null };
+    return {
+      masuk: buildHighlightRegex(template.highlightKeywords.masuk),
+      keluar: buildHighlightRegex(template.highlightKeywords.keluar),
+    };
+  }, [bankId]);
 
   // Duplicate check: tanggal + jumlah + keterangan
   const isDuplicate = useCallback((tanggal: string, jumlah: number, keterangan: string) => {
@@ -393,6 +403,7 @@ export default function ImportPage() {
                       key={row.key}
                       row={row}
                       kategoris={kategoris}
+                      highlightRegex={row.jenis === TransaksiJenis.MASUK ? highlightRegex.masuk : highlightRegex.keluar}
                       onKategoriChange={updateRowKategori}
                       onAddSplit={addSplitRow}
                       onUpdateSplit={updateSplitRow}
@@ -433,16 +444,60 @@ export default function ImportPage() {
 
 import type { Kategori } from '@/types';
 
+// ============================================================
+// Highlight helpers
+// ============================================================
+
+/**
+ * Build a single case-insensitive regex from a list of keywords.
+ * Sorts longest-first so multi-word phrases match before sub-words.
+ */
+function buildHighlightRegex(keywords: string[]): RegExp | null {
+  if (!keywords || keywords.length === 0) return null;
+  const sorted = [...keywords].sort((a, b) => b.length - a.length);
+  const escaped = sorted.map((k) => k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+  return new RegExp(`(${escaped.join('|')})`, 'gi');
+}
+
+/**
+ * Render text with matching keyword spans wrapped in <mark>.
+ * Creates a local regex to avoid mutating the prop's lastIndex state.
+ */
+function HighlightedText({ text, regex }: { text: string; regex: RegExp | null }) {
+  if (!regex) return <>{text}</>;
+  // Create fresh local regex from the source so we don't mutate prop's state
+  const localRegex = new RegExp(regex.source, regex.flags);
+  const testRegex = new RegExp(regex.source, regex.flags.replace('g', ''));
+  const parts = text.split(localRegex);
+  return (
+    <>
+      {parts.map((part, i) => {
+        if (testRegex.test(part)) {
+          return (
+            <mark key={i} className="bg-yellow-100 text-yellow-900 font-semibold rounded px-0.5">
+              {part}
+            </mark>
+          );
+        }
+        return <span key={i}>{part}</span>;
+      })}
+    </>
+  );
+}
+
 interface RowGroupProps {
   row: ImportRow;
   kategoris: Kategori[];
+  highlightRegex: RegExp | null;
   onKategoriChange: (key: string, kategori_id: string) => void;
   onAddSplit: (parentKey: string) => void;
   onUpdateSplit: (parentKey: string, splitKey: string, field: 'kategori_id' | 'jumlah', value: string | number) => void;
   onRemoveSplit: (parentKey: string, splitKey: string) => void;
 }
 
-function RowGroup({ row, kategoris, onKategoriChange, onAddSplit, onUpdateSplit, onRemoveSplit }: RowGroupProps) {
+const RowGroup = memo(function RowGroup({ row, kategoris, highlightRegex, onKategoriChange, onAddSplit, onUpdateSplit, onRemoveSplit }: RowGroupProps) {
+  const [expanded, setExpanded] = useState(false);
+
   const statusBadge = () => {
     if (row.isDuplicate) return <span className="inline-flex items-center gap-1 text-xs font-medium text-red-700 bg-red-50 px-2 py-0.5 rounded-full">Duplikat</span>;
     if (row.status === 'auto') return <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full">Auto</span>;
@@ -452,6 +507,7 @@ function RowGroup({ row, kategoris, onKategoriChange, onAddSplit, onUpdateSplit,
 
   const splitTotal = row.splitRows?.reduce((s, r) => s + r.jumlah, 0) || 0;
   const hasSplits = row.splitRows && row.splitRows.length > 0;
+  const isReview = row.status === 'review' && !row.kategori_id;
 
   // Format helper for split jumlah input
   const formatDots = (value: string) => {
@@ -462,11 +518,23 @@ function RowGroup({ row, kategoris, onKategoriChange, onAddSplit, onUpdateSplit,
   return (
     <>
       <TableRow className={row.isDuplicate ? 'bg-red-50' : undefined}>
-        <TableCell className="whitespace-nowrap text-sm">{formatTanggal(row.tanggal)}</TableCell>
-        <TableCell className="max-w-[250px] text-sm">
-          <span className="block truncate" title={row.keterangan}>{row.keterangan}</span>
+        <TableCell className="whitespace-nowrap text-sm align-top">{formatTanggal(row.tanggal)}</TableCell>
+        <TableCell className="max-w-[280px] text-sm align-top">
+          <button
+            type="button"
+            onClick={() => setExpanded((v) => !v)}
+            title={expanded ? 'Sembunyikan keterangan lengkap' : 'Tap untuk lihat keterangan lengkap'}
+            className={`text-left w-full ${expanded ? 'whitespace-normal break-words' : 'truncate'} hover:text-emerald-700`}
+          >
+            <HighlightedText text={row.keterangan} regex={highlightRegex} />
+          </button>
+          {isReview && row.reviewSuggestion && (
+            <p className="mt-0.5 text-[11px] text-gray-500 italic leading-snug">
+              ⚠ {row.reviewSuggestion}
+            </p>
+          )}
         </TableCell>
-        <TableCell><Badge label={row.jenis} /></TableCell>
+        <TableCell className="align-top"><Badge label={row.jenis} /></TableCell>
         <TableCell className={`text-right font-medium whitespace-nowrap ${row.jenis === TransaksiJenis.MASUK ? 'text-emerald-600' : 'text-red-600'}`}>
           {row.jenis === TransaksiJenis.MASUK ? '+' : '-'}{formatRupiah(row.jumlah)}
         </TableCell>
@@ -549,4 +617,4 @@ function RowGroup({ row, kategoris, onKategoriChange, onAddSplit, onUpdateSplit,
       )}
     </>
   );
-}
+});
