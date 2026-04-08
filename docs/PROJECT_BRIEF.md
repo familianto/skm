@@ -283,6 +283,11 @@ Fitur-fitur berikut **tidak termasuk** dalam scope v2.1, tapi bisa ditambahkan d
 
 ## Changelog
 
+### v2.2.1 (7 April 2026)
+- **Filter Rekening** di halaman Transaksi (dropdown + URL `?rekening=ID`)
+- **Filter Rekening** di halaman Laporan (preview + PDF/Excel export ikut terfilter)
+- **Dashboard "Saldo per Rekening"** rows sekarang clickable — navigate ke `/transaksi?rekening=ID`
+- API `/api/dashboard/summary`, `/api/export/pdf`, `/api/export/excel` menerima query param `rekening`
 ### v2.3 (7 April 2026) — Sprint 8
 - **Fitur baru: Mutasi Internal** — Pemindahan dana antar rekening (Bank ↔ Kas Tunai dst.)
 - 1 mutasi = 2 baris transaksi (KELUAR di rekening asal + MASUK di rekening tujuan) dihubungkan via kolom baru `mutasi_ref` (format `MUT-YYYYMMDD-NNNN`) di sheet `transaksi`

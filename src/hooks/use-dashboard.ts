@@ -92,7 +92,7 @@ export function useCumulativeDashboard() {
   return { data, loading, error, refetch: fetchData };
 }
 
-export function useDashboardSummary(tahun?: string, bulan?: string, kategoriIds?: string[]) {
+export function useDashboardSummary(tahun?: string, bulan?: string, kategoriIds?: string[], rekeningId?: string) {
   const [data, setData] = useState<DashboardSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -109,6 +109,9 @@ export function useDashboardSummary(tahun?: string, bulan?: string, kategoriIds?
       if (kategoriIds && kategoriIds.length > 0) {
         params.set('kategori', kategoriIds.join(','));
       }
+      if (rekeningId) {
+        params.set('rekening', rekeningId);
+      }
       const qs = params.toString();
       const url = qs ? `/api/dashboard/summary?${qs}` : '/api/dashboard/summary';
       const res = await fetch(url);
@@ -124,7 +127,7 @@ export function useDashboardSummary(tahun?: string, bulan?: string, kategoriIds?
       setLoading(false);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tahun, bulan, kategoriKey]);
+  }, [tahun, bulan, kategoriKey, rekeningId]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 

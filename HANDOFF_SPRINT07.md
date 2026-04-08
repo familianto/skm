@@ -264,6 +264,66 @@ Implementasi di `src/components/layout/sidebar.tsx`:
 
 ---
 
+# Sprint A4: Filter Rekening (v2.2.1)
+
+**Tanggal**: 2026-04-07
+**Branch**: `claude/rekening-filter`
+**Status**: Selesai
+
+## Deliverables Sprint A4
+
+| # | Deliverable | Status |
+|---|---|---|
+| 1 | Transaksi page: dropdown filter Rekening + URL param `?rekening=ID` | Done |
+| 2 | Laporan page: dropdown filter Rekening (posisi setelah Kelompok, sebelum Kategori) | Done |
+| 3 | Dashboard "Saldo per Rekening" rows clickable → `/transaksi?rekening=ID` | Done |
+| 4 | API `/api/dashboard/summary`: query param `rekening` | Done |
+| 5 | API `/api/export/pdf`: query param `rekening` (label di header PDF) | Done |
+| 6 | API `/api/export/excel`: query param `rekening` (appended ke periode label) | Done |
+| 7 | Hook `useDashboardSummary`: parameter `rekeningId` | Done |
+| 8 | Preview title Laporan: "Preview Ringkasan — Tahun 2026 — Bank Syariah Indonesia" | Done |
+
+## Keputusan Teknis Sprint A4
+
+### 1. Transaksi Page (Client-side Filter)
+- Filter rekening dilakukan client-side di useMemo (sama seperti filter lain)
+- Tidak perlu modify hook `useTransaksi` — semua transaksi sudah diload, filter di komponen
+- URL query param `?rekening=ID` dibaca via `useSearchParams()` di useEffect — auto-set state filter
+- Component dibungkus `<Suspense>` karena Next.js App Router require Suspense untuk `useSearchParams()`
+- Grid filter diubah dari 5 kolom (lg) ke 6 kolom (xl) untuk akomodasi field baru
+
+### 2. Laporan Page (API-side Filter)
+- Selected rekening dikirim ke `useDashboardSummary` (parameter ke-4) dan ke export API
+- Preview title dinamis: tambahkan ` — {nama_bank}` jika rekening dipilih
+- Dropdown rekening terpisah dari Kelompok (independent filter, bukan auto-populate)
+- Grid Filter Laporan diubah dari 5 kolom (lg) ke 6 kolom (xl)
+
+### 3. API Changes
+- `dashboard/summary`: tambah `searchParams.get('rekening')` lalu filter `t.rekening_id === rekeningId`
+- `export/pdf`: tambah baris "Rekening: ..." di header PDF (group dengan kategori filter lines, mengikuti existing wrapping logic)
+- `export/excel`: append rekening label ke `periode` string — otomatis muncul di title kedua worksheet (Ringkasan + Detail) tanpa restructuring rows
+- Semua API filter di-apply setelah filter status AKTIF dan periode
+
+### 4. Dashboard Saldo per Rekening — Clickable
+- `<div>` rows diubah jadi `<Link>` dengan `href="/transaksi?rekening=${id}"`
+- Hover state: `hover:bg-gray-50` + padding -mx-2 untuk visual feedback edge-to-edge
+- Saldo per rekening tetap menggunakan all-time data (existing behavior dipertahankan)
+
+### 5. Catatan tentang Mutasi
+- Schema transaksi saat ini tidak punya field `mutasi_ref` — task menyebutkan ini sebagai constraint behavioral, tapi karena field belum ada, tidak ada special handling yang perlu ditambahkan. Filter rekening apply ke semua transaksi aktif yang `rekening_id` match.
+
+## File yang Diubah Sprint A4
+
+| File | Perubahan |
+|---|---|
+| `src/app/(dashboard)/transaksi/page.tsx` | useSearchParams + filterRekening state + dropdown + Suspense wrapper |
+| `src/app/(dashboard)/laporan/page.tsx` | selectedRekening state + dropdown + preview title |
+| `src/app/(dashboard)/page.tsx` | Saldo per Rekening rows → Link to /transaksi?rekening=ID |
+| `src/hooks/use-dashboard.ts` | useDashboardSummary accepts rekeningId param |
+| `src/app/api/dashboard/summary/route.ts` | Filter by rekening_id |
+| `src/app/api/export/pdf/route.ts` | Fetch rekening rows + filter + add Rekening line in PDF header |
+| `src/app/api/export/excel/route.ts` | Fetch rekening rows + filter + append rekening to periode |
+| `docs/PROJECT_BRIEF.md` | Changelog v2.2.1 |
 ## Sprint A4 Updates (April 2026) — Import CSV Informative Description
 
 ### Konteks

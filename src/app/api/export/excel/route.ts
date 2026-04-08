@@ -39,16 +39,32 @@ export async function GET(request: NextRequest) {
     const bulan = searchParams.get('bulan');
     const kategoriParam = searchParams.get('kategori');
     const kategoriIds = kategoriParam ? kategoriParam.split(',').filter(Boolean) : [];
+    const rekeningId = searchParams.get('rekening') || '';
 
     // Fetch data
-    const [transaksiRows, kategoriRows, masterRows] = await sheetsService.batchGet([
+    const [transaksiRows, kategoriRows, masterRows, rekeningRows] = await sheetsService.batchGet([
       `${SHEET_NAMES.TRANSAKSI}!A2:ZZ`,
       `${SHEET_NAMES.KATEGORI}!A2:ZZ`,
       `${SHEET_NAMES.MASTER}!A2:ZZ`,
+      `${SHEET_NAMES.REKENING_BANK}!A2:ZZ`,
     ]);
 
     const kategoriList = kategoriRows.map(rowToKategori);
     const kategoriMap = new Map(kategoriList.map(k => [k.id, k.nama]));
+
+    // Build rekening label for the chosen rekening (if any)
+    let rekeningLabel = '';
+    if (rekeningId && rekeningRows.length > 0) {
+      const rekHeaders = SHEET_HEADERS[SHEET_NAMES.REKENING_BANK];
+      for (const row of rekeningRows) {
+        const obj: Record<string, string> = {};
+        rekHeaders.forEach((h, i) => { obj[h] = row[i] || ''; });
+        if (obj.id === rekeningId) {
+          rekeningLabel = `${obj.nama_bank}${obj.nomor_rekening ? ` - ${obj.nomor_rekening}` : ''}`;
+          break;
+        }
+      }
+    }
 
     const masterHeaders = SHEET_HEADERS[SHEET_NAMES.MASTER];
     const masterObj: Record<string, string> = {};
@@ -80,6 +96,11 @@ export async function GET(request: NextRequest) {
       transaksis = transaksis.filter(t => kategoriIds.includes(t.kategori_id));
     }
 
+    // Apply rekening filter
+    if (rekeningId) {
+      transaksis = transaksis.filter(t => t.rekening_id === rekeningId);
+    }
+
     transaksis.sort((a, b) => a.tanggal.localeCompare(b.tanggal));
 
     let periode: string;
@@ -87,6 +108,9 @@ export async function GET(request: NextRequest) {
       periode = bulan ? `${BULAN_NAMES[parseInt(bulan, 10)]} (Semua Tahun)` : 'Semua Tahun';
     } else {
       periode = bulan ? `${BULAN_NAMES[parseInt(bulan, 10)]} ${tahun}` : `Tahun ${tahun}`;
+    }
+    if (rekeningLabel) {
+      periode += ` — ${rekeningLabel}`;
     }
 
     const kategoriFilterLabel = kategoriIds.length > 0
