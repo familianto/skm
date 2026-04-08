@@ -256,6 +256,17 @@ function TransaksiPageInner() {
 
   const hasActiveFilters = filterJenis || filterStatus || filterKategoriIds.length > 0 || filterRekening || filterDateFrom || filterDateTo || searchQuery;
 
+  const resetFilters = () => {
+    setFilterJenis('');
+    setFilterStatus('');
+    setFilterKategoriIds([]);
+    setFilterRekening('');
+    setFilterDateFrom('');
+    setFilterDateTo('');
+    setSearchInput('');
+    setPage(1);
+  };
+
   // Auto-scroll to table when filters change
   useEffect(() => {
     if (hasActiveFilters && tableRef.current) {
@@ -277,98 +288,93 @@ function TransaksiPageInner() {
 
       {/* Filters */}
       <Card>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-4">
-          <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1">Cari Deskripsi</label>
-            <div className="relative">
-              <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M11 19a8 8 0 100-16 8 8 0 000 16z" />
+        {/* Row 1: Search (full width) */}
+        <div className="relative mb-3">
+          <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M11 19a8 8 0 100-16 8 8 0 000 16z" />
+          </svg>
+          <input
+            type="text"
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
+            placeholder="Cari deskripsi..."
+            className="block w-full rounded-lg border border-gray-300 pl-10 pr-10 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+          />
+          {searchInput && (
+            <button
+              type="button"
+              onClick={() => setSearchInput('')}
+              aria-label="Hapus pencarian"
+              className="absolute right-3 top-1/2 -translate-y-1/2 p-1 rounded-full text-gray-400 hover:text-gray-600 hover:bg-gray-100"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
               </svg>
-              <input
-                type="text"
-                value={searchInput}
-                onChange={(e) => setSearchInput(e.target.value)}
-                placeholder="Cari deskripsi..."
-                className="block w-full rounded-lg border border-gray-300 pl-9 pr-9 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
-              />
-              {searchInput && (
-                <button
-                  type="button"
-                  onClick={() => setSearchInput('')}
-                  aria-label="Hapus pencarian"
-                  className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-full text-gray-400 hover:text-gray-600 hover:bg-gray-100"
-                >
-                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              )}
-            </div>
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1">Jenis</label>
-            <select
-              value={filterJenis}
-              onChange={(e) => { setFilterJenis(e.target.value); setPage(1); }}
-              className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
-            >
-              <option value="">Semua</option>
-              <option value="MASUK">Pemasukan</option>
-              <option value="KELUAR">Pengeluaran</option>
-              <option value="MUTASI">Mutasi</option>
-            </select>
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1">Status</label>
-            <select
-              value={filterStatus}
-              onChange={(e) => { setFilterStatus(e.target.value); setPage(1); }}
-              className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
-            >
-              <option value="">Semua</option>
-              <option value="AKTIF">Aktif</option>
-              <option value="VOID">Void</option>
-            </select>
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1">Kategori</label>
+            </button>
+          )}
+        </div>
+
+        {/* Row 2: Dropdowns + Reset button */}
+        <div className="flex flex-wrap items-center gap-3">
+          <select
+            value={filterJenis}
+            onChange={(e) => { setFilterJenis(e.target.value); setPage(1); }}
+            className="flex-1 min-w-[130px] rounded-lg border border-gray-300 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+          >
+            <option value="">Semua Jenis</option>
+            <option value="MASUK">Pemasukan</option>
+            <option value="KELUAR">Pengeluaran</option>
+            <option value="MUTASI">Mutasi</option>
+          </select>
+          <select
+            value={filterStatus}
+            onChange={(e) => { setFilterStatus(e.target.value); setPage(1); }}
+            className="flex-1 min-w-[130px] rounded-lg border border-gray-300 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+          >
+            <option value="">Semua Status</option>
+            <option value="AKTIF">Aktif</option>
+            <option value="VOID">Void</option>
+          </select>
+          <div className="flex-1 min-w-[150px]">
             <KategoriMultiSelect
               kategoris={kategoris}
               selected={filterKategoriIds}
               onChange={(ids) => { setFilterKategoriIds(ids); setPage(1); }}
             />
           </div>
-          <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1">Rekening</label>
-            <select
-              value={filterRekening}
-              onChange={(e) => { setFilterRekening(e.target.value); setPage(1); }}
-              className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+          <select
+            value={filterRekening}
+            onChange={(e) => { setFilterRekening(e.target.value); setPage(1); }}
+            className="flex-1 min-w-[150px] rounded-lg border border-gray-300 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+          >
+            <option value="">Semua Rekening</option>
+            {rekenings.filter(r => r.is_active).map(r => (
+              <option key={r.id} value={r.id}>{r.nama_bank}{r.nomor_rekening ? ` - ${r.nomor_rekening}` : ''}</option>
+            ))}
+          </select>
+          <input
+            type="date"
+            value={filterDateFrom}
+            onChange={(e) => { setFilterDateFrom(e.target.value); setPage(1); }}
+            aria-label="Dari Tanggal"
+            className="flex-1 min-w-[140px] rounded-lg border border-gray-300 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+          />
+          <input
+            type="date"
+            value={filterDateTo}
+            onChange={(e) => { setFilterDateTo(e.target.value); setPage(1); }}
+            aria-label="Sampai Tanggal"
+            className="flex-1 min-w-[140px] rounded-lg border border-gray-300 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+          />
+          {hasActiveFilters && (
+            <button
+              type="button"
+              onClick={resetFilters}
+              className="whitespace-nowrap text-xs font-medium text-gray-500 hover:text-emerald-600 px-2 py-2"
             >
-              <option value="">Semua Rekening</option>
-              {rekenings.filter(r => r.is_active).map(r => (
-                <option key={r.id} value={r.id}>{r.nama_bank}{r.nomor_rekening ? ` - ${r.nomor_rekening}` : ''}</option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1">Dari Tanggal</label>
-            <input
-              type="date"
-              value={filterDateFrom}
-              onChange={(e) => { setFilterDateFrom(e.target.value); setPage(1); }}
-              className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
-            />
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1">Sampai Tanggal</label>
-            <input
-              type="date"
-              value={filterDateTo}
-              onChange={(e) => { setFilterDateTo(e.target.value); setPage(1); }}
-              className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
-            />
-          </div>
+              Reset Filter
+            </button>
+          )}
         </div>
       </Card>
 
