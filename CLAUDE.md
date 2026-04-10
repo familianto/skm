@@ -11,7 +11,7 @@
 
 ## Current Sprint
 
-> **Sprint 1 — Foundation** selesai. Selanjutnya Sprint 2 — Transaksi Inti (lihat `docs/sprints/SPRINT_2.md`)
+> **Sprint 9 — Bulk Edit & Proteksi Hapus** selesai. Lihat `HANDOFF_SPRINT09.md` untuk detail.
 
 Update baris ini setiap kali sprint berganti.
 
@@ -131,6 +131,13 @@ FONNTE_API_TOKEN=               # Token API dari fonnte.com
 5. **Vercel serverless limit**: Body size max 4.5MB. Gambar di-resize dan compress client-side sebelum upload.
 6. **Google Sheets cell limit**: Max ~10 juta cells per spreadsheet. Untuk 1 masjid, ini lebih dari cukup.
 7. **Google Sheets cell character limit**: Max 50.000 karakter per cell. Logo/bukti di-resize agar base64 muat di 1 cell (logo max 200px, bukti max 600px).
+
+## Key Patterns (Sprint 9+)
+
+- **Bulk edit with chunking + audit `batch_id`**: `POST /api/transaksi/bulk-update-kategori` updates transaksi in chunks of 50, each audit log entry shares a `batch_id` for traceability.
+- **Usage-count check before delete (proteksi hapus)**: `GET /api/kategori/[id]/usage-count` and `GET /api/rekening/[id]/usage-count` count active (non-VOID) transactions. Frontend shows protection dialog if count > 0, confirmation dialog if count = 0.
+- **Reuse dialog/toast pattern from Kelompok Anggaran**: `ConfirmDialog` component (variant `primary` or `danger`), `useToast()` hook from `ToastProvider`.
+- **URL query param for pre-filtered navigation**: Transaksi page reads `?kategori=ID` and `?rekening=ID` from URL to pre-set filters.
 
 ## Documentation Map
 

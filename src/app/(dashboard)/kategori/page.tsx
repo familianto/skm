@@ -1,16 +1,18 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import Link from 'next/link';
 import { PageTitle } from '@/components/layout/page-title';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Modal } from '@/components/ui/modal';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table';
 import { Loading } from '@/components/ui/loading';
 import { useToast } from '@/components/ui/toast';
-import type { Kategori } from '@/types';
+import type { Kategori, ApiResponse } from '@/types';
 import { TransaksiJenis } from '@/types';
 
 export default function KategoriPage() {
@@ -22,6 +24,15 @@ export default function KategoriPage() {
   const [filter, setFilter] = useState<string>('');
   const [form, setForm] = useState({ nama: '', jenis: 'MASUK' as TransaksiJenis, deskripsi: '' });
   const [submitting, setSubmitting] = useState(false);
+
+  // Delete protection & confirmation state
+  const [protectionDialog, setProtectionDialog] = useState<{ open: boolean; nama: string; count: number; id: string }>({
+    open: false, nama: '', count: 0, id: '',
+  });
+  const [confirmDelete, setConfirmDelete] = useState<{ open: boolean; id: string; nama: string }>({
+    open: false, id: '', nama: '',
+  });
+  const [deleting, setDeleting] = useState(false);
 
   const fetchData = useCallback(async () => {
     try {
@@ -77,20 +88,41 @@ export default function KategoriPage() {
     }
   };
 
-  const handleDelete = async (id: string, nama: string) => {
-    if (!confirm(`Hapus kategori "${nama}"?`)) return;
-
+  const handleDeleteClick = async (id: string, nama: string) => {
+    // Check usage count first
     try {
-      const res = await fetch(`/api/kategori/${id}`, { method: 'DELETE' });
+      const res = await fetch(`/api/kategori/${id}/usage-count`);
+      const data: ApiResponse<{ count: number }> = await res.json();
+
+      if (data.success && data.data && data.data.count > 0) {
+        // Show protection dialog
+        setProtectionDialog({ open: true, nama, count: data.data.count, id });
+      } else {
+        // Show confirmation dialog
+        setConfirmDelete({ open: true, id, nama });
+      }
+    } catch {
+      toast('Gagal memeriksa penggunaan kategori', 'error');
+    }
+  };
+
+  const doDelete = async () => {
+    if (!confirmDelete.id) return;
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/kategori/${confirmDelete.id}`, { method: 'DELETE' });
       const data = await res.json();
       if (data.success) {
         toast('Kategori berhasil dihapus');
+        setConfirmDelete({ open: false, id: '', nama: '' });
         fetchData();
       } else {
         toast(data.error || 'Gagal menghapus', 'error');
       }
     } catch {
       toast('Terjadi kesalahan', 'error');
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -139,7 +171,7 @@ export default function KategoriPage() {
                   <TableCell className="text-gray-500">{k.deskripsi || '-'}</TableCell>
                   <TableCell className="text-center space-x-2">
                     <Button variant="ghost" size="sm" onClick={() => openEdit(k)}>Edit</Button>
-                    <Button variant="ghost" size="sm" onClick={() => handleDelete(k.id, k.nama)}>Hapus</Button>
+                    <Button variant="ghost" size="sm" onClick={() => handleDeleteClick(k.id, k.nama)}>Hapus</Button>
                   </TableCell>
                 </TableRow>
               ))}
@@ -148,7 +180,7 @@ export default function KategoriPage() {
         )}
       </Card>
 
-      {/* Modal */}
+      {/* Edit/Create Modal */}
       <Modal
         open={modalOpen}
         onClose={() => setModalOpen(false)}
@@ -191,6 +223,45 @@ export default function KategoriPage() {
           </div>
         </div>
       </Modal>
+
+      {/* Protection Dialog — cannot delete, has transactions */}
+      <Modal
+        open={protectionDialog.open}
+        onClose={() => setProtectionDialog(p => ({ ...p, open: false }))}
+        title="Tidak dapat menghapus"
+      >
+        <div className="space-y-4">
+          <div className="bg-amber-50 text-amber-800 rounded-lg p-3 text-sm">
+            Kategori <strong>{protectionDialog.nama}</strong> digunakan oleh <strong>{protectionDialog.count} transaksi</strong>.
+          </div>
+          <p className="text-sm text-gray-600">
+            Pindahkan transaksi ke kategori lain terlebih dahulu menggunakan fitur Bulk Edit.
+          </p>
+          <Link
+            href={`/transaksi?kategori=${protectionDialog.id}`}
+            className="inline-flex items-center text-sm font-medium text-emerald-600 hover:text-emerald-700"
+          >
+            Lihat {protectionDialog.count} transaksi →
+          </Link>
+          <div className="flex justify-end pt-2">
+            <Button variant="secondary" onClick={() => setProtectionDialog(p => ({ ...p, open: false }))}>
+              Tutup
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Confirm Delete Dialog */}
+      <ConfirmDialog
+        open={confirmDelete.open}
+        title="Hapus kategori"
+        message={`Apakah Anda yakin ingin menghapus "${confirmDelete.nama}"? Tindakan ini tidak dapat dibatalkan.`}
+        confirmLabel="Ya, hapus"
+        variant="danger"
+        onConfirm={doDelete}
+        onCancel={() => setConfirmDelete({ open: false, id: '', nama: '' })}
+        loading={deleting}
+      />
     </div>
   );
 }

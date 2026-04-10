@@ -744,6 +744,75 @@ Export data transaksi ke Excel.
 
 ---
 
+## Bulk Edit Endpoints (Sprint 9)
+
+### `POST /api/transaksi/bulk-update-kategori`
+
+Ubah kategori untuk banyak transaksi sekaligus.
+
+**Request Body:**
+```json
+{
+  "transactionIds": ["TRX-20260323-0001", "TRX-20260323-0002"],
+  "newKategoriId": "KAT-20260101-0003"
+}
+```
+
+**Response (200):**
+```json
+{
+  "success": true,
+  "data": {
+    "updatedCount": 2,
+    "batchId": "BULK-20260410-LK3XY"
+  }
+}
+```
+
+**Side Effects:**
+- Update kolom `kategori_id` dan `updated_at` pada setiap transaksi
+- Tulis audit log per transaksi (`UPDATE`, detail berisi `BULK_EDIT_KATEGORI` + `batch_id`)
+- Chunking: 50 transaksi per batch
+
+**Validasi:**
+- Requires authenticated session
+- `newKategoriId` harus merujuk ke kategori yang ada
+- Transaksi VOID dan MUTASI tidak boleh diubah (difilter di frontend)
+
+---
+
+## Usage Count Endpoints (Sprint 9)
+
+### `GET /api/kategori/[id]/usage-count`
+
+Hitung jumlah transaksi aktif (non-VOID) yang menggunakan kategori ini.
+
+**Response (200):**
+```json
+{
+  "success": true,
+  "data": {
+    "count": 15
+  }
+}
+```
+
+### `GET /api/rekening/[id]/usage-count`
+
+Hitung jumlah transaksi aktif (non-VOID) yang menggunakan rekening ini.
+
+**Response (200):**
+```json
+{
+  "success": true,
+  "data": {
+    "count": 42
+  }
+}
+```
+
+---
+
 ## Health Check
 
 ### `GET /api/health`

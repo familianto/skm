@@ -13,6 +13,9 @@ Total estimasi: 10-12 minggu (7 sprint)
 | 4 | Dashboard, Laporan & Export | 2 minggu | Sprint 2 | ✅ Done |
 | 5 | Rekonsiliasi Bank | 2 minggu | Sprint 2 | ✅ Done |
 | 6 | TV Display, Settings & Polish | 1-2 minggu | Sprint 4, 5 | ✅ Done |
+| 7 | UI/UX Polish | 1 minggu | Sprint 6 | ✅ Done |
+| 8 | Mutasi Internal | 1 minggu | Sprint 2 | ✅ Done |
+| 9 | Bulk Edit & Proteksi Hapus | 1 minggu | Sprint 2 | ✅ Done |
 
 ## Dependency Graph
 
@@ -127,6 +130,9 @@ Sprint 3: [x] Done — Donatur & Reminder WA
 Sprint 4: [x] Done — Dashboard, Laporan & Export
 Sprint 5: [x] Done — Rekonsiliasi Bank
 Sprint 6: [x] Done — TV Display, Settings & Polish
+Sprint 7: [x] Done — UI/UX Polish
+Sprint 8: [x] Done — Mutasi Internal
+Sprint 9: [x] Done — Bulk Edit & Proteksi Hapus
 ```
 
 ## Detail Sprint
@@ -140,3 +146,6 @@ Lihat file individual untuk detail setiap sprint:
 - [`docs/sprints/SPRINT_4.md`](sprints/SPRINT_4.md) — Dashboard, Laporan & Export
 - [`docs/sprints/SPRINT_5.md`](sprints/SPRINT_5.md) — Rekonsiliasi Bank
 - [`docs/sprints/SPRINT_6.md`](sprints/SPRINT_6.md) — TV Display, Settings & Polish
+- Sprint 7 — UI/UX Polish (lihat `HANDOFF_SPRINT07.md`)
+- Sprint 8 — Mutasi Internal (lihat `HANDOFF_SPRINT08.md`)
+- Sprint 9 — Bulk Edit & Proteksi Hapus (lihat `HANDOFF_SPRINT09.md`)
