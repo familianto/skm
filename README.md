@@ -12,6 +12,8 @@ Sistem manajemen keuangan masjid berbasis web yang transparan, akuntabel, dan mu
 - **Export Laporan** — Download laporan dalam format PDF atau Excel, dengan filter kategori per jenis (Masuk/Keluar)
 - **Display Publik** — Halaman read-only untuk ditampilkan di TV/monitor masjid
 - **Multi-Masjid** — Dapat diadopsi oleh masjid lain dengan mudah
+- **Bulk Edit Kategori** — Ubah kategori banyak transaksi sekaligus dengan checkbox dan dialog konfirmasi
+- **Proteksi Hapus** — Kategori dan rekening yang memiliki transaksi tidak dapat dihapus tanpa memindahkan transaksi terlebih dahulu
 
 ## Tech Stack
 
@@ -74,6 +76,9 @@ CLAUDE.md                       # Panduan untuk AI-assisted development
 | 4 | Dashboard & Export | ✅ Done | Grafik, ringkasan, export PDF/Excel |
 | 5 | Rekonsiliasi Bank | ✅ Done | Rekonsiliasi bank, void/koreksi, upload bukti |
 | 6 | TV Display, Settings & Polish | ✅ Done | Display publik, pengaturan, logo, optimization |
+| 7 | UI/UX Polish | ✅ Done | Sidebar grouping, badge style, format Rupiah |
+| 8 | Mutasi Internal | ✅ Done | Transfer dana antar rekening |
+| 9 | Bulk Edit & Proteksi Hapus | ✅ Done | Bulk edit kategori, proteksi hapus, dialog konfirmasi, toast |
 
 Detail setiap sprint: [`docs/SPRINT_PLAN.md`](docs/SPRINT_PLAN.md)
 

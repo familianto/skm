@@ -199,6 +199,20 @@ Lihat detail lengkap di `DATABASE_SCHEMA.md`.
 - Dashboard section "Ringkasan per Kelompok" — bar chart perbandingan masuk vs keluar per kelompok
 - Laporan dropdown filter Kelompok — auto-populate kategori, export PDF/Excel ikut terfilter
 
+### 5.12 Bulk Edit Kategori (Sprint 9, v2.4)
+- Checkbox di setiap baris tabel Transaksi untuk memilih transaksi (disabled untuk VOID dan MUTASI)
+- "Select All" checkbox di header — hanya memilih transaksi di halaman aktif, skip VOID/MUTASI
+- Sticky toolbar di bawah tabel saat ada transaksi tercentang: "X transaksi dipilih" + tombol "Ubah Kategori"
+- Dialog konfirmasi: summary transaksi terpilih, dropdown kategori baru (grouped by jenis), preview perubahan
+- Batch update via API `POST /api/transaksi/bulk-update-kategori` (chunking 50 per batch)
+- Audit log per transaksi dengan shared `batch_id`
+
+### 5.13 Proteksi Hapus Kategori & Rekening (Sprint 9, v2.4)
+- Saat hapus kategori/rekening: cek dulu apakah ada transaksi yang menggunakan (API `usage-count`)
+- Jika ada transaksi: dialog proteksi "Tidak dapat menghapus" + link ke halaman Transaksi yang terfilter
+- Jika tidak ada transaksi: dialog konfirmasi hapus dengan tombol destructive (merah)
+- Toast notification untuk semua aksi (edit, hapus) kategori dan rekening
+
 ## 6. Target Pengguna
 
 | Peran | Akses | Deskripsi |
@@ -229,6 +243,9 @@ Lihat detail di `SPRINT_PLAN.md` dan file individual di `sprints/`.
 | 4 | Dashboard, Laporan & Export | 2 minggu | ✅ Done |
 | 5 | Rekonsiliasi Bank | 2 minggu | ✅ Done |
 | 6 | TV Display, Settings & Polish | 1-2 minggu | ✅ Done |
+| 7 | UI/UX Polish | 1 minggu | ✅ Done |
+| 8 | Mutasi Internal | 1 minggu | ✅ Done |
+| 9 | Bulk Edit & Proteksi Hapus | 1 minggu | ✅ Done |
 
 ## 9. Saran Fitur Masa Depan (Backlog)
 
@@ -282,6 +299,16 @@ Fitur-fitur berikut **tidak termasuk** dalam scope v2.1, tapi bisa ditambahkan d
 ---
 
 ## Changelog
+
+### v2.4 (10 April 2026) — Sprint 9
+- **Fitur baru: Bulk Edit Kategori** — Pilih banyak transaksi via checkbox, ubah kategori sekaligus lewat dialog konfirmasi dengan preview perubahan
+- Checkbox di tabel Transaksi (disabled untuk VOID/MUTASI), Select All per halaman, sticky toolbar bawah
+- API baru: `POST /api/transaksi/bulk-update-kategori` (chunking 50/batch, audit log per transaksi dengan shared `batch_id`)
+- **Proteksi Hapus Kategori & Rekening** — Cek `usage-count` sebelum hapus; jika ada transaksi: dialog proteksi + link ke transaksi terfilter
+- API baru: `GET /api/kategori/[id]/usage-count`, `GET /api/rekening/[id]/usage-count`
+- **Dialog Konfirmasi Hapus** — Reuse ConfirmDialog (variant danger) untuk kategori/rekening tanpa transaksi
+- **Toast Notification** — Toast konsisten untuk edit/hapus kategori dan rekening
+- Halaman Transaksi: support URL query param `?kategori=ID` untuk pre-filter kategori
 
 ### v2.2.1 (7 April 2026)
 - **Filter Rekening** di halaman Transaksi (dropdown + URL `?rekening=ID`)
