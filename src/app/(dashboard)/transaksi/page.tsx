@@ -1,18 +1,21 @@
 'use client';
 
-import { Suspense, useState, useMemo, useRef, useEffect } from 'react';
+import { Suspense, useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { PageTitle } from '@/components/layout/page-title';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Modal } from '@/components/ui/modal';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table';
 import { Loading } from '@/components/ui/loading';
+import { useToast } from '@/components/ui/toast';
 import { useTransaksi } from '@/hooks/use-transaksi';
 import { useKategori } from '@/hooks/use-kategori';
 import { useRekening } from '@/hooks/use-rekening';
 import { TransaksiJenis, TransaksiStatus } from '@/types';
+import type { Transaksi, Kategori, ApiResponse } from '@/types';
 import { formatRupiah, formatTanggal, paginateData } from '@/lib/utils';
 import { APP_CONFIG } from '@/lib/constants';
 
@@ -131,6 +134,11 @@ function KategoriMultiSelect({
   );
 }
 
+/** Check if a transaction can be selected for bulk edit */
+function isSelectable(t: Transaksi): boolean {
+  return t.status !== TransaksiStatus.VOID && !t.mutasi_ref;
+}
+
 export default function TransaksiPage() {
   return (
     <Suspense fallback={<Loading className="py-12" />}>
@@ -140,16 +148,20 @@ export default function TransaksiPage() {
 }
 
 function TransaksiPageInner() {
-  const { data: transaksis, loading } = useTransaksi();
+  const { toast } = useToast();
+  const { data: transaksis, loading, refetch } = useTransaksi();
   const { data: kategoris } = useKategori();
   const { data: rekenings } = useRekening();
   const tableRef = useRef<HTMLDivElement>(null);
   const searchParams = useSearchParams();
 
-  // Filters — initial rekening read from URL query param via lazy init
+  // Filters — initial rekening/kategori read from URL query param via lazy init
   const [filterJenis, setFilterJenis] = useState<string>('');
   const [filterStatus, setFilterStatus] = useState<string>('');
-  const [filterKategoriIds, setFilterKategoriIds] = useState<string[]>([]);
+  const [filterKategoriIds, setFilterKategoriIds] = useState<string[]>(() => {
+    const kat = searchParams.get('kategori');
+    return kat ? [kat] : [];
+  });
   const [filterRekening, setFilterRekening] = useState<string>(() => searchParams.get('rekening') || '');
   const [filterDateFrom, setFilterDateFrom] = useState<string>('');
   const [filterDateTo, setFilterDateTo] = useState<string>('');
@@ -177,6 +189,14 @@ function TransaksiPageInner() {
   const [page, setPage] = useState(1);
   const limit = APP_CONFIG.PAGINATION_LIMIT;
 
+  // Bulk selection state
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
+  // Bulk edit dialog
+  const [bulkDialogOpen, setBulkDialogOpen] = useState(false);
+  const [bulkNewKategoriId, setBulkNewKategoriId] = useState('');
+  const [bulkSubmitting, setBulkSubmitting] = useState(false);
+
   // Debounce search input → searchQuery (300ms) and reset to page 1
   useEffect(() => {
     const t = setTimeout(() => {
@@ -187,8 +207,8 @@ function TransaksiPageInner() {
   }, [searchInput]);
 
   const kategoriMap = useMemo(() => {
-    const map: Record<string, string> = {};
-    kategoris.forEach((k) => { map[k.id] = k.nama; });
+    const map: Record<string, Kategori> = {};
+    kategoris.forEach((k) => { map[k.id] = k; });
     return map;
   }, [kategoris]);
 
@@ -273,6 +293,124 @@ function TransaksiPageInner() {
       tableRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
   }, [filterJenis, filterStatus, filterKategoriIds, filterRekening, filterDateFrom, filterDateTo, searchQuery]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // --- Bulk selection helpers ---
+  const selectableOnPage = useMemo(
+    () => paginated.filter(isSelectable),
+    [paginated]
+  );
+
+  const selectedCount = selectedIds.size;
+
+  const allOnPageSelected = selectableOnPage.length > 0 && selectableOnPage.every(t => selectedIds.has(t.id));
+  const someOnPageSelected = selectableOnPage.some(t => selectedIds.has(t.id));
+
+  const toggleSelectAll = useCallback(() => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (allOnPageSelected) {
+        // Deselect all on this page
+        selectableOnPage.forEach(t => next.delete(t.id));
+      } else {
+        // Select all on this page
+        selectableOnPage.forEach(t => next.add(t.id));
+      }
+      return next;
+    });
+  }, [allOnPageSelected, selectableOnPage]);
+
+  const toggleSelectOne = useCallback((id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+
+  const clearSelection = useCallback(() => {
+    setSelectedIds(new Set());
+  }, []);
+
+  // --- Bulk edit dialog data ---
+  const selectedTransactions = useMemo(
+    () => transaksis.filter(t => selectedIds.has(t.id)),
+    [transaksis, selectedIds]
+  );
+
+  const selectedJenisSet = useMemo(() => {
+    const s = new Set<string>();
+    selectedTransactions.forEach(t => s.add(t.jenis));
+    return s;
+  }, [selectedTransactions]);
+
+  const isMixedJenis = selectedJenisSet.size > 1;
+
+  const selectedTotalNominal = useMemo(
+    () => selectedTransactions.reduce((sum, t) => sum + t.jumlah, 0),
+    [selectedTransactions]
+  );
+
+  // Group by old kategori for summary
+  const oldKategoriSummary = useMemo(() => {
+    const map: Record<string, number> = {};
+    selectedTransactions.forEach(t => {
+      const name = kategoriMap[t.kategori_id]?.nama || t.kategori_id;
+      map[name] = (map[name] || 0) + 1;
+    });
+    return Object.entries(map).map(([nama, count]) => `${nama} (${count})`).join(', ');
+  }, [selectedTransactions, kategoriMap]);
+
+  // Available categories for the new kategori dropdown (filtered by jenis)
+  const availableKategoris = useMemo(() => {
+    if (isMixedJenis) return [];
+    const jenis = selectedJenisSet.values().next().value;
+    return kategoris.filter(k => k.jenis === jenis);
+  }, [kategoris, isMixedJenis, selectedJenisSet]);
+
+  const handleOpenBulkDialog = () => {
+    setBulkNewKategoriId('');
+    setBulkDialogOpen(true);
+  };
+
+  const handleBulkUpdate = async () => {
+    if (!bulkNewKategoriId || selectedIds.size === 0) return;
+
+    setBulkSubmitting(true);
+    try {
+      const res = await fetch('/api/transaksi/bulk-update-kategori', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          transactionIds: Array.from(selectedIds),
+          newKategoriId: bulkNewKategoriId,
+        }),
+      });
+      const data: ApiResponse<{ updatedCount: number }> = await res.json();
+      if (data.success && data.data) {
+        toast(`${data.data.updatedCount} transaksi berhasil diubah kategorinya`);
+        setBulkDialogOpen(false);
+        clearSelection();
+        refetch();
+      } else {
+        toast(data.error || 'Gagal mengubah kategori', 'error');
+      }
+    } catch {
+      toast('Gagal mengubah kategori: terjadi kesalahan', 'error');
+    } finally {
+      setBulkSubmitting(false);
+    }
+  };
+
+  // Preview for dialog
+  const previewOldKategori = useMemo(() => {
+    if (selectedTransactions.length === 0) return '';
+    // Get unique old kategori names
+    const names = new Set(selectedTransactions.map(t => kategoriMap[t.kategori_id]?.nama || t.kategori_id));
+    return Array.from(names).join(', ');
+  }, [selectedTransactions, kategoriMap]);
+
+  const newKategoriName = bulkNewKategoriId ? (kategoriMap[bulkNewKategoriId]?.nama || '') : '';
 
   return (
     <div>
@@ -418,6 +556,18 @@ function TransaksiPageInner() {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-[40px]">
+                    <input
+                      type="checkbox"
+                      checked={allOnPageSelected}
+                      ref={(el) => {
+                        if (el) el.indeterminate = someOnPageSelected && !allOnPageSelected;
+                      }}
+                      onChange={toggleSelectAll}
+                      className="rounded border-gray-300 text-emerald-600 focus:ring-emerald-500 accent-emerald-600"
+                      title="Pilih semua di halaman ini"
+                    />
+                  </TableHead>
                   <TableHead>
                     <button onClick={() => toggleSort('tanggal')} className="font-semibold hover:text-emerald-600">
                       Tanggal{sortIcon('tanggal')}
@@ -438,13 +588,24 @@ function TransaksiPageInner() {
               <TableBody>
                 {paginated.map((t) => {
                   const isExpanded = expandedKeys.has(t.id);
+                  const canSelect = isSelectable(t);
+                  const isSelected = selectedIds.has(t.id);
                   return (
                     <TableRow key={t.id}>
+                      <TableCell className="w-[40px] align-top">
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          disabled={!canSelect}
+                          onChange={() => toggleSelectOne(t.id)}
+                          className="rounded border-gray-300 text-emerald-600 focus:ring-emerald-500 accent-emerald-600 disabled:opacity-30"
+                        />
+                      </TableCell>
                       <TableCell className="whitespace-nowrap align-top">{formatTanggal(t.tanggal)}</TableCell>
                       <TableCell className="align-top">
                         {t.mutasi_ref ? <Badge label="MUTASI" /> : <Badge label={t.jenis} />}
                       </TableCell>
-                      <TableCell className="align-top">{kategoriMap[t.kategori_id] || t.kategori_id}</TableCell>
+                      <TableCell className="align-top">{kategoriMap[t.kategori_id]?.nama || t.kategori_id}</TableCell>
                       <TableCell className="max-w-[260px] align-top">
                         <button
                           type="button"
@@ -507,6 +668,100 @@ function TransaksiPageInner() {
           </>
         )}
       </Card>
+
+      {/* Sticky Bulk Action Toolbar */}
+      <div
+        className={`fixed bottom-4 left-1/2 -translate-x-1/2 z-30 transition-all duration-300 ease-out ${
+          selectedCount > 0
+            ? 'opacity-100 translate-y-0'
+            : 'opacity-0 translate-y-4 pointer-events-none'
+        }`}
+      >
+        <div className="bg-white border border-gray-200 shadow-sm rounded-lg px-4 py-3 flex items-center gap-4">
+          <span className="text-sm font-medium text-gray-900">
+            {selectedCount} transaksi dipilih
+          </span>
+          <div className="flex gap-2">
+            <Button variant="ghost" size="sm" onClick={clearSelection}>
+              Batal Pilih
+            </Button>
+            <Button size="sm" onClick={handleOpenBulkDialog}>
+              Ubah Kategori
+            </Button>
+          </div>
+        </div>
+      </div>
+
+      {/* Bulk Edit Dialog */}
+      <Modal
+        open={bulkDialogOpen}
+        onClose={() => setBulkDialogOpen(false)}
+        title="Ubah kategori"
+        className="max-w-lg"
+      >
+        <div className="space-y-4">
+          {/* Summary */}
+          <div className="bg-gray-50 rounded-lg p-3">
+            <p className="text-sm font-medium text-gray-900 mb-1">
+              {selectedCount} transaksi dipilih
+            </p>
+            <p className="text-xs text-gray-600">
+              Kategori asal: {oldKategoriSummary}
+            </p>
+            <p className="text-xs text-gray-600">
+              Total nominal: {formatRupiah(selectedTotalNominal)}
+            </p>
+          </div>
+
+          {isMixedJenis ? (
+            <div className="bg-red-50 text-red-800 rounded-lg p-3 text-sm">
+              Pilih transaksi dengan jenis yang sama (hanya MASUK atau hanya KELUAR) untuk mengubah kategori.
+            </div>
+          ) : (
+            <>
+              {/* Kategori dropdown */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Kategori baru</label>
+                <select
+                  value={bulkNewKategoriId}
+                  onChange={(e) => setBulkNewKategoriId(e.target.value)}
+                  className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                >
+                  <option value="">Pilih kategori...</option>
+                  {availableKategoris.map(k => (
+                    <option key={k.id} value={k.id}>{k.nama}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Preview */}
+              {bulkNewKategoriId && (
+                <div className="bg-emerald-50 rounded-lg p-3">
+                  <p className="text-xs font-medium text-emerald-700 mb-1">Preview perubahan</p>
+                  <p className="text-sm text-gray-700">
+                    {previewOldKategori} → <span className="font-semibold text-emerald-700">{newKategoriName}</span>
+                  </p>
+                </div>
+              )}
+            </>
+          )}
+
+          {/* Actions */}
+          <div className="flex gap-3 justify-end pt-2">
+            <Button variant="secondary" onClick={() => setBulkDialogOpen(false)} disabled={bulkSubmitting}>
+              Batal
+            </Button>
+            {!isMixedJenis && (
+              <Button
+                onClick={handleBulkUpdate}
+                disabled={bulkSubmitting || !bulkNewKategoriId}
+              >
+                {bulkSubmitting ? 'Memproses...' : `Ya, ubah ${selectedCount} transaksi`}
+              </Button>
+            )}
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }
