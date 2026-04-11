@@ -669,6 +669,7 @@ export const muamalatTemplate: BankTemplate = {
   rekeningId: '', // will be resolved at import time from SKM rekening data
   highlightKeywords: HIGHLIGHT_KEYWORDS,
   getReviewSuggestion,
+  detectKeywords: detectCashDepositKeywords,
 
   parseRow(row: string[]): ParsedBankRow | null {
     // CSV columns: Nomor Referensi, Tgl Transaksi, Tgl Efektif, Debit, Kredit, Saldo, Keterangan
