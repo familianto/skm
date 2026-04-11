@@ -21,7 +21,12 @@ function rowToDonatur(row: string[]): Donatur {
 }
 
 /**
- * POST /api/reminder/send — Bulk send reminders to multiple donatur
+ * POST /api/reminder/send — Bulk send reminders to multiple donatur.
+ *
+ * Each donatur is processed independently: if logging one reminder to Google
+ * Sheets fails (e.g., rate limit), the WhatsApp message was already sent so
+ * we record the failure and continue with the rest. The overall request is
+ * only considered a failure if *nothing* could be processed.
  */
 export async function POST(request: NextRequest) {
   try {
@@ -40,11 +45,13 @@ export async function POST(request: NextRequest) {
     // Get all donatur data
     const allRows = await sheetsService.getRows(SHEET_NAMES.DONATUR);
     const allDonaturs = allRows.map(rowToDonatur);
-    const selectedDonaturs = allDonaturs.filter((d) => donatur_ids.includes(d.id) && d.is_active);
+    const selectedDonaturs = allDonaturs.filter(
+      (d) => donatur_ids.includes(d.id) && d.is_active && d.telepon
+    );
 
     if (selectedDonaturs.length === 0) {
       return NextResponse.json<ApiResponse<null>>(
-        { success: false, error: 'Tidak ada donatur aktif yang dipilih.' },
+        { success: false, error: 'Tidak ada donatur aktif dengan nomor telepon yang dipilih.' },
         { status: 400 }
       );
     }
@@ -53,19 +60,34 @@ export async function POST(request: NextRequest) {
     const now = nowISO();
 
     for (const donatur of selectedDonaturs) {
-      if (!donatur.telepon) continue;
-
-      // Personalize message
       const personalizedMessage = pesan.replace(/\{nama\}/g, donatur.nama);
 
-      const waResult = await sendWhatsApp({ target: donatur.telepon, message: personalizedMessage });
-      const id = await sheetsService.getNextId(ID_PREFIXES.REMINDER);
+      // 1. Send WhatsApp — sendWhatsApp never throws; it returns a
+      //    structured SendResult on both success and failure.
+      const waResult = await sendWhatsApp({
+        target: donatur.telepon,
+        message: personalizedMessage,
+      });
+
       const status = waResult.success ? ReminderStatus.TERKIRIM : ReminderStatus.GAGAL;
 
-      await sheetsService.appendRow(SHEET_NAMES.REMINDER, [
-        id, donatur.id, tipe, personalizedMessage, donatur.telepon,
-        status, waResult.detail, now, now,
-      ]);
+      // 2. Persist an audit row. If Google Sheets fails here we must NOT
+      //    report a send failure to the user — the WhatsApp message was
+      //    already delivered (or failed) regardless of our bookkeeping.
+      let id = '';
+      try {
+        id = await sheetsService.getNextId(ID_PREFIXES.REMINDER);
+        await sheetsService.appendRow(SHEET_NAMES.REMINDER, [
+          id, donatur.id, tipe, personalizedMessage, donatur.telepon,
+          status, waResult.detail, now, now,
+        ]);
+      } catch (sheetError) {
+        console.error(
+          `[reminder/send] Failed to persist reminder row for donatur ${donatur.id}:`,
+          sheetError
+        );
+        // Keep going — the message status is still reported in the response.
+      }
 
       results.push({
         id, donatur_id: donatur.id, tipe: tipe as ReminderTipe, pesan: personalizedMessage,
@@ -74,17 +96,24 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    await logAudit(AuditAksi.CREATE, SHEET_NAMES.REMINDER, 'BULK',
-      JSON.stringify({
-        total: results.length,
-        terkirim: results.filter((r) => r.status === ReminderStatus.TERKIRIM).length,
-        gagal: results.filter((r) => r.status === ReminderStatus.GAGAL).length,
-      }),
+    const terkirim = results.filter((r) => r.status === ReminderStatus.TERKIRIM).length;
+    const gagal = results.filter((r) => r.status === ReminderStatus.GAGAL).length;
+
+    // Audit log is best-effort (logAudit already swallows its own errors).
+    await logAudit(
+      AuditAksi.CREATE,
+      SHEET_NAMES.REMINDER,
+      'BULK',
+      JSON.stringify({ total: results.length, terkirim, gagal }),
       'Bendahara'
     );
 
     return NextResponse.json<ApiResponse<Reminder[]>>(
-      { success: true, data: results, meta: { total: results.length } },
+      {
+        success: true,
+        data: results,
+        meta: { total: results.length },
+      },
       { status: 201 }
     );
   } catch (error) {
