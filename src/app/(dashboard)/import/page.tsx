@@ -44,6 +44,18 @@ export default function ImportPage() {
     return r?.id || rekenings[0]?.id || '';
   }, [rekenings]);
 
+  // Resolve kategori name → id at runtime (so templates don't hardcode IDs)
+  const resolveKategori = useCallback(
+    (nama: string, jenis: TransaksiJenis): string => {
+      if (!nama) return '';
+      const k = kategoris.find(
+        (x) => x.nama === nama && x.jenis === jenis
+      );
+      return k?.id || '';
+    },
+    [kategoris]
+  );
+
   // Build highlight regex per bank template (memoized — runs once per bank)
   const highlightRegex = useMemo(() => {
     const template = getBankTemplate(bankId);
@@ -84,7 +96,7 @@ export default function ImportPage() {
           const parsedRow = template.parseRow(raw);
           if (!parsedRow) continue;
 
-          const categorized = template.categorize(parsedRow);
+          const categorized = template.categorize(parsedRow, resolveKategori);
           counter++;
           parsed.push({
             ...categorized,
@@ -111,7 +123,7 @@ export default function ImportPage() {
 
     // Reset file input so the same file can be re-uploaded
     e.target.value = '';
-  }, [bankId, isDuplicate, toast]);
+  }, [bankId, isDuplicate, resolveKategori, toast]);
 
   // Update kategori for a row
   const updateRowKategori = useCallback((key: string, kategori_id: string) => {

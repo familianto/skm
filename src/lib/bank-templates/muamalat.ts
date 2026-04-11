@@ -1,115 +1,401 @@
 import { TransaksiJenis } from '@/types';
-import type { BankTemplate, ParsedBankRow, CategorizedRow } from './types';
+import type {
+  BankTemplate,
+  ParsedBankRow,
+  CategorizedRow,
+  KategoriResolver,
+  ImportStatus,
+} from './types';
 
 // ============================================================
 // Pattern Rules — Bank Muamalat
 // ============================================================
-
-const REKENING_MUAMALAT = '3200028199';
+//
+// Rules di bawah menggunakan **nama kategori** (bukan ID) agar template
+// portabel antar environment. ID kategori resolved di runtime via
+// `resolveKategori(nama, jenis)` yang di-inject dari UI import.
+//
+// Jika kategori dengan nama yang disebut belum ada di sheet `kategori`,
+// rule akan auto-downgrade ke status `review` dengan suggestion agar
+// user tahu kategori tersebut perlu dibuat dulu.
+//
+// Urutan rule PENTING: first-match-wins. Rule yang lebih spesifik harus
+// berada di atas rule yang lebih generik.
 
 interface PatternRule {
-  /** Regex or string match on keterangan */
+  /** Regex / string match on keterangan (dan optional jumlah) */
   match: (keterangan: string, jumlah: number) => boolean;
-  kategori_id: string;
-  kategoriLabel: string;
-  status: 'auto' | 'review' | 'split';
+  /** Nama kategori tujuan — harus persis sama dengan `nama` di sheet `kategori` */
+  kategoriName: string;
+  /** Status default untuk rule ini. 'review' harus dibarengi `reviewSuggestion`. */
+  status: ImportStatus;
+  /** Custom review suggestion (hanya dipakai kalau status='review') */
+  reviewSuggestion?: string;
 }
 
 // --- MASUK (Kredit) rules ---
 const masukRules: PatternRule[] = [
+  // QRIS
   {
-    match: (k) => /PURCHASE QRIS ACQ/i.test(k),
-    kategori_id: 'KAT-20260406-0002',
-    kategoriLabel: 'Infaq Harian',
+    match: (k) => /PURCHASE QRIS ACQ|MERCHANT QRIS/i.test(k),
+    kategoriName: 'Infaq & Sedekah',
     status: 'auto',
   },
+
+  // ----- Setoran Infaq via teller (ordered: specific → generic) -----
+  // Setoran infaq + tarawih → Infaq Ramadhan
+  {
+    match: (k) =>
+      /SETORAN.*INFA[QK].*TARAWIH/i.test(k) ||
+      /INFA[QK]\s*PERPEKAN.*TARAWIH/i.test(k),
+    kategoriName: 'Infaq Ramadhan',
+    status: 'auto',
+  },
+  // Setoran mengandung Zakat Mal → Infaq Ramadhan (review: setoran campuran)
+  {
+    match: (k) => /SETORAN.*ZAKAT\s*MAL/i.test(k),
+    kategoriName: 'Infaq Ramadhan',
+    status: 'review',
+    reviewSuggestion: 'Setoran campuran — pertimbangkan split manual',
+  },
+  // Setoran infaq per pekan (weekly) → Infaq Jumat
+  // Dikecualikan kalau keterangan mengandung Tarawih/Ramadhan/Zakat
+  // (rule-rule di atas sudah menangani kasus tersebut; cek negatif di sini
+  // adalah pengaman kalau urutan pernah berubah)
+  {
+    match: (k) =>
+      /SETORAN\s+INFA[QK]\s*PER\s*PEKAN/i.test(k) &&
+      !/TARAWIH|RAMADHAN|ZAKAT/i.test(k),
+    kategoriName: 'Infaq Jumat',
+    status: 'auto',
+  },
+
+  // ----- SETOR TUNAI (priority keywords first) -----
+  // Setor tunai untuk karpet/wakaf → Donasi & Wakaf Pembangunan
+  {
+    match: (k) => /SETOR TUNAI/i.test(k) && /KARPET|WAKAF|WAQAF/i.test(k),
+    kategoriName: 'Donasi & Wakaf Pembangunan',
+    status: 'auto',
+  },
+  // Setor tunai untuk zakat → Zakat Mal
+  {
+    match: (k) => /SETOR TUNAI/i.test(k) && /ZAKAT/i.test(k),
+    kategoriName: 'Zakat Mal',
+    status: 'auto',
+  },
+  // Setor tunai fallback → Donasi Sosial (review)
   {
     match: (k) => /SETOR TUNAI/i.test(k),
-    kategori_id: 'KAT-20260406-0002',
-    kategoriLabel: 'Infaq Harian',
-    status: 'split',
+    kategoriName: 'Donasi Sosial',
+    status: 'review',
+    reviewSuggestion: 'Setor tunai atas nama — verifikasi tujuan donasi',
   },
+
+  // ----- Transfer BiFast / Bersama masuk -----
+  // CDT TRF BENFC BIFAST/BERSAMA + karpet/wakaf → Donasi & Wakaf Pembangunan
   {
-    match: (k) => /zakat/i.test(k),
-    kategori_id: 'KAT-20260406-0011',
-    kategoriLabel: 'Zakat Mal',
+    match: (k) =>
+      /CDT TRF BENFC\s+(BIFAST|BERSAMA)/i.test(k) &&
+      /KARPET|WAKAF|WAQAF/i.test(k),
+    kategoriName: 'Donasi & Wakaf Pembangunan',
+    status: 'auto',
+  },
+  // CDT TRF BENFC BIFAST/BERSAMA (umum) → Infaq & Sedekah
+  {
+    match: (k) => /CDT TRF BENFC\s+(BIFAST|BERSAMA)/i.test(k),
+    kategoriName: 'Infaq & Sedekah',
+    status: 'auto',
+  },
+
+  // ----- INTERNAL TRANSFER MOBILE BANKING (priority order) -----
+  // Karpet/wakaf → Donasi & Wakaf Pembangunan
+  {
+    match: (k) =>
+      /INTERNAL TRANSFER MOBILE BANKING/i.test(k) &&
+      /KARPET|WAKAF|WAQAF/i.test(k),
+    kategoriName: 'Donasi & Wakaf Pembangunan',
+    status: 'auto',
+  },
+  // Zakat → Zakat Mal
+  {
+    match: (k) =>
+      /INTERNAL TRANSFER MOBILE BANKING/i.test(k) && /ZAKAT/i.test(k),
+    kategoriName: 'Zakat Mal',
+    status: 'auto',
+  },
+  // TPQ/Fatih → Lain-lain Masuk
+  {
+    match: (k) =>
+      /INTERNAL TRANSFER MOBILE BANKING/i.test(k) && /TPQ|Fatih/i.test(k),
+    kategoriName: 'Lain-lain Masuk',
+    status: 'auto',
+  },
+  // Infaq/Infak → Infaq & Sedekah
+  {
+    match: (k) =>
+      /INTERNAL TRANSFER MOBILE BANKING/i.test(k) && /INFA[QK]/i.test(k),
+    kategoriName: 'Infaq & Sedekah',
+    status: 'auto',
+  },
+  // Fallback generic INTERNAL TRANSFER MOBILE BANKING → Infaq & Sedekah (review)
+  {
+    match: (k) => /INTERNAL TRANSFER MOBILE BANKING/i.test(k),
+    kategoriName: 'Infaq & Sedekah',
+    status: 'review',
+    reviewSuggestion: 'Transfer internal — verifikasi jenis penerimaan',
+  },
+
+  // ----- FLIPTECH (payment aggregator) -----
+  {
+    match: (k) => /FLIPTECH(\s+LENTERA)?/i.test(k) && /TPQ/i.test(k),
+    kategoriName: 'Lain-lain Masuk',
     status: 'auto',
   },
   {
-    match: (k) => /TPQ/i.test(k),
-    kategori_id: 'KAT-20260406-0002',
-    kategoriLabel: 'Infaq Harian',
-    status: 'auto',
-  },
-  {
-    match: (k) => /karpet|waqaf|wakaf/i.test(k),
-    kategori_id: 'KAT-20260406-0001',
-    kategoriLabel: 'Donasi',
-    status: 'auto',
-  },
-  {
-    match: (k) => /CDT TRF BENFC BIFAST|TRANSFER DARI/i.test(k),
-    kategori_id: 'KAT-20260406-0001',
-    kategoriLabel: 'Donasi',
-    status: 'auto',
-  },
-  {
-    match: (k) => /INTERNAL TRANSFER/i.test(k) && k.includes(`Ke ${REKENING_MUAMALAT}`),
-    kategori_id: 'KAT-20260406-0001',
-    kategoriLabel: 'Donasi',
-    status: 'auto',
-  },
-  {
-    match: (k) => /ATMOFFUS/i.test(k),
-    kategori_id: 'KAT-20260406-0001',
-    kategoriLabel: 'Donasi',
-    status: 'auto',
-  },
-  {
-    match: (k) => /FLIPTECH LENTERA INSPIRASI/i.test(k),
-    kategori_id: 'KAT-20260406-0001',
-    kategoriLabel: 'Donasi',
+    match: (k) => /FLIPTECH(\s+LENTERA)?/i.test(k) && /zakat/i.test(k),
+    kategoriName: 'Zakat Mal',
     status: 'auto',
   },
 ];
 
 // --- KELUAR (Debit) rules ---
 const keluarRules: PatternRule[] = [
+  // ----- Hadiah Kajian -----
+  // Taraweh version (specific first) → Kegiatan Ramadhan
   {
-    match: (k) => /A IMRON ROSADI/i.test(k) && /DBT TRF CHARGE/i.test(k),
-    kategori_id: 'KAT-20260406-0015',
-    kategoriLabel: 'Biaya Admin Bank',
+    match: (k) => /Hadiah Kajian Taraweh MAJ/i.test(k),
+    kategoriName: 'Kegiatan Ramadhan',
+    status: 'auto',
+  },
+  // Hadiah Kajian MAJ (tanpa Taraweh) → Honorarium Pemateri Kajian
+  {
+    match: (k) =>
+      /Hadiah Kajian MAJ/i.test(k) && !/Taraweh/i.test(k),
+    kategoriName: 'Honorarium Pemateri Kajian',
+    status: 'auto',
+  },
+  // Honor Cash Ustadz Tabligh Akbar → Honorarium Pemateri Kajian
+  {
+    match: (k) => /Honor Cash Ustadz Tabligh Akbar/i.test(k),
+    kategoriName: 'Honorarium Pemateri Kajian',
+    status: 'auto',
+  },
+
+  // ----- MAJ Honor / Mukafaah / THR (ordered specific → generic) -----
+  // THR patterns first
+  {
+    match: (k) => /MAJ THR|THR Mushrif|THR Mukafaah/i.test(k),
+    kategoriName: 'Honorarium Marbot/Petugas',
+    status: 'auto',
+  },
+  // MAJ Honor Mushrif → Honorarium Marbot/Petugas
+  {
+    match: (k) => /MAJ Honor Mushrif/i.test(k),
+    kategoriName: 'Honorarium Marbot/Petugas',
+    status: 'auto',
+  },
+  // MAJ Mukafaah → Honorarium Imam/Khatib
+  {
+    match: (k) => /MAJ Mukafaah/i.test(k),
+    kategoriName: 'Honorarium Imam/Khatib',
+    status: 'auto',
+  },
+  // MAJ Honor [bulan] (generic, EXCLUDE Mushrif/Mukafaah/THR)
+  {
+    match: (k) =>
+      /MAJ Honor/i.test(k) &&
+      !/MAJ Honor Mushrif|MAJ Mukafaah|MAJ THR/i.test(k),
+    kategoriName: 'Honorarium Marbot/Petugas',
+    status: 'auto',
+  },
+
+  // MAJ Biaya Perawatan Santri → Kegiatan Sosial
+  {
+    match: (k) => /MAJ Biaya Perawatan Santri/i.test(k),
+    kategoriName: 'Kegiatan Sosial',
+    status: 'auto',
+  },
+
+  // ----- Payroll & fees (fee rules first so honor payroll tidak ikut match) -----
+  {
+    match: (k) => /Fee Payroll|CMS BIAYA PAYROLL/i.test(k),
+    kategoriName: 'Biaya Admin Bank',
     status: 'auto',
   },
   {
-    match: (k, j) => /DBT TRF CHARGE/i.test(k) || (/BIFAST/i.test(k) && j === 2500),
-    kategori_id: 'KAT-20260406-0015',
-    kategoriLabel: 'Biaya Admin Bank',
+    match: (k) => /BULK TXN CMS FILE\s*payrollMAJ/i.test(k),
+    kategoriName: 'Honorarium Marbot/Petugas',
     status: 'auto',
   },
+
+  // Biaya Adm Pengajian Ibu-Ibu MAJ → Operasional Masjid
   {
-    match: (k) => /PAYROLL|TRANSAKSI PAYROLL BMI/i.test(k),
-    kategori_id: 'KAT-20260406-0017',
-    kategoriLabel: 'Honorarium Marbot/Petugas',
+    match: (k) => /Biaya Adm Pengajian Ibu-Ibu MAJ/i.test(k),
+    kategoriName: 'Operasional Masjid',
     status: 'auto',
   },
+
+  // HONOR GURU TPQ → Honorarium Marbot/Petugas
   {
-    match: (k) => /BMICMS01/i.test(k),
-    kategori_id: '',
-    kategoriLabel: '',
-    status: 'review',
+    match: (k) => /HONOR GURU TPQ/i.test(k),
+    kategoriName: 'Honorarium Marbot/Petugas',
+    status: 'auto',
   },
+
+  // Honor Bantuan Operasional Ramadhan → Kegiatan Ramadhan
   {
-    match: (k) => /TRANSFER DARI.*MUABIDJA.*KE.*IDJA/i.test(k),
-    kategori_id: '',
-    kategoriLabel: '',
-    status: 'review',
+    match: (k) => /Honor Bantuan Operasional Ramadhan/i.test(k),
+    kategoriName: 'Kegiatan Ramadhan',
+    status: 'auto',
   },
+
+  // ----- Perbaikan / Renovasi (must come before generic "Pengadaan") -----
+  // Perbaikan umum: Plafon/Gudang/Kubah/pintu, Pemindahan, Lampu Injeksi/Dinding
   {
-    match: (k) => /A IMRON ROSADI/i.test(k) && /DBT TRF PRIMA/i.test(k),
-    kategori_id: '',
-    kategoriLabel: '',
+    match: (k) =>
+      /Perbaikan|Pemindahan(?:\s+tempat)?|Lampu Injeksi|Lampu Dinding/i.test(k),
+    kategoriName: 'Perbaikan/Renovasi',
+    status: 'auto',
+  },
+  // Listrik ringan: Pasang Kabel / Lampu area / kontak / Ganti Lampu
+  {
+    match: (k) =>
+      /Pasang Kabel|Lampu area|kontak Lampu|Ganti kontak dan Lampu|Pasang Ganti Lampu/i.test(
+        k
+      ),
+    kategoriName: 'Perbaikan/Renovasi',
+    status: 'auto',
+  },
+  // Pengecatan → Perbaikan/Renovasi
+  {
+    match: (k) => /Pengecatan|pengecatan dinding/i.test(k),
+    kategoriName: 'Perbaikan/Renovasi',
+    status: 'auto',
+  },
+  // Biaya buat pagar → Perbaikan/Renovasi
+  {
+    match: (k) => /Biaya buat pagar/i.test(k),
+    kategoriName: 'Perbaikan/Renovasi',
+    status: 'auto',
+  },
+  // Service AC / Perbaikan AC → Perbaikan/Renovasi
+  {
+    match: (k) => /Service AC|Perbaikan AC/i.test(k),
+    kategoriName: 'Perbaikan/Renovasi',
+    status: 'auto',
+  },
+
+  // Tebang Pohon → Kebersihan
+  {
+    match: (k) => /Tebang Pohon/i.test(k),
+    kategoriName: 'Kebersihan',
+    status: 'auto',
+  },
+
+  // ----- CCTV: purchase vs jasa pasang -----
+  // Pembelian CCTV / CCTV Kabel / peralatan digital → Pengadaan Aset
+  {
+    match: (k) =>
+      /Pembelian CCTV|CCTV Kabel|Peralatan Digital|Beli 2 Unit TV|Bracket/i.test(
+        k
+      ),
+    kategoriName: 'Pengadaan Aset',
+    status: 'auto',
+  },
+  // Jasa Pasang CCTV / Pasang CCTV (tanpa Pembelian/Kabel) → Operasional Masjid
+  {
+    match: (k) =>
+      /Jasa Pasang CCTV|Pasang CCTV/i.test(k) &&
+      !/Pembelian|Kabel/i.test(k),
+    kategoriName: 'Operasional Masjid',
+    status: 'auto',
+  },
+
+  // Beli Dispenser → ATK & Perlengkapan
+  {
+    match: (k) => /Beli Dispenser/i.test(k),
+    kategoriName: 'ATK & Perlengkapan',
+    status: 'auto',
+  },
+
+  // ----- Karpet (hanya di KELUAR → Pengadaan Aset) -----
+  {
+    match: (k) => /Karpet|Alas Lantai/i.test(k),
+    kategoriName: 'Pengadaan Aset',
+    status: 'auto',
+  },
+
+  // Beli Voucher Listrik → Listrik & Air
+  {
+    match: (k) => /Beli Voucher Listrik|Voucher Listrik/i.test(k),
+    kategoriName: 'Listrik & Air',
+    status: 'auto',
+  },
+
+  // Rak Buku / Beli keset → ATK & Perlengkapan
+  {
+    match: (k) => /Rak Buku|Beli keset/i.test(k),
+    kategoriName: 'ATK & Perlengkapan',
+    status: 'auto',
+  },
+
+  // Tenda dan Paket Ambulan / Tenda → Kegiatan Sosial
+  {
+    match: (k) => /Tenda dan Paket Ambulan|Tenda/i.test(k),
+    kategoriName: 'Kegiatan Sosial',
+    status: 'auto',
+  },
+
+  // Santunan Anak Yatim / SANTUNAN → Kegiatan Sosial
+  {
+    match: (k) => /Santunan Anak Yatim|SANTUNAN/i.test(k),
+    kategoriName: 'Kegiatan Sosial',
+    status: 'auto',
+  },
+
+  // Pembagian Zakat Fitrah / PEMBAGIAN ZAKAT → Pengeluaran Zakat (BARU)
+  {
+    match: (k) => /Pembagian Zakat Fitrah|PEMBAGIAN ZAKAT/i.test(k),
+    kategoriName: 'Pengeluaran Zakat',
+    status: 'auto',
+  },
+
+  // Konsumsi Itikaf Ramadhan → Kegiatan Ramadhan (specific first)
+  {
+    match: (k) => /Konsumsi Itikaf Ramadhan/i.test(k),
+    kategoriName: 'Kegiatan Ramadhan',
+    status: 'auto',
+  },
+  // Konsumsi Tabligh Akbar → Konsumsi
+  {
+    match: (k) => /Konsumsi Tabligh Akbar/i.test(k),
+    kategoriName: 'Konsumsi',
+    status: 'auto',
+  },
+
+  // KEPERLUAN MAJ → Operasional Masjid
+  {
+    match: (k) => /KEPERLUAN MAJ/i.test(k),
+    kategoriName: 'Operasional Masjid',
+    status: 'auto',
+  },
+
+  // ----- Bank transfer charges (always Biaya Admin Bank) -----
+  {
+    match: (k, j) =>
+      /DBT TRF CHARGE BERSAMA|CHARGE DBT TRF BIFAST|DBT TRF CHARGE PRIMA|DBT TRF CHARGE/i.test(
+        k
+      ) || (/BIFAST/i.test(k) && j === 2500),
+    kategoriName: 'Biaya Admin Bank',
+    status: 'auto',
+  },
+
+  // INTERNAL TRANSFER CMS (keluar) → review
+  {
+    match: (k) => /INTERNAL TRANSFER CMS/i.test(k),
+    kategoriName: '',
     status: 'review',
+    reviewSuggestion: 'Transfer CMS keluar — pilih kategori sesuai tujuan',
   },
 ];
 
@@ -119,54 +405,138 @@ const keluarRules: PatternRule[] = [
 
 const HIGHLIGHT_KEYWORDS = {
   masuk: [
+    // QRIS
     'PURCHASE QRIS ACQ',
-    'CDT TRF BENFC BIFAST',
-    'TRANSFER DARI',
-    'INTERNAL TRANSFER',
+    'MERCHANT QRIS',
+    // Setoran teller
+    'SETORAN INFAQ',
+    'SETORAN INFAK',
+    'PER PEKAN',
+    'PERPEKAN',
+    'TARAWIH',
+    'RAMADHAN',
+    'ZAKAT MAL',
+    'PEMBANGUNAN',
+    // Setor tunai
     'SETOR TUNAI',
-    'ATMOFFUS',
-    'FLIPTECH LENTERA INSPIRASI',
+    // Transfer masuk
+    'CDT TRF BENFC BIFAST',
+    'CDT TRF BENFC BERSAMA',
+    'INTERNAL TRANSFER MOBILE BANKING',
+    // Payment aggregator
+    'FLIPTECH LENTERA',
     'FLIPTECH',
+    // Keyword donasi
+    'KARPET',
     'karpet',
-    'waqaf',
+    'WAKAF',
     'wakaf',
+    'WAQAF',
+    'waqaf',
+    'ZAKAT',
     'zakat',
     'TPQ',
+    'Fatih',
+    'Infaq',
+    'Infak',
+    'infaq',
   ],
   keluar: [
+    // Honor
+    'Hadiah Kajian Taraweh MAJ',
+    'Hadiah Kajian MAJ',
+    'Honor Cash Ustadz Tabligh Akbar',
+    'MAJ Honor Mushrif',
+    'MAJ Honor',
+    'MAJ Mukafaah',
+    'MAJ THR',
+    'THR Mushrif',
+    'THR Mukafaah',
+    'HONOR GURU TPQ',
+    'Honor Bantuan Operasional Ramadhan',
+    // Santri / sosial
+    'MAJ Biaya Perawatan Santri',
+    'Santunan Anak Yatim',
+    'SANTUNAN',
+    'Tenda dan Paket Ambulan',
+    'Tenda',
+    // Payroll
+    'BULK TXN CMS FILE',
+    'payrollMAJ',
+    'Fee Payroll',
+    'CMS BIAYA PAYROLL',
+    // Perbaikan
+    'Perbaikan',
+    'Pemindahan',
+    'Pengecatan',
+    'Lampu Injeksi',
+    'Lampu Dinding',
+    'Pasang Kabel',
+    'Ganti Lampu',
+    'Biaya buat pagar',
+    'Service AC',
+    'Perbaikan AC',
+    'Tebang Pohon',
+    // Pengadaan
+    'Pembelian CCTV',
+    'CCTV Kabel',
+    'Jasa Pasang CCTV',
+    'Pasang CCTV',
+    'Peralatan Digital',
+    'Beli 2 Unit TV',
+    'Bracket',
+    'Beli Dispenser',
+    'DP Karpet',
+    'Pelunasan Karpet',
+    'Setup Karpet',
+    'Karpet',
+    'Alas Lantai',
+    'Rak Buku',
+    'Beli keset',
+    'Beli Voucher Listrik',
+    'Voucher Listrik',
+    // Zakat distribusi
+    'Pembagian Zakat Fitrah',
+    'PEMBAGIAN ZAKAT',
+    // Konsumsi
+    'Konsumsi Itikaf Ramadhan',
+    'Konsumsi Tabligh Akbar',
+    // Operasional
+    'KEPERLUAN MAJ',
+    'Biaya Adm Pengajian Ibu-Ibu MAJ',
+    // Transfer charges
+    'DBT TRF CHARGE BERSAMA',
+    'DBT TRF CHARGE PRIMA',
+    'CHARGE DBT TRF BIFAST',
     'DBT TRF CHARGE',
-    'TRANSAKSI PAYROLL BMI',
-    'PAYROLL',
-    'BMICMS01',
-    'A IMRON ROSADI',
     'BIFAST',
+    // CMS out
+    'INTERNAL TRANSFER CMS',
   ],
 };
 
 // ============================================================
-// Review suggestion (untuk status='review')
+// Review suggestion (untuk row yang tidak match pattern manapun)
 // ============================================================
 
 function getReviewSuggestion(row: ParsedBankRow): string | null {
   const k = row.keterangan;
 
-  // KELUAR-specific suggestions
   if (row.debit > 0) {
+    if (/INTERNAL TRANSFER CMS/i.test(k)) {
+      return 'Transfer CMS keluar — pilih kategori sesuai tujuan';
+    }
     if (/BMICMS01/i.test(k)) {
       return 'Mengandung BMICMS01 — kemungkinan transfer CMS keluar';
     }
     if (/A IMRON ROSADI/i.test(k)) {
       return 'Mengandung A IMRON ROSADI — perlu verifikasi tujuan transfer';
     }
-    if (/TRANSFER DARI.*MUABIDJA.*KE.*IDJA/i.test(k)) {
-      return 'Transfer BiFast keluar — pilih kategori yang sesuai';
-    }
     if (/BIFAST/i.test(k)) {
       return 'Transfer BiFast keluar — pilih kategori yang sesuai';
     }
   }
 
-  // Generic fallback
   return 'Tidak cocok pattern otomatis — pilih kategori manual';
 }
 
@@ -268,28 +638,49 @@ export const muamalatTemplate: BankTemplate = {
     };
   },
 
-  categorize(row: ParsedBankRow): CategorizedRow {
+  categorize(row: ParsedBankRow, resolveKategori?: KategoriResolver): CategorizedRow {
     const isKredit = row.kredit > 0;
     const jenis = isKredit ? TransaksiJenis.MASUK : TransaksiJenis.KELUAR;
     const jumlah = isKredit ? row.kredit : row.debit;
     const rules = isKredit ? masukRules : keluarRules;
 
     for (const rule of rules) {
-      if (rule.match(row.keterangan, jumlah)) {
-        return {
-          tanggal: row.tanggal,
-          keterangan: row.keterangan,
-          jumlah,
-          jenis,
-          kategori_id: rule.kategori_id,
-          status: rule.status,
-          kategoriLabel: rule.kategoriLabel,
-          reviewSuggestion: rule.status === 'review' ? getReviewSuggestion(row) ?? undefined : undefined,
-        };
+      if (!rule.match(row.keterangan, jumlah)) continue;
+
+      // Resolve nama → ID kategori
+      const kategori_id =
+        rule.kategoriName && resolveKategori
+          ? resolveKategori(rule.kategoriName, jenis)
+          : '';
+
+      // Kalau rule punya kategoriName tapi resolver gagal, downgrade ke review
+      const hasUnresolvedKategori =
+        rule.kategoriName !== '' && kategori_id === '';
+      const status: ImportStatus = hasUnresolvedKategori ? 'review' : rule.status;
+
+      let reviewSuggestion: string | undefined;
+      if (status === 'review') {
+        if (hasUnresolvedKategori) {
+          reviewSuggestion = `Kategori "${rule.kategoriName}" belum ada di sheet — buat dulu di halaman Kategori`;
+        } else {
+          reviewSuggestion =
+            rule.reviewSuggestion ?? getReviewSuggestion(row) ?? undefined;
+        }
       }
+
+      return {
+        tanggal: row.tanggal,
+        keterangan: row.keterangan,
+        jumlah,
+        jenis,
+        kategori_id,
+        status,
+        kategoriLabel: rule.kategoriName,
+        reviewSuggestion,
+      };
     }
 
-    // No pattern matched → review
+    // No pattern matched → review with generic suggestion
     return {
       tanggal: row.tanggal,
       keterangan: row.keterangan,

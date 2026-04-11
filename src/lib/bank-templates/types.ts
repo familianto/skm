@@ -4,6 +4,15 @@ import { TransaksiJenis } from '@/types';
 // Bank Template Types
 // ============================================================
 
+/**
+ * Resolve nama kategori → ID kategori berdasarkan jenis (MASUK/KELUAR).
+ * Dipanggil oleh `template.categorize()` saat import untuk mapping
+ * nama kategori (di pattern rules) ke ID actual di sheet `kategori`.
+ *
+ * Return string kosong jika kategori dengan nama+jenis tersebut belum ada.
+ */
+export type KategoriResolver = (nama: string, jenis: TransaksiJenis) => string;
+
 export interface BankTemplate {
   bankId: string;
   bankName: string;
@@ -13,8 +22,15 @@ export interface BankTemplate {
   rekeningId: string;
   /** Parse a raw CSV row into a normalized transaction row */
   parseRow: (row: string[]) => ParsedBankRow | null;
-  /** Apply pattern rules to categorize a parsed row */
-  categorize: (row: ParsedBankRow) => CategorizedRow;
+  /**
+   * Apply pattern rules to categorize a parsed row.
+   *
+   * `resolveKategori` dipakai untuk menukar nama kategori yang tertera di
+   * rule menjadi ID real dari sheet `kategori`. Optional — bila tidak
+   * diberikan, semua baris akan berstatus review karena `kategori_id`
+   * tidak bisa di-resolve.
+   */
+  categorize: (row: ParsedBankRow, resolveKategori?: KategoriResolver) => CategorizedRow;
   /**
    * Keywords yang akan di-highlight di kolom keterangan untuk membantu user
    * memahami alasan auto-categorize. Dipisah per jenis MASUK/KELUAR.

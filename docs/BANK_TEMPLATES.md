@@ -116,32 +116,107 @@ Template baru akan otomatis muncul di dropdown "Pilih Bank" pada halaman Import 
 | 5 | Saldo | `10,000,000` |
 | 6 | Keterangan | `PURCHASE QRIS ACQ ...` |
 
+### Kategori Tujuan
+
+Pattern rules Bank Muamalat menggunakan **nama kategori** (bukan ID) dan
+di-resolve ke ID di runtime via `resolveKategori(nama, jenis)`. Kategori
+berikut harus ada di sheet `kategori` (dengan nama persis sama) agar
+auto-mapping bekerja:
+
+**MASUK:** `Infaq & Sedekah`, `Infaq Jumat`, `Infaq Ramadhan`, `Zakat Mal`,
+`Donasi & Wakaf Pembangunan` (baru), `Donasi Sosial`, `Lain-lain Masuk`
+
+**KELUAR:** `Honorarium Pemateri Kajian`, `Honorarium Marbot/Petugas`,
+`Honorarium Imam/Khatib`, `Kegiatan Ramadhan`, `Kegiatan Sosial`,
+`Operasional Masjid`, `Perbaikan/Renovasi`, `Kebersihan`,
+`Pengadaan Aset` (baru), `ATK & Perlengkapan`, `Listrik & Air`,
+`Konsumsi`, `Pengeluaran Zakat` (baru), `Biaya Admin Bank`
+
+Jika kategori belum ada, baris terkait akan di-downgrade ke status `review`
+dengan suggestion `Kategori "X" belum ada di sheet — buat dulu di halaman Kategori`.
+
 ### Pattern Rules
 
-**MASUK (Kredit):**
+**MASUK (Kredit) — first-match-wins:**
 
 | Pattern | Kategori | Status |
 |---------|----------|--------|
-| `PURCHASE QRIS ACQ` | Infaq Harian | Auto |
-| `CDT TRF BENFC BIFAST` / `TRANSFER DARI` | Donasi | Auto |
-| `INTERNAL TRANSFER` + `Ke 3200028199` | Donasi | Auto |
-| keyword `karpet` / `waqaf` / `wakaf` | Donasi | Auto |
-| keyword `zakat` | Zakat Mal | Auto |
-| keyword `TPQ` | Infaq Harian | Auto |
-| `SETOR TUNAI` | Infaq Harian (default) | Perlu Split |
-| `ATMOFFUS` | Donasi | Auto |
-| `FLIPTECH LENTERA INSPIRASI` | Donasi | Auto |
+| `PURCHASE QRIS ACQ` / `MERCHANT QRIS` | Infaq & Sedekah | Auto |
+| `SETORAN INFAQ` + `TARAWIH` | Infaq Ramadhan | Auto |
+| `SETORAN` + `ZAKAT MAL` | Infaq Ramadhan | Review (setoran campuran) |
+| `SETORAN INFAQ PER PEKAN` (no tarawih/ramadhan/zakat) | Infaq Jumat | Auto |
+| `SETOR TUNAI` + `KARPET`/`WAKAF`/`WAQAF` | Donasi & Wakaf Pembangunan | Auto |
+| `SETOR TUNAI` + `ZAKAT` | Zakat Mal | Auto |
+| `SETOR TUNAI` (fallback) | Donasi Sosial | Review |
+| `CDT TRF BENFC BIFAST/BERSAMA` + `KARPET`/`WAKAF`/`WAQAF` | Donasi & Wakaf Pembangunan | Auto |
+| `CDT TRF BENFC BIFAST/BERSAMA` (umum) | Infaq & Sedekah | Auto |
+| `INTERNAL TRANSFER MOBILE BANKING` + `KARPET`/`WAKAF`/`WAQAF` | Donasi & Wakaf Pembangunan | Auto |
+| `INTERNAL TRANSFER MOBILE BANKING` + `ZAKAT` | Zakat Mal | Auto |
+| `INTERNAL TRANSFER MOBILE BANKING` + `TPQ`/`Fatih` | Lain-lain Masuk | Auto |
+| `INTERNAL TRANSFER MOBILE BANKING` + `Infaq`/`Infak` | Infaq & Sedekah | Auto |
+| `INTERNAL TRANSFER MOBILE BANKING` (umum) | Infaq & Sedekah | Review |
+| `FLIPTECH` + `TPQ` | Lain-lain Masuk | Auto |
+| `FLIPTECH` + `zakat` | Zakat Mal | Auto |
 
-**KELUAR (Debit):**
+**KELUAR (Debit) — first-match-wins:**
 
 | Pattern | Kategori | Status |
 |---------|----------|--------|
-| `DBT TRF CHARGE` / (`BIFAST` + 2500) | Biaya Admin Bank | Auto |
-| `PAYROLL` / `TRANSAKSI PAYROLL BMI` | Honorarium Marbot/Petugas | Auto |
-| `BMICMS01` | — | Review |
-| `TRANSFER DARI...MUABIDJA...KE...IDJA` | — | Review |
-| `A IMRON ROSADI` + `DBT TRF PRIMA` | — | Review |
-| `A IMRON ROSADI` + `DBT TRF CHARGE` | Biaya Admin Bank | Auto |
+| `Hadiah Kajian Taraweh MAJ` | Kegiatan Ramadhan | Auto |
+| `Hadiah Kajian MAJ` (tanpa Taraweh) | Honorarium Pemateri Kajian | Auto |
+| `Honor Cash Ustadz Tabligh Akbar` | Honorarium Pemateri Kajian | Auto |
+| `MAJ THR` / `THR Mushrif` / `THR Mukafaah` | Honorarium Marbot/Petugas | Auto |
+| `MAJ Honor Mushrif` | Honorarium Marbot/Petugas | Auto |
+| `MAJ Mukafaah` | Honorarium Imam/Khatib | Auto |
+| `MAJ Honor [bulan]` (exclude Mushrif/Mukafaah/THR) | Honorarium Marbot/Petugas | Auto |
+| `MAJ Biaya Perawatan Santri` | Kegiatan Sosial | Auto |
+| `Fee Payroll` / `CMS BIAYA PAYROLL` | Biaya Admin Bank | Auto |
+| `BULK TXN CMS FILE payrollMAJ` | Honorarium Marbot/Petugas | Auto |
+| `Biaya Adm Pengajian Ibu-Ibu MAJ` | Operasional Masjid | Auto |
+| `HONOR GURU TPQ` | Honorarium Marbot/Petugas | Auto |
+| `Honor Bantuan Operasional Ramadhan` | Kegiatan Ramadhan | Auto |
+| `Perbaikan` / `Pemindahan` / `Lampu Injeksi/Dinding` | Perbaikan/Renovasi | Auto |
+| `Pasang Kabel` / `Lampu area` / `kontak Lampu` / `Ganti Lampu` | Perbaikan/Renovasi | Auto |
+| `Pengecatan` | Perbaikan/Renovasi | Auto |
+| `Biaya buat pagar` | Perbaikan/Renovasi | Auto |
+| `Service AC` / `Perbaikan AC` | Perbaikan/Renovasi | Auto |
+| `Tebang Pohon` | Kebersihan | Auto |
+| `Pembelian CCTV` / `CCTV Kabel` / `Peralatan Digital` / `Beli 2 Unit TV` / `Bracket` | Pengadaan Aset | Auto |
+| `Jasa Pasang CCTV` / `Pasang CCTV` (tanpa Pembelian/Kabel) | Operasional Masjid | Auto |
+| `Beli Dispenser` | ATK & Perlengkapan | Auto |
+| `Karpet` / `Alas Lantai` | Pengadaan Aset | Auto |
+| `Beli Voucher Listrik` | Listrik & Air | Auto |
+| `Rak Buku` / `Beli keset` | ATK & Perlengkapan | Auto |
+| `Tenda dan Paket Ambulan` / `Tenda` | Kegiatan Sosial | Auto |
+| `Santunan Anak Yatim` / `SANTUNAN` | Kegiatan Sosial | Auto |
+| `Pembagian Zakat Fitrah` / `PEMBAGIAN ZAKAT` | Pengeluaran Zakat | Auto |
+| `Konsumsi Itikaf Ramadhan` | Kegiatan Ramadhan | Auto |
+| `Konsumsi Tabligh Akbar` | Konsumsi | Auto |
+| `KEPERLUAN MAJ` | Operasional Masjid | Auto |
+| `DBT TRF CHARGE BERSAMA` / `CHARGE DBT TRF BIFAST` / `DBT TRF CHARGE PRIMA` / `DBT TRF CHARGE` / (`BIFAST` + 2500) | Biaya Admin Bank | Auto |
+| `INTERNAL TRANSFER CMS` | — | Review |
+
+### Priority Order — SETOR TUNAI & INTERNAL TRANSFER
+
+Beberapa prefix (SETOR TUNAI, CDT TRF BENFC, INTERNAL TRANSFER MOBILE
+BANKING) punya banyak kemungkinan kategori. Pattern di-cek berurutan
+(specific → generic) dengan prioritas keyword:
+
+**SETOR TUNAI:**
+1. `KARPET` / `WAKAF` / `WAQAF` → Donasi & Wakaf Pembangunan
+2. `ZAKAT` → Zakat Mal
+3. fallback → Donasi Sosial (review)
+
+**INTERNAL TRANSFER MOBILE BANKING:**
+1. `KARPET` / `WAKAF` / `WAQAF` → Donasi & Wakaf Pembangunan
+2. `ZAKAT` → Zakat Mal
+3. `TPQ` / `Fatih` → Lain-lain Masuk
+4. `Infaq` / `Infak` → Infaq & Sedekah
+5. fallback → Infaq & Sedekah (review)
+
+**CDT TRF BENFC (BIFAST/BERSAMA):**
+1. `KARPET` / `WAKAF` / `WAQAF` → Donasi & Wakaf Pembangunan
+2. fallback → Infaq & Sedekah
 
 ### Nomor Rekening
 
@@ -151,21 +226,26 @@ Rekening Bank Muamalat di SKM: **3200028199**
 
 Keyword berikut di-highlight di kolom Keterangan tabel preview Import CSV untuk membantu user memahami alasan auto-categorize:
 
-**MASUK**: `PURCHASE QRIS ACQ`, `CDT TRF BENFC BIFAST`, `TRANSFER DARI`, `INTERNAL TRANSFER`, `SETOR TUNAI`, `ATMOFFUS`, `FLIPTECH LENTERA INSPIRASI`, `FLIPTECH`, `karpet`, `waqaf`, `wakaf`, `zakat`, `TPQ`
+**MASUK**: `PURCHASE QRIS ACQ`, `MERCHANT QRIS`, `SETORAN INFAQ`, `SETORAN INFAK`, `PER PEKAN`, `PERPEKAN`, `TARAWIH`, `RAMADHAN`, `ZAKAT MAL`, `PEMBANGUNAN`, `SETOR TUNAI`, `CDT TRF BENFC BIFAST`, `CDT TRF BENFC BERSAMA`, `INTERNAL TRANSFER MOBILE BANKING`, `FLIPTECH LENTERA`, `FLIPTECH`, `karpet`/`KARPET`, `wakaf`/`WAKAF`, `waqaf`/`WAQAF`, `zakat`/`ZAKAT`, `TPQ`, `Fatih`, `Infaq`, `Infak`
 
-**KELUAR**: `DBT TRF CHARGE`, `TRANSAKSI PAYROLL BMI`, `PAYROLL`, `BMICMS01`, `A IMRON ROSADI`, `BIFAST`
+**KELUAR**: `Hadiah Kajian Taraweh MAJ`, `Hadiah Kajian MAJ`, `Honor Cash Ustadz Tabligh Akbar`, `MAJ Honor Mushrif`, `MAJ Honor`, `MAJ Mukafaah`, `MAJ THR`, `THR Mushrif`/`THR Mukafaah`, `HONOR GURU TPQ`, `Honor Bantuan Operasional Ramadhan`, `MAJ Biaya Perawatan Santri`, `Santunan Anak Yatim`/`SANTUNAN`, `Tenda dan Paket Ambulan`/`Tenda`, `BULK TXN CMS FILE`, `payrollMAJ`, `Fee Payroll`, `CMS BIAYA PAYROLL`, `Perbaikan`, `Pemindahan`, `Pengecatan`, `Lampu Injeksi`/`Lampu Dinding`, `Pasang Kabel`, `Ganti Lampu`, `Biaya buat pagar`, `Service AC`/`Perbaikan AC`, `Tebang Pohon`, `Pembelian CCTV`, `CCTV Kabel`, `Jasa Pasang CCTV`/`Pasang CCTV`, `Peralatan Digital`, `Beli 2 Unit TV`, `Bracket`, `Beli Dispenser`, `DP Karpet`/`Pelunasan Karpet`/`Setup Karpet`, `Karpet`, `Alas Lantai`, `Rak Buku`, `Beli keset`, `Beli Voucher Listrik`, `Pembagian Zakat Fitrah`/`PEMBAGIAN ZAKAT`, `Konsumsi Itikaf Ramadhan`, `Konsumsi Tabligh Akbar`, `KEPERLUAN MAJ`, `Biaya Adm Pengajian Ibu-Ibu MAJ`, `DBT TRF CHARGE BERSAMA`/`PRIMA`, `CHARGE DBT TRF BIFAST`, `DBT TRF CHARGE`, `BIFAST`, `INTERNAL TRANSFER CMS`
 
 ### Review Suggestions (Bank Muamalat)
 
-Untuk transaksi berstatus `review`, fungsi `getReviewSuggestion()` memberikan teks saran berdasarkan pattern keterangan:
+Untuk transaksi berstatus `review`, ada dua sumber suggestion:
 
-| Pattern di keterangan | Suggestion |
-|---|---|
-| Mengandung `BMICMS01` | "Mengandung BMICMS01 — kemungkinan transfer CMS keluar" |
-| Mengandung `A IMRON ROSADI` | "Mengandung A IMRON ROSADI — perlu verifikasi tujuan transfer" |
-| Pattern BiFast keluar (`MUABIDJA...IDJA`) | "Transfer BiFast keluar — pilih kategori yang sesuai" |
-| Mengandung `BIFAST` (keluar) | "Transfer BiFast keluar — pilih kategori yang sesuai" |
-| Tidak cocok pattern apapun | "Tidak cocok pattern otomatis — pilih kategori manual" |
+1. **Per-rule suggestion** (prioritas): rule di `masukRules`/`keluarRules` yang
+   statusnya `review` punya field `reviewSuggestion` sendiri. Contoh:
+   - `SETORAN` + `ZAKAT MAL` → "Setoran campuran — pertimbangkan split manual"
+   - `SETOR TUNAI` fallback → "Setor tunai atas nama — verifikasi tujuan donasi"
+   - `INTERNAL TRANSFER MOBILE BANKING` (umum) → "Transfer internal — verifikasi jenis penerimaan"
+   - `INTERNAL TRANSFER CMS` (keluar) → "Transfer CMS keluar — pilih kategori sesuai tujuan"
+2. **Kategori belum di-seed**: jika rule punya `kategoriName` tapi kategori
+   tersebut belum ada di sheet, baris di-downgrade ke review dengan suggestion
+   `Kategori "X" belum ada di sheet — buat dulu di halaman Kategori`.
+3. **Fallback** (`getReviewSuggestion()`): dipakai ketika row tidak match rule
+   manapun. Pola: `BMICMS01`, `A IMRON ROSADI`, `BIFAST` (keluar), dan default
+   "Tidak cocok pattern otomatis — pilih kategori manual".
 
 Suggestion text ditampilkan sebagai teks kecil abu-abu di bawah keterangan pada baris dengan status `review`.
 
@@ -174,13 +254,20 @@ Suggestion text ditampilkan sebagai teks kecil abu-abu di bawah keterangan pada 
 ## Interface Reference
 
 ```typescript
+type KategoriResolver = (nama: string, jenis: TransaksiJenis) => string;
+
 interface BankTemplate {
   bankId: string;
   bankName: string;
   headerRowsToSkip: number;
   rekeningId: string;
   parseRow: (row: string[]) => ParsedBankRow | null;
-  categorize: (row: ParsedBankRow) => CategorizedRow;
+  /**
+   * `resolveKategori` dipakai untuk menukar nama kategori di rule
+   * menjadi ID real dari sheet `kategori`. Optional — kalau tidak
+   * di-pass, semua baris akan berstatus review.
+   */
+  categorize: (row: ParsedBankRow, resolveKategori?: KategoriResolver) => CategorizedRow;
   /**
    * Keywords untuk highlight di kolom Keterangan, dipisah per jenis.
    * UI akan wrap setiap match dengan <mark> styled element.
