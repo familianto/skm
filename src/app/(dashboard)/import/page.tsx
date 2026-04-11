@@ -181,6 +181,23 @@ export default function ImportPage() {
     }));
   }, [kategoris]);
 
+  /**
+   * Confirm a Review row — promote status to 'auto' without changing
+   * kategori_id. Dipakai oleh tombol "OK" dan juga saat user berinteraksi
+   * dengan dropdown (onMouseDown/onFocus) untuk menangani bug "pilih
+   * kategori sama tidak berubah statusnya".
+   */
+  const confirmReview = useCallback((key: string) => {
+    setRows((prev) =>
+      prev.map((r) => {
+        if (r.key !== key) return r;
+        if (r.status !== 'review') return r;
+        if (!r.kategori_id) return r;
+        return { ...r, status: 'auto' };
+      })
+    );
+  }, []);
+
   // --- Split logic (SETOR TUNAI) ---
 
   /** Open split form for a row. Pre-fills drafts based on detected keywords. */
@@ -209,6 +226,57 @@ export default function ImportPage() {
 
     setSplitEditing({ rowKey, drafts });
   }, [rows, kategoris]);
+
+  /**
+   * Open split form for any MASUK row (Auto/Review) — non-SETOR-TUNAI case.
+   * Pre-fill draft 1 with current kategori (jumlah 0), draft 2+ dari
+   * hasil detectKeywords pada keterangan row.
+   */
+  const openManualSplit = useCallback((rowKey: string) => {
+    const row = rows.find((r) => r.key === rowKey);
+    if (!row) return;
+    if (row.jenis !== TransaksiJenis.MASUK) return;
+
+    // Draft 1: current kategori
+    const drafts: SplitDraftRow[] = [];
+    drafts.push({
+      key: `${rowKey}-draft-0`,
+      kategori_id: row.kategori_id || '',
+      jumlah: 0,
+      deskripsi: row.keterangan,
+    });
+
+    // Drafts 2+: detected keywords (skip duplicates of draft 1)
+    const template = getBankTemplate(bankId);
+    const detected = template?.detectKeywords?.(row.keterangan) ?? [];
+    const prefillNames = buildPrefillKategoriNames(detected);
+    const currentKatName = row.kategoriLabel;
+    const extras = prefillNames.filter((n) => n && n !== currentKatName);
+
+    extras.forEach((nama, idx) => {
+      const kat = kategoris.find(
+        (k) => k.nama === nama && k.jenis === row.jenis
+      );
+      drafts.push({
+        key: `${rowKey}-draft-${idx + 1}`,
+        kategori_id: kat?.id || '',
+        jumlah: 0,
+        deskripsi: row.keterangan,
+      });
+    });
+
+    // Pastikan minimal 2 baris supaya user punya slot untuk split
+    if (drafts.length < 2) {
+      drafts.push({
+        key: `${rowKey}-draft-${drafts.length}`,
+        kategori_id: '',
+        jumlah: 0,
+        deskripsi: row.keterangan,
+      });
+    }
+
+    setSplitEditing({ rowKey, drafts });
+  }, [rows, kategoris, bankId]);
 
   /** Close form without saving */
   const closeSplitForm = useCallback(() => setSplitEditing(null), []);
@@ -334,7 +402,8 @@ export default function ImportPage() {
 
   /**
    * Undo split — restore the original row. Finds all rows sharing the same
-   * splitParent.originalKey and replaces them with the restored original.
+   * splitParent.originalKey and replaces them with the restored original
+   * (menggunakan snapshot status — auto/review/split tergantung asalnya).
    */
   const undoSplit = useCallback((originalKey: string) => {
     setRows((prev) => {
@@ -342,11 +411,7 @@ export default function ImportPage() {
       if (children.length === 0) return prev;
       const snapshot = children[0].splitParent!.originalData;
       const firstIdx = prev.findIndex((r) => r.splitParent?.originalKey === originalKey);
-      const restored: ImportRow = {
-        ...snapshot,
-        // Ensure it comes back in SETOR TUNAI split-pending state
-        status: 'split',
-      };
+      const restored: ImportRow = { ...snapshot };
       return [
         ...prev.slice(0, firstIdx).filter((r) => r.splitParent?.originalKey !== originalKey),
         restored,
@@ -677,7 +742,9 @@ export default function ImportPage() {
                       highlightRegex={row.jenis === TransaksiJenis.MASUK ? highlightRegex.masuk : highlightRegex.keluar}
                       splitEditing={splitEditing}
                       onKategoriChange={updateRowKategori}
+                      onConfirmReview={confirmReview}
                       onOpenSplit={openSplitForm}
+                      onOpenManualSplit={openManualSplit}
                       onCloseSplit={closeSplitForm}
                       onAddDraft={addDraftRow}
                       onRemoveDraft={removeDraftRow}
@@ -793,7 +860,9 @@ interface RowGroupProps {
   highlightRegex: RegExp | null;
   splitEditing: { rowKey: string; drafts: SplitDraftRow[] } | null;
   onKategoriChange: (key: string, kategori_id: string) => void;
+  onConfirmReview: (key: string) => void;
   onOpenSplit: (rowKey: string) => void;
+  onOpenManualSplit: (rowKey: string) => void;
   onCloseSplit: () => void;
   onAddDraft: () => void;
   onRemoveDraft: (draftKey: string) => void;
@@ -809,7 +878,9 @@ const RowGroup = memo(function RowGroup({
   highlightRegex,
   splitEditing,
   onKategoriChange,
+  onConfirmReview,
   onOpenSplit,
+  onOpenManualSplit,
   onCloseSplit,
   onAddDraft,
   onRemoveDraft,
@@ -825,6 +896,14 @@ const RowGroup = memo(function RowGroup({
   const isSplitPending = row.status === 'split' && !row.splitParent;
   const showLargeMasukCue =
     row.jenis === TransaksiJenis.MASUK && row.jumlah > LARGE_MASUK_THRESHOLD;
+  // Link "Split" manual muncul untuk row MASUK Auto/Review (bukan SETOR
+  // TUNAI, bukan split-child, bukan baris yang sedang di-edit split-nya).
+  const canManualSplit =
+    row.jenis === TransaksiJenis.MASUK &&
+    !isSplitPending &&
+    !isSplitChild &&
+    !isFormOpen &&
+    !row.isDuplicate;
 
   const statusBadge = () => {
     if (row.isDuplicate) {
@@ -856,14 +935,27 @@ const RowGroup = memo(function RowGroup({
     }
     if (row.status === 'auto') {
       return (
-        <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full">
+        <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-700 bg-emerald-50 ring-1 ring-inset ring-emerald-600/20 px-2 py-0.5 rounded-full">
           Auto
         </span>
       );
     }
+    // Review: badge + optional OK button (kalau kategori sudah terpilih)
     return (
-      <span className="inline-flex items-center gap-1 text-xs font-medium text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full">
-        Review
+      <span className="inline-flex items-center gap-1.5">
+        <span className="inline-flex items-center gap-1 text-xs font-medium text-orange-700 bg-orange-50 ring-1 ring-inset ring-orange-600/20 px-2 py-0.5 rounded-full">
+          Review
+        </span>
+        {row.kategori_id && (
+          <button
+            type="button"
+            onClick={() => onConfirmReview(row.key)}
+            title="Konfirmasi: setujui kategori ini tanpa mengubahnya"
+            className="inline-flex items-center gap-1 text-xs font-medium text-emerald-700 bg-emerald-50 ring-1 ring-inset ring-emerald-600/20 px-2 py-0.5 rounded-full cursor-pointer hover:bg-emerald-100"
+          >
+            OK
+          </button>
+        )}
       </span>
     );
   };
@@ -918,19 +1010,44 @@ const RowGroup = memo(function RowGroup({
           {isSplitPending ? (
             <span className="text-xs text-amber-700 italic">Perlu split — klik badge</span>
           ) : (
-            <select
-              value={row.kategori_id}
-              onChange={(e) => onKategoriChange(row.key, e.target.value)}
-              className="block w-full min-w-[140px] rounded border border-gray-300 px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-emerald-500"
-              disabled={isSplitChild}
-            >
-              <option value="">Pilih Kategori</option>
-              {kategoris
-                .filter((k) => k.jenis === row.jenis)
-                .map((k) => (
-                  <option key={k.id} value={k.id}>{k.nama}</option>
-                ))}
-            </select>
+            <div className="space-y-1">
+              <select
+                value={row.kategori_id}
+                onChange={(e) => onKategoriChange(row.key, e.target.value)}
+                onMouseDown={() => {
+                  // Setiap interaksi dengan dropdown menandakan user
+                  // mengkonfirmasi kategori — fix bug "pilih kategori sama
+                  // tidak mengubah status".
+                  if (row.status === 'review' && row.kategori_id) {
+                    onConfirmReview(row.key);
+                  }
+                }}
+                onFocus={() => {
+                  if (row.status === 'review' && row.kategori_id) {
+                    onConfirmReview(row.key);
+                  }
+                }}
+                className="block w-full min-w-[140px] rounded border border-gray-300 px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                disabled={isSplitChild}
+              >
+                <option value="">Pilih Kategori</option>
+                {kategoris
+                  .filter((k) => k.jenis === row.jenis)
+                  .map((k) => (
+                    <option key={k.id} value={k.id}>{k.nama}</option>
+                  ))}
+              </select>
+              {canManualSplit && (
+                <button
+                  type="button"
+                  onClick={() => onOpenManualSplit(row.key)}
+                  className="text-amber-600 text-xs underline cursor-pointer hover:text-amber-800"
+                  title="Pecah transaksi ini ke beberapa kategori"
+                >
+                  Split
+                </button>
+              )}
+            </div>
           )}
         </TableCell>
         <TableCell>{statusBadge()}</TableCell>

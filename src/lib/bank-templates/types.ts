@@ -44,6 +44,12 @@ export interface BankTemplate {
    * Dipanggil oleh UI per row. Return null jika tidak ada saran spesifik.
    */
   getReviewSuggestion?: (row: ParsedBankRow) => string | null;
+  /**
+   * Deteksi keyword relevan di keterangan — dipakai UI saat user klik
+   * "Split" manual pada row MASUK non-SETOR-TUNAI untuk pre-fill split
+   * form. Return list keyword urut berdasar posisi kemunculan.
+   */
+  detectKeywords?: (keterangan: string) => string[];
 }
 
 export interface ParsedBankRow {
