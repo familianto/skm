@@ -34,16 +34,22 @@ interface PatternRule {
 }
 
 // --- MASUK (Kredit) rules ---
+//
+// NOTE: SETOR TUNAI tidak ditangani di sini — rule SETOR TUNAI di-intercept
+// di `categorize()` sebelum rules diiterasi dan selalu di-force ke status
+// 'split' untuk diproses manual oleh user di Split form.
+//
+// Urutan (Part D): specific → generic, dengan fallback terakhir
+// `Lain-lain Masuk` berstatus review.
 const masukRules: PatternRule[] = [
-  // QRIS
+  // 1. QRIS (merchant code QRIS) → Infaq & Sedekah
   {
     match: (k) => /PURCHASE QRIS ACQ|MERCHANT QRIS/i.test(k),
     kategoriName: 'Infaq & Sedekah',
     status: 'auto',
   },
 
-  // ----- Setoran Infaq via teller (ordered: specific → generic) -----
-  // Setoran infaq + tarawih → Infaq Ramadhan
+  // 2. Setoran Infaq + Tarawih → Infaq Ramadhan
   {
     match: (k) =>
       /SETORAN.*INFA[QK].*TARAWIH/i.test(k) ||
@@ -51,48 +57,17 @@ const masukRules: PatternRule[] = [
     kategoriName: 'Infaq Ramadhan',
     status: 'auto',
   },
-  // Setoran mengandung Zakat Mal → Infaq Ramadhan (review: setoran campuran)
+
+  // 3. Setoran mengandung Zakat Mal → review (setoran campuran)
+  //    Regex baru: ZAKAT MAL / MAAL / MALL
   {
-    match: (k) => /SETORAN.*ZAKAT\s*MAL/i.test(k),
+    match: (k) => /SETORAN.*ZAKAT\s+MA+L+/i.test(k),
     kategoriName: 'Infaq Ramadhan',
     status: 'review',
     reviewSuggestion: 'Setoran campuran — pertimbangkan split manual',
   },
-  // Setoran infaq per pekan (weekly) → Infaq Jumat
-  // Dikecualikan kalau keterangan mengandung Tarawih/Ramadhan/Zakat
-  // (rule-rule di atas sudah menangani kasus tersebut; cek negatif di sini
-  // adalah pengaman kalau urutan pernah berubah)
-  {
-    match: (k) =>
-      /SETORAN\s+INFA[QK]\s*PER\s*PEKAN/i.test(k) &&
-      !/TARAWIH|RAMADHAN|ZAKAT/i.test(k),
-    kategoriName: 'Infaq Jumat',
-    status: 'auto',
-  },
 
-  // ----- SETOR TUNAI (priority keywords first) -----
-  // Setor tunai untuk karpet/wakaf → Donasi & Wakaf Pembangunan
-  {
-    match: (k) => /SETOR TUNAI/i.test(k) && /KARPET|WAKAF|WAQAF/i.test(k),
-    kategoriName: 'Donasi & Wakaf Pembangunan',
-    status: 'auto',
-  },
-  // Setor tunai untuk zakat → Zakat Mal
-  {
-    match: (k) => /SETOR TUNAI/i.test(k) && /ZAKAT/i.test(k),
-    kategoriName: 'Zakat Mal',
-    status: 'auto',
-  },
-  // Setor tunai fallback → Donasi Sosial (review)
-  {
-    match: (k) => /SETOR TUNAI/i.test(k),
-    kategoriName: 'Donasi Sosial',
-    status: 'review',
-    reviewSuggestion: 'Setor tunai atas nama — verifikasi tujuan donasi',
-  },
-
-  // ----- Transfer BiFast / Bersama masuk -----
-  // CDT TRF BENFC BIFAST/BERSAMA + karpet/wakaf → Donasi & Wakaf Pembangunan
+  // 4. CDT TRF BENFC (BIFAST/BERSAMA) + KARPET/WAKAF → Donasi & Wakaf Pembangunan
   {
     match: (k) =>
       /CDT TRF BENFC\s+(BIFAST|BERSAMA)/i.test(k) &&
@@ -100,15 +75,15 @@ const masukRules: PatternRule[] = [
     kategoriName: 'Donasi & Wakaf Pembangunan',
     status: 'auto',
   },
-  // CDT TRF BENFC BIFAST/BERSAMA (umum) → Infaq & Sedekah
+
+  // 5. CDT TRF BENFC (BIFAST/BERSAMA) umum → Infaq & Sedekah
   {
     match: (k) => /CDT TRF BENFC\s+(BIFAST|BERSAMA)/i.test(k),
     kategoriName: 'Infaq & Sedekah',
     status: 'auto',
   },
 
-  // ----- INTERNAL TRANSFER MOBILE BANKING (priority order) -----
-  // Karpet/wakaf → Donasi & Wakaf Pembangunan
+  // 6. INTERNAL TRANSFER MOBILE BANKING + KARPET/WAKAF → Donasi & Wakaf Pembangunan
   {
     match: (k) =>
       /INTERNAL TRANSFER MOBILE BANKING/i.test(k) &&
@@ -116,28 +91,33 @@ const masukRules: PatternRule[] = [
     kategoriName: 'Donasi & Wakaf Pembangunan',
     status: 'auto',
   },
-  // Zakat → Zakat Mal
+
+  // 7. INTERNAL TRANSFER MOBILE BANKING + ZAKAT MAL → Zakat Mal
+  //    Regex baru: MAL / MAAL / MALL
   {
     match: (k) =>
-      /INTERNAL TRANSFER MOBILE BANKING/i.test(k) && /ZAKAT/i.test(k),
+      /INTERNAL TRANSFER MOBILE BANKING/i.test(k) && /ZAKAT\s+MA+L+/i.test(k),
     kategoriName: 'Zakat Mal',
     status: 'auto',
   },
-  // TPQ/Fatih → Lain-lain Masuk
+
+  // 8. INTERNAL TRANSFER MOBILE BANKING + TPQ/Fatih → Lain-lain Masuk
   {
     match: (k) =>
       /INTERNAL TRANSFER MOBILE BANKING/i.test(k) && /TPQ|Fatih/i.test(k),
     kategoriName: 'Lain-lain Masuk',
     status: 'auto',
   },
-  // Infaq/Infak → Infaq & Sedekah
+
+  // 9. INTERNAL TRANSFER MOBILE BANKING + Infaq/Infak → Infaq & Sedekah
   {
     match: (k) =>
       /INTERNAL TRANSFER MOBILE BANKING/i.test(k) && /INFA[QK]/i.test(k),
     kategoriName: 'Infaq & Sedekah',
     status: 'auto',
   },
-  // Fallback generic INTERNAL TRANSFER MOBILE BANKING → Infaq & Sedekah (review)
+
+  // 10. INTERNAL TRANSFER MOBILE BANKING umum → review
   {
     match: (k) => /INTERNAL TRANSFER MOBILE BANKING/i.test(k),
     kategoriName: 'Infaq & Sedekah',
@@ -145,16 +125,39 @@ const masukRules: PatternRule[] = [
     reviewSuggestion: 'Transfer internal — verifikasi jenis penerimaan',
   },
 
-  // ----- FLIPTECH (payment aggregator) -----
+  // 11. FLIPTECH + TPQ → Lain-lain Masuk
   {
     match: (k) => /FLIPTECH(\s+LENTERA)?/i.test(k) && /TPQ/i.test(k),
     kategoriName: 'Lain-lain Masuk',
     status: 'auto',
   },
+
+  // 12. FLIPTECH + zakat → Zakat Mal
   {
     match: (k) => /FLIPTECH(\s+LENTERA)?/i.test(k) && /zakat/i.test(k),
     kategoriName: 'Zakat Mal',
     status: 'auto',
+  },
+
+  // 13. Infaq Jumat (NON setor tunai) — weekly infaq via teller/transfer
+  //     Fix 1 regex: tangkap "SETORAN INFAQ PER PEKAN", "INFAQ PER PEKAN",
+  //     "PER PEKAN / INFAQ", dan "SETORAN PER PEKAN" (semua tanpa tarawih).
+  {
+    match: (k) =>
+      (/(?:SETORAN\s+)?(?:INFAQ|INFAK)\s+PER\s*PEKAN|PER\s*PEKAN\s*[/]?\s*(?:INFAQ|INFAK)|SETORAN\s+PER\s*PEKAN/i.test(
+        k
+      )) &&
+      !/TARAWIH|RAMADHAN|ZAKAT/i.test(k),
+    kategoriName: 'Infaq Jumat',
+    status: 'auto',
+  },
+
+  // 14. Catch-all fallback → Lain-lain Masuk (review)
+  {
+    match: () => true,
+    kategoriName: 'Lain-lain Masuk',
+    status: 'review',
+    reviewSuggestion: 'Tidak cocok pattern otomatis — pilih kategori manual',
   },
 ];
 
@@ -416,7 +419,11 @@ const HIGHLIGHT_KEYWORDS = {
     'TARAWIH',
     'RAMADHAN',
     'ZAKAT MAL',
+    'ZAKAT MAAL',
+    'ZAKAT MALL',
     'PEMBANGUNAN',
+    'DONASI',
+    'Donasi',
     // Setor tunai
     'SETOR TUNAI',
     // Transfer masuk
@@ -514,6 +521,57 @@ const HIGHLIGHT_KEYWORDS = {
     'INTERNAL TRANSFER CMS',
   ],
 };
+
+// ============================================================
+// SETOR TUNAI keyword detector
+// ============================================================
+//
+// Untuk row SETOR TUNAI kita deteksi keyword yang muncul di keterangan
+// beserta posisinya, lalu urutkan berdasar posisi kemunculan. Hasilnya
+// dipakai oleh UI import untuk pre-fill Split form dengan daftar
+// kategori yang sesuai.
+
+const CASH_DEPOSIT_KEYWORDS: Array<{ key: string; regex: RegExp }> = [
+  // ZAKAT MAL harus dicek lebih dulu dari ZAKAT biasa
+  { key: 'ZAKAT MAL', regex: /ZAKAT\s+MA+L+/i },
+  { key: 'DONASI', regex: /\bDONASI\b/i },
+  { key: 'INFAQ', regex: /\bINFA[QK]\b/i },
+  { key: 'PER PEKAN', regex: /PER\s*PEKAN/i },
+  { key: 'TARAWIH', regex: /\bTARAWIH\b/i },
+  { key: 'RAMADHAN', regex: /\bRAMADHAN\b/i },
+  { key: 'KARPET', regex: /\bKARPET\b/i },
+  { key: 'WAKAF', regex: /\bWA[KQ]AF\b/i },
+  { key: 'PEMBANGUNAN', regex: /\bPEMBANGUNAN\b/i },
+];
+
+export function detectCashDepositKeywords(keterangan: string): string[] {
+  const found: Array<{ key: string; pos: number }> = [];
+
+  // 1) Cek ZAKAT MAL / MAAL / MALL (specific)
+  const zakatMalMatch = /ZAKAT\s+MA+L+/i.exec(keterangan);
+  if (zakatMalMatch) {
+    found.push({ key: 'ZAKAT MAL', pos: zakatMalMatch.index });
+  }
+
+  // 2) Cek ZAKAT generik — tapi skip kalau ini bagian dari ZAKAT MAL
+  const zakatMatch = /\bZAKAT\b/i.exec(keterangan);
+  if (zakatMatch && zakatMatch.index !== zakatMalMatch?.index) {
+    found.push({ key: 'ZAKAT', pos: zakatMatch.index });
+  }
+
+  // 3) Keyword lain — cek satu per satu, catat posisi kemunculan pertama
+  for (const p of CASH_DEPOSIT_KEYWORDS) {
+    if (p.key === 'ZAKAT MAL') continue; // sudah di-handle di atas
+    const m = p.regex.exec(keterangan);
+    if (m) {
+      found.push({ key: p.key, pos: m.index });
+    }
+  }
+
+  // Urutkan berdasar posisi kemunculan di string
+  found.sort((a, b) => a.pos - b.pos);
+  return found.map((f) => f.key);
+}
 
 // ============================================================
 // Review suggestion (untuk row yang tidak match pattern manapun)
@@ -642,6 +700,28 @@ export const muamalatTemplate: BankTemplate = {
     const isKredit = row.kredit > 0;
     const jenis = isKredit ? TransaksiJenis.MASUK : TransaksiJenis.KELUAR;
     const jumlah = isKredit ? row.kredit : row.debit;
+
+    // ---- Step 0: SETOR TUNAI selalu SPLIT ----
+    // Transaksi kredit yang mengandung "SETOR TUNAI" TIDAK PERNAH
+    // di-auto-map — user harus manual memecah ke beberapa kategori via
+    // Split form di UI. Kita attach `detectedKeywords` agar UI bisa
+    // pre-fill form dengan kategori yang relevan.
+    if (isKredit && /SETOR TUNAI/i.test(row.keterangan)) {
+      return {
+        tanggal: row.tanggal,
+        keterangan: row.keterangan,
+        jumlah,
+        jenis,
+        kategori_id: '',
+        status: 'split',
+        kategoriLabel: '',
+        isCashDeposit: true,
+        detectedKeywords: detectCashDepositKeywords(row.keterangan),
+        reviewSuggestion:
+          'Setor tunai — pecah ke beberapa kategori sebelum import',
+      };
+    }
+
     const rules = isKredit ? masukRules : keluarRules;
 
     for (const rule of rules) {

@@ -1,7 +1,15 @@
 import { muamalatTemplate } from './muamalat';
 import type { BankTemplate } from './types';
 
-export type { BankTemplate, ParsedBankRow, CategorizedRow, ImportRow, SplitRow, ImportStatus } from './types';
+export type {
+  BankTemplate,
+  ParsedBankRow,
+  CategorizedRow,
+  ImportRow,
+  ImportStatus,
+  SplitParentInfo,
+  SplitDraftRow,
+} from './types';
 
 const templates: Record<string, BankTemplate> = {
   muamalat: muamalatTemplate,
