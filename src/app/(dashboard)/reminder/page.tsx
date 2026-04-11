@@ -122,14 +122,22 @@ export default function ReminderPage() {
       if (data.success && data.data) {
         const terkirim = data.data.filter((r) => r.status === ReminderStatus.TERKIRIM).length;
         const gagal = data.data.filter((r) => r.status === ReminderStatus.GAGAL).length;
-        toast(`Reminder terkirim: ${terkirim}, gagal: ${gagal}`);
+
+        if (terkirim > 0 && gagal === 0) {
+          toast(`Berhasil mengirim ke ${terkirim} donatur`, 'success');
+        } else if (terkirim > 0 && gagal > 0) {
+          toast(`Berhasil: ${terkirim}, Gagal: ${gagal}`, 'info');
+        } else {
+          toast(`Gagal mengirim ke ${gagal} donatur`, 'error');
+        }
+
         setSelectedIds([]);
         fetchData();
       } else {
-        toast(data.error || 'Gagal mengirim', 'error');
+        toast(data.error || 'Gagal mengirim reminder', 'error');
       }
     } catch {
-      toast('Terjadi kesalahan', 'error');
+      toast('Terjadi kesalahan jaringan', 'error');
     } finally {
       setSending(false);
     }
