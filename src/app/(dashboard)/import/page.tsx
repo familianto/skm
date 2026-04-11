@@ -14,9 +14,44 @@ import { useKategori } from '@/hooks/use-kategori';
 import { useRekening } from '@/hooks/use-rekening';
 import { useTransaksi } from '@/hooks/use-transaksi';
 import { getAvailableBanks, getBankTemplate } from '@/lib/bank-templates';
-import type { ImportRow, SplitRow } from '@/lib/bank-templates';
+import type { ImportRow, SplitDraftRow } from '@/lib/bank-templates';
 import { formatRupiah, formatTanggal } from '@/lib/utils';
 import { TransaksiJenis } from '@/types';
+
+/** Ambang nominal MASUK yang memunculkan visual cue amber */
+const LARGE_MASUK_THRESHOLD = 2_000_000;
+
+/**
+ * Map detected SETOR TUNAI keywords → nama kategori untuk pre-fill split form.
+ * TARAWIH / RAMADHAN mengoverride INFAQ → Infaq Ramadhan.
+ */
+function buildPrefillKategoriNames(keywords: string[] | undefined): string[] {
+  if (!keywords || keywords.length === 0) return [];
+  const hasRamadhan =
+    keywords.includes('TARAWIH') || keywords.includes('RAMADHAN');
+  const mapping: Record<string, string> = {
+    'ZAKAT MAL': 'Zakat Mal',
+    'ZAKAT': 'Zakat Mal',
+    'DONASI': 'Donasi Sosial',
+    'KARPET': 'Donasi & Wakaf Pembangunan',
+    'WAKAF': 'Donasi & Wakaf Pembangunan',
+    'PEMBANGUNAN': 'Donasi & Wakaf Pembangunan',
+    'INFAQ': hasRamadhan ? 'Infaq Ramadhan' : 'Infaq Jumat',
+    'PER PEKAN': hasRamadhan ? 'Infaq Ramadhan' : 'Infaq Jumat',
+    'TARAWIH': 'Infaq Ramadhan',
+    'RAMADHAN': 'Infaq Ramadhan',
+  };
+  const result: string[] = [];
+  const seen = new Set<string>();
+  for (const k of keywords) {
+    const name = mapping[k];
+    if (name && !seen.has(name)) {
+      result.push(name);
+      seen.add(name);
+    }
+  }
+  return result;
+}
 
 export default function ImportPage() {
   const { toast } = useToast();
@@ -34,6 +69,13 @@ export default function ImportPage() {
   const [filterDateFrom, setFilterDateFrom] = useState('');
   const [filterDateTo, setFilterDateTo] = useState('');
   const [importProgress, setImportProgress] = useState<{ current: number; total: number; succeeded: number } | null>(null);
+
+  // Split editing state — ephemeral draft working set while user edits
+  // a SETOR TUNAI row. `null` = no split form open.
+  const [splitEditing, setSplitEditing] = useState<{
+    rowKey: string;
+    drafts: SplitDraftRow[];
+  } | null>(null);
 
   // Resolve rekening ID for the selected bank
   const rekeningId = useMemo(() => {
@@ -139,44 +181,198 @@ export default function ImportPage() {
     }));
   }, [kategoris]);
 
-  // --- Split logic ---
-  const addSplitRow = useCallback((parentKey: string) => {
-    setRows((prev) => prev.map((r) => {
-      if (r.key !== parentKey) return r;
-      const existing = r.splitRows || [];
-      const newSplit: SplitRow = {
-        key: `${parentKey}-split-${existing.length + 1}`,
-        kategori_id: r.kategori_id,
-        kategoriLabel: r.kategoriLabel,
+  // --- Split logic (SETOR TUNAI) ---
+
+  /** Open split form for a row. Pre-fills drafts based on detected keywords. */
+  const openSplitForm = useCallback((rowKey: string) => {
+    const row = rows.find((r) => r.key === rowKey);
+    if (!row) return;
+
+    const prefillNames = buildPrefillKategoriNames(row.detectedKeywords);
+    // Pre-fill rows — at least 2 (user will adjust jumlah)
+    const initialNames = prefillNames.length >= 2 ? prefillNames : [...prefillNames, ''];
+    if (initialNames.length === 0) initialNames.push('', '');
+
+    const drafts: SplitDraftRow[] = initialNames.map((nama, idx) => {
+      const kat = nama
+        ? kategoris.find(
+            (k) => k.nama === nama && k.jenis === row.jenis
+          )
+        : undefined;
+      return {
+        key: `${rowKey}-draft-${idx}`,
+        kategori_id: kat?.id || '',
         jumlah: 0,
+        deskripsi: row.keterangan,
       };
-      return { ...r, splitRows: [...existing, newSplit] };
-    }));
+    });
+
+    setSplitEditing({ rowKey, drafts });
+  }, [rows, kategoris]);
+
+  /** Close form without saving */
+  const closeSplitForm = useCallback(() => setSplitEditing(null), []);
+
+  /** Add empty draft row */
+  const addDraftRow = useCallback(() => {
+    setSplitEditing((prev) => {
+      if (!prev) return prev;
+      const newDraft: SplitDraftRow = {
+        key: `${prev.rowKey}-draft-${prev.drafts.length + Date.now()}`,
+        kategori_id: '',
+        jumlah: 0,
+        deskripsi: '',
+      };
+      return { ...prev, drafts: [...prev.drafts, newDraft] };
+    });
   }, []);
 
-  const updateSplitRow = useCallback((parentKey: string, splitKey: string, field: 'kategori_id' | 'jumlah', value: string | number) => {
-    setRows((prev) => prev.map((r) => {
-      if (r.key !== parentKey || !r.splitRows) return r;
+  const removeDraftRow = useCallback((draftKey: string) => {
+    setSplitEditing((prev) => {
+      if (!prev) return prev;
       return {
-        ...r,
-        splitRows: r.splitRows.map((s) => {
-          if (s.key !== splitKey) return s;
-          if (field === 'kategori_id') {
-            const kat = kategoris.find((k) => k.id === value);
-            return { ...s, kategori_id: value as string, kategoriLabel: kat?.nama || '' };
-          }
-          return { ...s, jumlah: typeof value === 'number' ? value : parseInt(String(value).replace(/[^\d]/g, ''), 10) || 0 };
-        }),
+        ...prev,
+        drafts: prev.drafts.filter((d) => d.key !== draftKey),
       };
-    }));
-  }, [kategoris]);
+    });
+  }, []);
 
-  const removeSplitRow = useCallback((parentKey: string, splitKey: string) => {
-    setRows((prev) => prev.map((r) => {
-      if (r.key !== parentKey || !r.splitRows) return r;
-      const updated = r.splitRows.filter((s) => s.key !== splitKey);
-      return { ...r, splitRows: updated.length > 0 ? updated : undefined, status: updated.length > 0 ? 'split' : 'split' };
-    }));
+  const updateDraftRow = useCallback(
+    (draftKey: string, field: 'kategori_id' | 'jumlah' | 'deskripsi', value: string | number) => {
+      setSplitEditing((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          drafts: prev.drafts.map((d) => {
+            if (d.key !== draftKey) return d;
+            if (field === 'jumlah') {
+              const num =
+                typeof value === 'number'
+                  ? value
+                  : parseInt(String(value).replace(/[^\d]/g, ''), 10) || 0;
+              return { ...d, jumlah: num };
+            }
+            return { ...d, [field]: value as string };
+          }),
+        };
+      });
+    },
+    []
+  );
+
+  /**
+   * Save split — replace the original row in rows[] with N split-child rows.
+   * Each child carries `splitParent` so we can undo later.
+   */
+  const saveSplit = useCallback(() => {
+    if (!splitEditing) return;
+    const { rowKey, drafts } = splitEditing;
+
+    const original = rows.find((r) => r.key === rowKey);
+    if (!original) return;
+
+    // Validation: total must match, all drafts must have kategori & jumlah > 0
+    const total = drafts.reduce((s, d) => s + d.jumlah, 0);
+    if (total !== original.jumlah) {
+      toast(
+        `Total split (${formatRupiah(total)}) tidak sama dengan nominal asli (${formatRupiah(original.jumlah)})`,
+        'error'
+      );
+      return;
+    }
+    if (drafts.some((d) => !d.kategori_id || d.jumlah <= 0)) {
+      toast('Setiap baris split harus punya kategori dan jumlah > 0', 'error');
+      return;
+    }
+
+    // Snapshot the original row for undo
+    const originalSnapshot = {
+      tanggal: original.tanggal,
+      keterangan: original.keterangan,
+      jumlah: original.jumlah,
+      jenis: original.jenis,
+      kategori_id: original.kategori_id,
+      status: original.status,
+      kategoriLabel: original.kategoriLabel,
+      reviewSuggestion: original.reviewSuggestion,
+      isCashDeposit: original.isCashDeposit,
+      detectedKeywords: original.detectedKeywords,
+      key: original.key,
+      isDuplicate: original.isDuplicate,
+    };
+
+    const children: ImportRow[] = drafts.map((d, idx) => {
+      const kat = kategoris.find((k) => k.id === d.kategori_id);
+      return {
+        key: `${rowKey}-split-${idx + 1}`,
+        tanggal: original.tanggal,
+        keterangan: d.deskripsi || original.keterangan,
+        jumlah: d.jumlah,
+        jenis: original.jenis,
+        kategori_id: d.kategori_id,
+        kategoriLabel: kat?.nama || '',
+        status: 'auto',
+        isDuplicate: false,
+        splitParent: {
+          originalKey: rowKey,
+          originalData: originalSnapshot,
+          splitIndex: idx + 1,
+          splitCount: drafts.length,
+        },
+      };
+    });
+
+    // Replace the original row with all children, preserving position
+    setRows((prev) => {
+      const idx = prev.findIndex((r) => r.key === rowKey);
+      if (idx === -1) return prev;
+      return [...prev.slice(0, idx), ...children, ...prev.slice(idx + 1)];
+    });
+    setSplitEditing(null);
+    toast(`Split menjadi ${children.length} baris`);
+  }, [splitEditing, rows, kategoris, toast]);
+
+  /**
+   * Undo split — restore the original row. Finds all rows sharing the same
+   * splitParent.originalKey and replaces them with the restored original.
+   */
+  const undoSplit = useCallback((originalKey: string) => {
+    setRows((prev) => {
+      const children = prev.filter((r) => r.splitParent?.originalKey === originalKey);
+      if (children.length === 0) return prev;
+      const snapshot = children[0].splitParent!.originalData;
+      const firstIdx = prev.findIndex((r) => r.splitParent?.originalKey === originalKey);
+      const restored: ImportRow = {
+        ...snapshot,
+        // Ensure it comes back in SETOR TUNAI split-pending state
+        status: 'split',
+      };
+      return [
+        ...prev.slice(0, firstIdx).filter((r) => r.splitParent?.originalKey !== originalKey),
+        restored,
+        ...prev.slice(firstIdx + 1).filter((r) => r.splitParent?.originalKey !== originalKey),
+      ];
+    });
+    toast('Split dibatalkan');
+  }, [toast]);
+
+  /**
+   * "Tidak Split" — convert SETOR TUNAI row from split-pending to single
+   * review row so user can pick one kategori.
+   */
+  const convertToSingleRow = useCallback((rowKey: string) => {
+    setRows((prev) =>
+      prev.map((r) => {
+        if (r.key !== rowKey) return r;
+        return {
+          ...r,
+          status: 'review',
+          reviewSuggestion:
+            'Setor tunai — pilih kategori manual (tidak di-split)',
+        };
+      })
+    );
+    setSplitEditing((prev) => (prev?.rowKey === rowKey ? null : prev));
   }, []);
 
   // Filtered rows by date range
@@ -201,23 +397,26 @@ export default function ImportPage() {
     const total = filtered.length;
     const auto = filtered.filter((r) => r.status === 'auto').length;
     const review = filtered.filter((r) => r.status === 'review').length;
-    const split = filtered.filter((r) => r.status === 'split').length;
+    // "Perlu Split" = SETOR TUNAI yang belum dihandle (status=split & bukan child)
+    const split = filtered.filter((r) => r.status === 'split' && !r.splitParent).length;
     const duplicates = filtered.filter((r) => r.isDuplicate).length;
     return { total, auto, review, split, duplicates };
   }, [rows, filterDateFrom, filterDateTo]);
 
-  // Check if all filtered rows are ready to import
+  // Count of SETOR TUNAI rows that are still pending split — akan di-skip saat import
+  const unhandledSplitCount = useMemo(
+    () =>
+      filteredRows.filter((r) => r.status === 'split' && !r.splitParent).length,
+    [filteredRows]
+  );
+
+  // Check if ANY filtered row is ready to import (unhandled splits di-skip)
   const canImport = useMemo(() => {
-    if (filteredRows.length === 0) return false;
-    return filteredRows.every((r) => {
-      if (r.status === 'split' && r.splitRows && r.splitRows.length > 0) {
-        // All splits must have kategori and jumlah, and total must match
-        const splitsValid = r.splitRows.every((s) => s.kategori_id && s.jumlah > 0);
-        const totalSplit = r.splitRows.reduce((sum, s) => sum + s.jumlah, 0);
-        return splitsValid && totalSplit === r.jumlah;
-      }
-      return r.kategori_id !== '';
-    });
+    const importable = filteredRows.filter(
+      (r) => !(r.status === 'split' && !r.splitParent)
+    );
+    if (importable.length === 0) return false;
+    return importable.every((r) => r.kategori_id !== '');
   }, [filteredRows]);
 
   // Handle import — chunked, with progress and partial-success reporting
@@ -230,8 +429,9 @@ export default function ImportPage() {
     setImporting(true);
     setImportResult(null);
     try {
-      // Build items: expand split rows. Format tanggal as "YYYY-MM-DD 00:00:00"
-      // (SKM convention for imported transactions).
+      // Build items. Unhandled SETOR TUNAI (status='split' tanpa splitParent)
+      // di-skip. Split-children sudah punya kategori_id + jumlah sendiri.
+      // Format tanggal as "YYYY-MM-DD 00:00:00" (SKM convention).
       const items: { tanggal: string; jenis: TransaksiJenis; kategori_id: string; deskripsi: string; jumlah: number; rekening_id: string }[] = [];
       const formatTanggalForImport = (t: string) => {
         const datePart = t.slice(0, 10);
@@ -239,28 +439,18 @@ export default function ImportPage() {
       };
 
       for (const row of filteredRows) {
+        // Skip SETOR TUNAI yang belum di-split
+        if (row.status === 'split' && !row.splitParent) continue;
+
         const tanggal = formatTanggalForImport(row.tanggal);
-        if (row.status === 'split' && row.splitRows && row.splitRows.length > 0) {
-          for (const split of row.splitRows) {
-            items.push({
-              tanggal,
-              jenis: row.jenis,
-              kategori_id: split.kategori_id,
-              deskripsi: `${row.keterangan} [Split: ${split.kategoriLabel}]`,
-              jumlah: split.jumlah,
-              rekening_id: rekeningId,
-            });
-          }
-        } else {
-          items.push({
-            tanggal,
-            jenis: row.jenis,
-            kategori_id: row.kategori_id,
-            deskripsi: row.keterangan,
-            jumlah: row.jumlah,
-            rekening_id: rekeningId,
-          });
-        }
+        items.push({
+          tanggal,
+          jenis: row.jenis,
+          kategori_id: row.kategori_id,
+          deskripsi: row.keterangan,
+          jumlah: row.jumlah,
+          rekening_id: rekeningId,
+        });
       }
 
       // Chunk into batches of 100 — keeps each request well under serverless
@@ -329,6 +519,7 @@ export default function ImportPage() {
     setImportResult(null);
     setFilterDateFrom('');
     setFilterDateTo('');
+    setSplitEditing(null);
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
@@ -484,10 +675,16 @@ export default function ImportPage() {
                       row={row}
                       kategoris={kategoris}
                       highlightRegex={row.jenis === TransaksiJenis.MASUK ? highlightRegex.masuk : highlightRegex.keluar}
+                      splitEditing={splitEditing}
                       onKategoriChange={updateRowKategori}
-                      onAddSplit={addSplitRow}
-                      onUpdateSplit={updateSplitRow}
-                      onRemoveSplit={removeSplitRow}
+                      onOpenSplit={openSplitForm}
+                      onCloseSplit={closeSplitForm}
+                      onAddDraft={addDraftRow}
+                      onRemoveDraft={removeDraftRow}
+                      onUpdateDraft={updateDraftRow}
+                      onSaveSplit={saveSplit}
+                      onUndoSplit={undoSplit}
+                      onConvertToSingle={convertToSingleRow}
                     />
                   ))}
                 </TableBody>
@@ -497,13 +694,19 @@ export default function ImportPage() {
 
           {/* Confirm button + progress */}
           <div className="mt-4 space-y-2">
+            {unhandledSplitCount > 0 && (
+              <div className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                ⚠ {unhandledSplitCount} transaksi SETOR TUNAI belum di-split dan akan di-skip saat import.
+                Klik badge <span className="font-semibold">Split</span> pada baris tersebut untuk memecah kategori.
+              </div>
+            )}
             <div className="flex gap-3 items-center">
               <Button onClick={handleImport} disabled={importing || !canImport}>
                 {importing
                   ? (importProgress
                     ? `Mengimport batch ${importProgress.current}/${importProgress.total}...`
                     : 'Mengimport...')
-                  : `Konfirmasi Import (${filteredRows.length} transaksi)`}
+                  : `Konfirmasi Import (${filteredRows.length - unhandledSplitCount} transaksi)`}
               </Button>
               {!canImport && !importing && (
                 <span className="text-sm text-amber-600">Semua transaksi harus memiliki kategori sebelum import.</span>
@@ -588,35 +791,88 @@ interface RowGroupProps {
   row: ImportRow;
   kategoris: Kategori[];
   highlightRegex: RegExp | null;
+  splitEditing: { rowKey: string; drafts: SplitDraftRow[] } | null;
   onKategoriChange: (key: string, kategori_id: string) => void;
-  onAddSplit: (parentKey: string) => void;
-  onUpdateSplit: (parentKey: string, splitKey: string, field: 'kategori_id' | 'jumlah', value: string | number) => void;
-  onRemoveSplit: (parentKey: string, splitKey: string) => void;
+  onOpenSplit: (rowKey: string) => void;
+  onCloseSplit: () => void;
+  onAddDraft: () => void;
+  onRemoveDraft: (draftKey: string) => void;
+  onUpdateDraft: (draftKey: string, field: 'kategori_id' | 'jumlah' | 'deskripsi', value: string | number) => void;
+  onSaveSplit: () => void;
+  onUndoSplit: (originalKey: string) => void;
+  onConvertToSingle: (rowKey: string) => void;
 }
 
-const RowGroup = memo(function RowGroup({ row, kategoris, highlightRegex, onKategoriChange, onAddSplit, onUpdateSplit, onRemoveSplit }: RowGroupProps) {
+const RowGroup = memo(function RowGroup({
+  row,
+  kategoris,
+  highlightRegex,
+  splitEditing,
+  onKategoriChange,
+  onOpenSplit,
+  onCloseSplit,
+  onAddDraft,
+  onRemoveDraft,
+  onUpdateDraft,
+  onSaveSplit,
+  onUndoSplit,
+  onConvertToSingle,
+}: RowGroupProps) {
   const [expanded, setExpanded] = useState(false);
 
+  const isFormOpen = splitEditing?.rowKey === row.key;
+  const isSplitChild = !!row.splitParent;
+  const isSplitPending = row.status === 'split' && !row.splitParent;
+  const showLargeMasukCue =
+    row.jenis === TransaksiJenis.MASUK && row.jumlah > LARGE_MASUK_THRESHOLD;
+
   const statusBadge = () => {
-    if (row.isDuplicate) return <span className="inline-flex items-center gap-1 text-xs font-medium text-red-700 bg-red-50 px-2 py-0.5 rounded-full">Duplikat</span>;
-    if (row.status === 'auto') return <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full">Auto</span>;
-    if (row.status === 'split') return <span className="inline-flex items-center gap-1 text-xs font-medium text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full">Perlu Split</span>;
-    return <span className="inline-flex items-center gap-1 text-xs font-medium text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full">Review</span>;
+    if (row.isDuplicate) {
+      return (
+        <span className="inline-flex items-center gap-1 text-xs font-medium text-red-700 bg-red-50 px-2 py-0.5 rounded-full">
+          Duplikat
+        </span>
+      );
+    }
+    if (isSplitChild) {
+      const info = row.splitParent!;
+      return (
+        <span className="inline-flex items-center gap-1 text-xs font-medium text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full">
+          Split {info.splitIndex}/{info.splitCount}
+        </span>
+      );
+    }
+    if (isSplitPending) {
+      return (
+        <button
+          type="button"
+          onClick={() => onOpenSplit(row.key)}
+          title="Klik untuk split ke beberapa kategori"
+          className="inline-flex items-center gap-1 text-xs font-medium text-amber-800 bg-amber-100 ring-1 ring-inset ring-amber-600/20 px-2 py-0.5 rounded-full hover:bg-amber-200 cursor-pointer"
+        >
+          Split
+        </button>
+      );
+    }
+    if (row.status === 'auto') {
+      return (
+        <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full">
+          Auto
+        </span>
+      );
+    }
+    return (
+      <span className="inline-flex items-center gap-1 text-xs font-medium text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full">
+        Review
+      </span>
+    );
   };
 
-  const splitTotal = row.splitRows?.reduce((s, r) => s + r.jumlah, 0) || 0;
-  const hasSplits = row.splitRows && row.splitRows.length > 0;
   const isReview = row.status === 'review' && !row.kategori_id;
-
-  // Format helper for split jumlah input
-  const formatDots = (value: string) => {
-    const digits = value.replace(/[^\d]/g, '');
-    return digits.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
-  };
 
   return (
     <>
-      <TableRow className={row.isDuplicate ? 'bg-red-50' : undefined}>
+      <TableRow className={row.isDuplicate ? 'bg-red-50' : (isSplitChild ? 'bg-blue-50/40' : undefined)}>
         <TableCell className="whitespace-nowrap text-sm align-top">{formatTanggal(row.tanggal)}</TableCell>
         <TableCell className="max-w-[280px] text-sm align-top">
           <button
@@ -627,24 +883,46 @@ const RowGroup = memo(function RowGroup({ row, kategoris, highlightRegex, onKate
           >
             <HighlightedText text={row.keterangan} regex={highlightRegex} />
           </button>
+          {isSplitChild && (
+            <p className="mt-0.5 text-[11px] text-blue-600 leading-snug">
+              Split {row.splitParent!.splitIndex} dari {row.splitParent!.splitCount}
+            </p>
+          )}
           {isReview && row.reviewSuggestion && (
             <p className="mt-0.5 text-[11px] text-gray-500 italic leading-snug">
+              ⚠ {row.reviewSuggestion}
+            </p>
+          )}
+          {isSplitPending && row.reviewSuggestion && (
+            <p className="mt-0.5 text-[11px] text-amber-700 italic leading-snug">
               ⚠ {row.reviewSuggestion}
             </p>
           )}
         </TableCell>
         <TableCell className="align-top"><Badge label={row.jenis} /></TableCell>
         <TableCell className={`text-right font-medium whitespace-nowrap ${row.jenis === TransaksiJenis.MASUK ? 'text-emerald-600' : 'text-red-600'}`}>
-          {row.jenis === TransaksiJenis.MASUK ? '+' : '-'}{formatRupiah(row.jumlah)}
+          <span className="inline-flex items-center gap-1.5 justify-end">
+            {showLargeMasukCue && (
+              <span
+                className="inline-block w-1.5 h-1.5 rounded-full bg-amber-400"
+                title="Nominal MASUK > Rp 2.000.000 — perhatikan kategori"
+                aria-label="Nominal besar"
+              />
+            )}
+            <span>
+              {row.jenis === TransaksiJenis.MASUK ? '+' : '-'}{formatRupiah(row.jumlah)}
+            </span>
+          </span>
         </TableCell>
         <TableCell>
-          {row.status === 'split' && hasSplits ? (
-            <span className="text-xs text-blue-600">Lihat split di bawah</span>
+          {isSplitPending ? (
+            <span className="text-xs text-amber-700 italic">Perlu split — klik badge</span>
           ) : (
             <select
               value={row.kategori_id}
               onChange={(e) => onKategoriChange(row.key, e.target.value)}
               className="block w-full min-w-[140px] rounded border border-gray-300 px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-emerald-500"
+              disabled={isSplitChild}
             >
               <option value="">Pilih Kategori</option>
               {kategoris
@@ -657,63 +935,166 @@ const RowGroup = memo(function RowGroup({ row, kategoris, highlightRegex, onKate
         </TableCell>
         <TableCell>{statusBadge()}</TableCell>
         <TableCell className="text-center">
-          {row.status === 'split' && (
-            <Button variant="ghost" size="sm" onClick={() => onAddSplit(row.key)}>
-              + Split
+          {isSplitChild && row.splitParent!.splitIndex === 1 && (
+            <Button variant="ghost" size="sm" onClick={() => onUndoSplit(row.splitParent!.originalKey)}>
+              Undo Split
+            </Button>
+          )}
+          {isSplitPending && !isFormOpen && (
+            <Button variant="ghost" size="sm" onClick={() => onConvertToSingle(row.key)}>
+              Tidak Split
             </Button>
           )}
         </TableCell>
       </TableRow>
 
-      {/* Split sub-rows */}
-      {hasSplits && row.splitRows!.map((split) => (
-        <TableRow key={split.key} className="bg-blue-50/50">
-          <TableCell colSpan={3} className="text-xs text-gray-500 pl-8">Split</TableCell>
-          <TableCell className="text-right">
-            <Input
-              type="text"
-              inputMode="numeric"
-              value={split.jumlah ? formatDots(split.jumlah.toString()) : ''}
-              onChange={(e) => {
-                const val = parseInt(e.target.value.replace(/[^\d]/g, ''), 10) || 0;
-                onUpdateSplit(row.key, split.key, 'jumlah', val);
-              }}
-              className="w-28 text-xs text-right"
-              placeholder="Jumlah"
-            />
-          </TableCell>
-          <TableCell>
-            <select
-              value={split.kategori_id}
-              onChange={(e) => onUpdateSplit(row.key, split.key, 'kategori_id', e.target.value)}
-              className="block w-full min-w-[140px] rounded border border-gray-300 px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-emerald-500"
-            >
-              <option value="">Pilih Kategori</option>
-              {kategoris
-                .filter((k) => k.jenis === row.jenis)
-                .map((k) => (
-                  <option key={k.id} value={k.id}>{k.nama}</option>
-                ))}
-            </select>
-          </TableCell>
-          <TableCell />
-          <TableCell>
-            <Button variant="ghost" size="sm" onClick={() => onRemoveSplit(row.key, split.key)}>Hapus</Button>
-          </TableCell>
-        </TableRow>
-      ))}
-
-      {/* Split total validation */}
-      {hasSplits && (
-        <TableRow className="bg-blue-50/30">
-          <TableCell colSpan={3} className="text-xs text-right font-medium text-gray-600 pl-8">Total Split:</TableCell>
-          <TableCell className={`text-right text-xs font-bold ${splitTotal === row.jumlah ? 'text-emerald-600' : 'text-red-600'}`}>
-            {formatRupiah(splitTotal)} / {formatRupiah(row.jumlah)}
-            {splitTotal !== row.jumlah && <span className="ml-1">(selisih {formatRupiah(Math.abs(row.jumlah - splitTotal))})</span>}
-          </TableCell>
-          <TableCell colSpan={3} />
-        </TableRow>
+      {/* Split form row (expanded) */}
+      {isFormOpen && splitEditing && (
+        <SplitForm
+          row={row}
+          drafts={splitEditing.drafts}
+          kategoris={kategoris}
+          onAddDraft={onAddDraft}
+          onRemoveDraft={onRemoveDraft}
+          onUpdateDraft={onUpdateDraft}
+          onSave={onSaveSplit}
+          onCancel={onCloseSplit}
+        />
       )}
     </>
   );
 });
+
+// ============================================================
+// Split Form (inline expand row for SETOR TUNAI)
+// ============================================================
+
+interface SplitFormProps {
+  row: ImportRow;
+  drafts: SplitDraftRow[];
+  kategoris: Kategori[];
+  onAddDraft: () => void;
+  onRemoveDraft: (draftKey: string) => void;
+  onUpdateDraft: (draftKey: string, field: 'kategori_id' | 'jumlah' | 'deskripsi', value: string | number) => void;
+  onSave: () => void;
+  onCancel: () => void;
+}
+
+function SplitForm({
+  row,
+  drafts,
+  kategoris,
+  onAddDraft,
+  onRemoveDraft,
+  onUpdateDraft,
+  onSave,
+  onCancel,
+}: SplitFormProps) {
+  const total = drafts.reduce((s, d) => s + d.jumlah, 0);
+  const diff = row.jumlah - total;
+  const isBalanced = diff === 0;
+
+  const formatDots = (value: string) => {
+    const digits = value.replace(/[^\d]/g, '');
+    return digits.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+  };
+
+  return (
+    <TableRow className="bg-amber-50/60">
+      <TableCell colSpan={7} className="p-4">
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <h4 className="text-sm font-semibold text-gray-800">
+                Split ke beberapa kategori
+              </h4>
+              <p className="text-xs text-gray-600">
+                Total asli: <span className="font-semibold">{formatRupiah(row.jumlah)}</span>
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <Button variant="ghost" size="sm" onClick={onCancel}>Batal</Button>
+              <Button size="sm" onClick={onSave} disabled={!isBalanced}>Simpan Split</Button>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            {drafts.map((draft, idx) => (
+              <div
+                key={draft.key}
+                className="grid grid-cols-12 gap-2 items-start bg-white rounded-lg border border-gray-200 px-3 py-2"
+              >
+                <div className="col-span-12 sm:col-span-1 text-xs text-gray-500 pt-2 font-medium">
+                  #{idx + 1}
+                </div>
+                <div className="col-span-12 sm:col-span-4">
+                  <label className="block text-[10px] uppercase tracking-wide text-gray-500 mb-0.5">Kategori</label>
+                  <select
+                    value={draft.kategori_id}
+                    onChange={(e) => onUpdateDraft(draft.key, 'kategori_id', e.target.value)}
+                    className="block w-full rounded border border-gray-300 px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                  >
+                    <option value="">Pilih Kategori</option>
+                    {kategoris
+                      .filter((k) => k.jenis === row.jenis)
+                      .map((k) => (
+                        <option key={k.id} value={k.id}>{k.nama}</option>
+                      ))}
+                  </select>
+                </div>
+                <div className="col-span-6 sm:col-span-3">
+                  <label className="block text-[10px] uppercase tracking-wide text-gray-500 mb-0.5">Jumlah</label>
+                  <Input
+                    type="text"
+                    inputMode="numeric"
+                    value={draft.jumlah ? formatDots(draft.jumlah.toString()) : ''}
+                    onChange={(e) =>
+                      onUpdateDraft(draft.key, 'jumlah', e.target.value)
+                    }
+                    className="w-full text-xs text-right"
+                    placeholder="0"
+                  />
+                </div>
+                <div className="col-span-6 sm:col-span-3">
+                  <label className="block text-[10px] uppercase tracking-wide text-gray-500 mb-0.5">Deskripsi</label>
+                  <Input
+                    type="text"
+                    value={draft.deskripsi}
+                    onChange={(e) => onUpdateDraft(draft.key, 'deskripsi', e.target.value)}
+                    className="w-full text-xs"
+                    placeholder="Keterangan split"
+                  />
+                </div>
+                <div className="col-span-12 sm:col-span-1 flex sm:justify-end pt-5">
+                  {drafts.length > 1 && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => onRemoveDraft(draft.key)}
+                    >
+                      Hapus
+                    </Button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="flex items-center justify-between pt-1">
+            <Button variant="ghost" size="sm" onClick={onAddDraft}>
+              + Tambah Baris
+            </Button>
+            <div className={`text-xs font-semibold ${isBalanced ? 'text-emerald-600' : 'text-red-600'}`}>
+              Total: {formatRupiah(total)} / {formatRupiah(row.jumlah)}
+              {!isBalanced && (
+                <span className="ml-1 font-normal">
+                  (selisih {formatRupiah(Math.abs(diff))})
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+      </TableCell>
+    </TableRow>
+  );
+}

@@ -68,6 +68,10 @@ export interface CategorizedRow {
   kategoriLabel: string;
   /** Optional suggestion text for status='review' rows */
   reviewSuggestion?: string;
+  /** True when row is SETOR TUNAI and must be split by user */
+  isCashDeposit?: boolean;
+  /** Keywords detected in keterangan, used to pre-fill split form */
+  detectedKeywords?: string[];
 }
 
 export interface ImportRow extends CategorizedRow {
@@ -75,13 +79,35 @@ export interface ImportRow extends CategorizedRow {
   key: string;
   /** Whether this row is a duplicate of existing data */
   isDuplicate: boolean;
-  /** Split sub-rows (for SETOR TUNAI etc.) */
-  splitRows?: SplitRow[];
+  /**
+   * If this row is a child of a split operation, this holds the info needed
+   * to undo the split (restore the original row) and display split-child UI.
+   */
+  splitParent?: SplitParentInfo;
 }
 
-export interface SplitRow {
+/**
+ * Saved on each split-child ImportRow so the UI can show "split of …" label
+ * and support undo back to the original row.
+ */
+export interface SplitParentInfo {
+  /** React key of the original (pre-split) row */
+  originalKey: string;
+  /** Snapshot of the original row, restored on Undo */
+  originalData: CategorizedRow & { key: string; isDuplicate: boolean };
+  /** Index of this child within the split (1-based, for display) */
+  splitIndex: number;
+  /** Total number of splits created from the original */
+  splitCount: number;
+}
+
+/**
+ * Working draft row used inside the Split form. Does NOT participate in
+ * the main rows[] state until user clicks Simpan.
+ */
+export interface SplitDraftRow {
   key: string;
   kategori_id: string;
-  kategoriLabel: string;
   jumlah: number;
+  deskripsi: string;
 }

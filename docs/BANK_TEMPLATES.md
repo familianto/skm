@@ -137,26 +137,40 @@ dengan suggestion `Kategori "X" belum ada di sheet — buat dulu di halaman Kate
 
 ### Pattern Rules
 
-**MASUK (Kredit) — first-match-wins:**
+**SETOR TUNAI (Step 0 — selalu SPLIT):**
 
-| Pattern | Kategori | Status |
-|---------|----------|--------|
-| `PURCHASE QRIS ACQ` / `MERCHANT QRIS` | Infaq & Sedekah | Auto |
-| `SETORAN INFAQ` + `TARAWIH` | Infaq Ramadhan | Auto |
-| `SETORAN` + `ZAKAT MAL` | Infaq Ramadhan | Review (setoran campuran) |
-| `SETORAN INFAQ PER PEKAN` (no tarawih/ramadhan/zakat) | Infaq Jumat | Auto |
-| `SETOR TUNAI` + `KARPET`/`WAKAF`/`WAQAF` | Donasi & Wakaf Pembangunan | Auto |
-| `SETOR TUNAI` + `ZAKAT` | Zakat Mal | Auto |
-| `SETOR TUNAI` (fallback) | Donasi Sosial | Review |
-| `CDT TRF BENFC BIFAST/BERSAMA` + `KARPET`/`WAKAF`/`WAQAF` | Donasi & Wakaf Pembangunan | Auto |
-| `CDT TRF BENFC BIFAST/BERSAMA` (umum) | Infaq & Sedekah | Auto |
-| `INTERNAL TRANSFER MOBILE BANKING` + `KARPET`/`WAKAF`/`WAQAF` | Donasi & Wakaf Pembangunan | Auto |
-| `INTERNAL TRANSFER MOBILE BANKING` + `ZAKAT` | Zakat Mal | Auto |
-| `INTERNAL TRANSFER MOBILE BANKING` + `TPQ`/`Fatih` | Lain-lain Masuk | Auto |
-| `INTERNAL TRANSFER MOBILE BANKING` + `Infaq`/`Infak` | Infaq & Sedekah | Auto |
-| `INTERNAL TRANSFER MOBILE BANKING` (umum) | Infaq & Sedekah | Review |
-| `FLIPTECH` + `TPQ` | Lain-lain Masuk | Auto |
-| `FLIPTECH` + `zakat` | Zakat Mal | Auto |
+Transaksi kredit yang mengandung `SETOR TUNAI` **tidak pernah** di-auto-map.
+`categorize()` akan mengembalikan row dengan `status='split'`,
+`isCashDeposit=true`, dan `detectedKeywords=[…]` (keyword yang terdeteksi
+di keterangan, urut berdasarkan posisi kemunculan). UI Import akan
+menampilkan badge **Split** berwarna amber yang bisa diklik user untuk
+membuka Split form. Lihat bagian [SETOR TUNAI Flow](#setor-tunai-flow)
+di bawah.
+
+**MASUK (Kredit) — Part D priority order, first-match-wins:**
+
+| # | Pattern | Kategori | Status |
+|---|---------|----------|--------|
+| 1 | `PURCHASE QRIS ACQ` / `MERCHANT QRIS` | Infaq & Sedekah | Auto |
+| 2 | `SETORAN INFAQ` + `TARAWIH` | Infaq Ramadhan | Auto |
+| 3 | `SETORAN` + `ZAKAT MA+L+` (MAL/MAAL/MALL) | Infaq Ramadhan | Review (setoran campuran) |
+| 4 | `CDT TRF BENFC BIFAST/BERSAMA` + `KARPET`/`WAKAF`/`WAQAF` | Donasi & Wakaf Pembangunan | Auto |
+| 5 | `CDT TRF BENFC BIFAST/BERSAMA` (umum) | Infaq & Sedekah | Auto |
+| 6 | `INTERNAL TRANSFER MOBILE BANKING` + `KARPET`/`WAKAF`/`WAQAF` | Donasi & Wakaf Pembangunan | Auto |
+| 7 | `INTERNAL TRANSFER MOBILE BANKING` + `ZAKAT MA+L+` | Zakat Mal | Auto |
+| 8 | `INTERNAL TRANSFER MOBILE BANKING` + `TPQ`/`Fatih` | Lain-lain Masuk | Auto |
+| 9 | `INTERNAL TRANSFER MOBILE BANKING` + `Infaq`/`Infak` | Infaq & Sedekah | Auto |
+| 10 | `INTERNAL TRANSFER MOBILE BANKING` (umum) | Infaq & Sedekah | Review |
+| 11 | `FLIPTECH` + `TPQ` | Lain-lain Masuk | Auto |
+| 12 | `FLIPTECH` + `zakat` | Zakat Mal | Auto |
+| 13 | `(SETORAN )?(INFAQ\|INFAK) PER PEKAN` / `PER PEKAN (INFAQ\|INFAK)` / `SETORAN PER PEKAN` (tanpa tarawih/ramadhan/zakat) | Infaq Jumat | Auto |
+| 14 | Sisanya (catch-all) | Lain-lain Masuk | Review |
+
+Catatan regex Part B:
+- **Infaq Jumat (Fix 1)** — regex baru menangkap 4 varian: `SETORAN INFAQ PER PEKAN`,
+  `INFAQ PER PEKAN`, `PER PEKAN / INFAQ`, dan `SETORAN PER PEKAN`.
+- **Zakat Mal (Fix 2)** — regex `/ZAKAT\s+MA+L+/i` menangkap `ZAKAT MAL`,
+  `ZAKAT MAAL`, dan `ZAKAT MALL`.
 
 **KELUAR (Debit) — first-match-wins:**
 
@@ -196,20 +210,56 @@ dengan suggestion `Kategori "X" belum ada di sheet — buat dulu di halaman Kate
 | `DBT TRF CHARGE BERSAMA` / `CHARGE DBT TRF BIFAST` / `DBT TRF CHARGE PRIMA` / `DBT TRF CHARGE` / (`BIFAST` + 2500) | Biaya Admin Bank | Auto |
 | `INTERNAL TRANSFER CMS` | — | Review |
 
-### Priority Order — SETOR TUNAI & INTERNAL TRANSFER
+### SETOR TUNAI Flow
 
-Beberapa prefix (SETOR TUNAI, CDT TRF BENFC, INTERNAL TRANSFER MOBILE
-BANKING) punya banyak kemungkinan kategori. Pattern di-cek berurutan
-(specific → generic) dengan prioritas keyword:
+**SETOR TUNAI tidak pernah di-auto-map** — user wajib memecah ke beberapa
+kategori sebelum import. Flow-nya:
 
-**SETOR TUNAI:**
-1. `KARPET` / `WAKAF` / `WAQAF` → Donasi & Wakaf Pembangunan
-2. `ZAKAT` → Zakat Mal
-3. fallback → Donasi Sosial (review)
+1. `categorize()` melihat transaksi kredit dengan `SETOR TUNAI` di
+   keterangan → set `status='split'`, `isCashDeposit=true`,
+   `detectedKeywords=[...]`.
+2. `detectCashDepositKeywords()` men-scan keterangan dan mengembalikan
+   list keyword (urut berdasar posisi kemunculan). Keyword yang
+   dideteksi:
+   - `ZAKAT MAL` — regex `/ZAKAT\s+MA+L+/i` (MAL/MAAL/MALL)
+   - `ZAKAT` — generic zakat (kalau bukan bagian dari ZAKAT MAL)
+   - `DONASI`
+   - `INFAQ` — `INFAQ`/`INFAK`
+   - `PER PEKAN`
+   - `TARAWIH`
+   - `RAMADHAN`
+   - `KARPET`
+   - `WAKAF` — `WAKAF`/`WAQAF`
+   - `PEMBANGUNAN`
+3. UI Import menampilkan badge **Split** amber yang bisa diklik.
+4. Klik badge → buka Split form (inline di bawah row). Form di-pre-fill
+   berdasar `detectedKeywords` menggunakan mapping:
+   - `ZAKAT MAL` / `ZAKAT` → `Zakat Mal`
+   - `KARPET` / `WAKAF` / `PEMBANGUNAN` → `Donasi & Wakaf Pembangunan`
+   - `DONASI` → `Donasi Sosial`
+   - `INFAQ` / `PER PEKAN` → `Infaq Jumat`
+     - **Override**: jika ada `TARAWIH`/`RAMADHAN` di detectedKeywords,
+       berubah jadi `Infaq Ramadhan`
+   - `TARAWIH` / `RAMADHAN` → `Infaq Ramadhan`
+5. User mengisi kategori + jumlah + deskripsi per baris. Total split
+   harus **persis sama** dengan nominal asli.
+6. **Simpan Split** → row asli diganti dengan N baris child. Setiap
+   child punya `splitParent` (berisi snapshot row asli) untuk Undo.
+7. **Undo Split** → restore row asli dari snapshot.
+8. **Tidak Split** → ubah row jadi single review (user pilih 1
+   kategori manual).
+9. Saat import, baris `status='split'` **tanpa** `splitParent` akan
+   di-skip dengan warning di atas tombol Konfirmasi Import. Baris
+   child import normal (masing-masing jadi 1 transaksi).
+
+### Priority Order — INTERNAL TRANSFER & CDT TRF BENFC
+
+Beberapa prefix punya banyak kemungkinan kategori. Pattern di-cek
+berurutan (specific → generic) dengan prioritas keyword:
 
 **INTERNAL TRANSFER MOBILE BANKING:**
 1. `KARPET` / `WAKAF` / `WAQAF` → Donasi & Wakaf Pembangunan
-2. `ZAKAT` → Zakat Mal
+2. `ZAKAT MA+L+` (MAL/MAAL/MALL) → Zakat Mal
 3. `TPQ` / `Fatih` → Lain-lain Masuk
 4. `Infaq` / `Infak` → Infaq & Sedekah
 5. fallback → Infaq & Sedekah (review)
@@ -217,6 +267,18 @@ BANKING) punya banyak kemungkinan kategori. Pattern di-cek berurutan
 **CDT TRF BENFC (BIFAST/BERSAMA):**
 1. `KARPET` / `WAKAF` / `WAQAF` → Donasi & Wakaf Pembangunan
 2. fallback → Infaq & Sedekah
+
+### Visual Cues di UI Import
+
+- **Amber dot (6px)** di samping nominal untuk setiap transaksi MASUK
+  dengan jumlah > Rp 2.000.000 — mengingatkan user untuk memeriksa
+  kategori karena nominal besar mungkin perlu perhatian ekstra.
+- **Amber "Split" badge** — clickable untuk membuka Split form pada
+  SETOR TUNAI yang belum ditangani. Selain tombol itu, tombol
+  **Tidak Split** memungkinkan user melewati split dan memilih 1
+  kategori manual.
+- **Blue "Split N/M" badge** pada row split-child; tombol **Undo Split**
+  muncul di child pertama untuk mengembalikan ke row asli.
 
 ### Nomor Rekening
 
