@@ -105,6 +105,9 @@ async function runCheck(items: CheckItem[]): Promise<CheckDuplicatesResponse> {
         const arr = splitMap.get(base) || [];
         arr.push(id);
         splitMap.set(base, arr);
+        // Also index the exact split ref so individual children can be
+        // detected when the same CSV is re-split and re-imported.
+        exactMap.set(bankRef, id);
       } else {
         exactMap.set(bankRef, id);
       }
