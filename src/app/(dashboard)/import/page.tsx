@@ -96,7 +96,7 @@ export default function ImportPage() {
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const banks = useMemo(() => getAvailableBanks(), []);
-  const { data: kategoris, loading: kategoriLoading } = useKategori();
+  const { data: kategoris } = useKategori();
   const { data: rekenings } = useRekening();
   const { data: existingTransaksis } = useTransaksi();
 
@@ -221,20 +221,35 @@ export default function ImportPage() {
     }
 
     // Fetch categories fresh — don't rely on hook state which may be empty
-    // due to race condition, silent fetch failure, or stale closure
-    let freshKategoris: Kategori[] = kategoris;
+    // due to race condition, silent fetch failure, or stale closure.
+    // Use AbortController with 15s timeout to prevent hanging.
+    let freshKategoris: Kategori[] = [];
+    const controller = new AbortController();
+    const fetchTimeout = setTimeout(() => controller.abort(), 15_000);
     try {
-      const res = await fetch('/api/kategori');
+      const res = await fetch('/api/kategori', { signal: controller.signal });
+      if (!res.ok) {
+        console.error('CSV Import: /api/kategori returned', res.status, res.statusText);
+      }
       const json: ApiResponse<Kategori[]> = await res.json();
       if (json.success && json.data && json.data.length > 0) {
         freshKategoris = json.data;
+      } else if (!json.success) {
+        console.error('CSV Import: /api/kategori error:', json.error);
       }
-    } catch {
-      // Fallback to hook state
+    } catch (err) {
+      console.error('CSV Import: fetch /api/kategori failed:', err instanceof Error ? err.message : err);
+    } finally {
+      clearTimeout(fetchTimeout);
+    }
+
+    // Fallback to hook state if fresh fetch failed
+    if (freshKategoris.length === 0 && kategoris.length > 0) {
+      freshKategoris = kategoris;
     }
 
     if (freshKategoris.length === 0) {
-      toast('Gagal memuat data kategori — coba refresh halaman', 'error');
+      toast('Gagal memuat data kategori. Pastikan koneksi internet stabil lalu refresh halaman.', 'error');
       // Reset file input so user can retry
       e.target.value = '';
       return;
@@ -872,16 +887,13 @@ export default function ImportPage() {
             </select>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Upload CSV{kategoriLoading ? ' (memuat kategori...)' : ''}
-            </label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Upload CSV</label>
             <input
               ref={fileInputRef}
               type="file"
               accept=".csv"
               onChange={handleFileUpload}
-              disabled={kategoriLoading}
-              className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-emerald-50 file:text-emerald-700 hover:file:bg-emerald-100 disabled:opacity-50"
+              className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-emerald-50 file:text-emerald-700 hover:file:bg-emerald-100"
             />
           </div>
           {rows.length > 0 && (
