@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { sheetsService } from '@/lib/google-sheets';
 import { SHEET_NAMES, SHEET_HEADERS } from '@/lib/constants';
 import { TransaksiJenis, TransaksiStatus } from '@/types';
-import type { ApiResponse, Transaksi } from '@/types';
+import type { ApiResponse, Transaksi, RekeningBank } from '@/types';
 
 function rowToTransaksi(row: string[]): Transaksi {
   const headers = SHEET_HEADERS[SHEET_NAMES.TRANSAKSI];
@@ -12,6 +12,17 @@ function rowToTransaksi(row: string[]): Transaksi {
     ...obj,
     jumlah: parseInt(obj.jumlah, 10) || 0,
   } as unknown as Transaksi;
+}
+
+function rowToRekening(row: string[]): RekeningBank {
+  const headers = SHEET_HEADERS[SHEET_NAMES.REKENING_BANK];
+  const obj: Record<string, string> = {};
+  headers.forEach((h, i) => { obj[h] = row[i] || ''; });
+  return {
+    ...obj,
+    saldo_awal: parseInt(obj.saldo_awal, 10) || 0,
+    is_active: obj.is_active === 'TRUE',
+  } as unknown as RekeningBank;
 }
 
 export interface YearlyTrendItem {
@@ -43,10 +54,14 @@ export interface CumulativeDashboard {
 
 export async function GET() {
   try {
-    const [transaksiRows, kategoriRows] = await sheetsService.batchGet([
+    const [transaksiRows, kategoriRows, rekeningRows] = await sheetsService.batchGet([
       `${SHEET_NAMES.TRANSAKSI}!A2:ZZ`,
       `${SHEET_NAMES.KATEGORI}!A2:ZZ`,
+      `${SHEET_NAMES.REKENING_BANK}!A2:ZZ`,
     ]);
+
+    const rekeningList = rekeningRows.map(rowToRekening).filter(r => r.is_active);
+    const totalSaldoAwal = rekeningList.reduce((sum, r) => sum + r.saldo_awal, 0);
 
     const transaksis = transaksiRows
       .map(rowToTransaksi)
@@ -120,7 +135,7 @@ export async function GET() {
     const result: CumulativeDashboard = {
       totalMasuk,
       totalKeluar,
-      saldo: totalMasuk - totalKeluar,
+      saldo: totalSaldoAwal + totalMasuk - totalKeluar,
       jumlahTransaksi: transaksis.length,
       jumlahMasuk: masukTx.length,
       jumlahKeluar: keluarTx.length,

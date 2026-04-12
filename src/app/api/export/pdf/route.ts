@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { sheetsService } from '@/lib/google-sheets';
 import { SHEET_NAMES, SHEET_HEADERS } from '@/lib/constants';
 import { TransaksiJenis, TransaksiStatus } from '@/types';
-import type { Transaksi, Kategori } from '@/types';
+import type { Transaksi, Kategori, RekeningBank } from '@/types';
 import { getSession } from '@/lib/auth';
 import { formatRupiah } from '@/lib/utils';
 import { jsPDF } from 'jspdf';
@@ -20,6 +20,17 @@ function rowToKategori(row: string[]): Kategori {
   const obj: Record<string, string> = {};
   headers.forEach((h, i) => { obj[h] = row[i] || ''; });
   return { ...obj, is_active: obj.is_active === 'TRUE' } as unknown as Kategori;
+}
+
+function rowToRekening(row: string[]): RekeningBank {
+  const headers = SHEET_HEADERS[SHEET_NAMES.REKENING_BANK];
+  const obj: Record<string, string> = {};
+  headers.forEach((h, i) => { obj[h] = row[i] || ''; });
+  return {
+    ...obj,
+    saldo_awal: parseInt(obj.saldo_awal, 10) || 0,
+    is_active: obj.is_active === 'TRUE',
+  } as unknown as RekeningBank;
 }
 
 const BULAN_NAMES = [
@@ -55,17 +66,19 @@ export async function GET(request: NextRequest) {
     const kategoriList = kategoriRows.map(rowToKategori);
     const kategoriMap = new Map(kategoriList.map(k => [k.id, k.nama]));
 
+    // Parse rekening data and calculate saldo_awal
+    const rekeningList = rekeningRows.map(rowToRekening).filter(r => r.is_active);
+    const filteredRekening = rekeningId
+      ? rekeningList.filter(r => r.id === rekeningId)
+      : rekeningList;
+    const totalSaldoAwal = filteredRekening.reduce((sum, r) => sum + r.saldo_awal, 0);
+
     // Build rekening label for the chosen rekening (if any)
     let rekeningLabel = '';
-    if (rekeningId && rekeningRows.length > 0) {
-      const rekHeaders = SHEET_HEADERS[SHEET_NAMES.REKENING_BANK];
-      for (const row of rekeningRows) {
-        const obj: Record<string, string> = {};
-        rekHeaders.forEach((h, i) => { obj[h] = row[i] || ''; });
-        if (obj.id === rekeningId) {
-          rekeningLabel = `${obj.nama_bank}${obj.nomor_rekening ? ` - ${obj.nomor_rekening}` : ''}`;
-          break;
-        }
+    if (rekeningId) {
+      const rek = rekeningList.find(r => r.id === rekeningId);
+      if (rek) {
+        rekeningLabel = `${rek.nama_bank}${rek.nomor_rekening ? ` - ${rek.nomor_rekening}` : ''}`;
       }
     }
 
@@ -180,7 +193,7 @@ export async function GET(request: NextRequest) {
 
     const totalMasuk = transaksis.filter(t => t.jenis === TransaksiJenis.MASUK).reduce((s, t) => s + t.jumlah, 0);
     const totalKeluar = transaksis.filter(t => t.jenis === TransaksiJenis.KELUAR).reduce((s, t) => s + t.jumlah, 0);
-    const saldo = totalMasuk - totalKeluar;
+    const saldo = totalSaldoAwal + totalMasuk - totalKeluar;
 
     const contentStartY = kategoriFilterLines.length > 0 ? nextY : 56;
 

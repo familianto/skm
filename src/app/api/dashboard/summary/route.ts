@@ -92,6 +92,12 @@ export async function GET(request: NextRequest) {
     const totalMasuk = masukTx.reduce((sum, t) => sum + t.jumlah, 0);
     const totalKeluar = keluarTx.reduce((sum, t) => sum + t.jumlah, 0);
 
+    // Calculate total saldo_awal from active rekening (filtered by rekening if applicable)
+    const filteredRekening = rekeningId
+      ? rekeningList.filter(r => r.id === rekeningId)
+      : rekeningList;
+    const totalSaldoAwal = filteredRekening.reduce((sum, r) => sum + r.saldo_awal, 0);
+
     // Calculate saldo per rekening (all-time active transactions, no period filter)
     const aktifTransaksi = allTransaksi.filter(t => t.status === TransaksiStatus.AKTIF);
     const saldoPerRekening = rekeningList.map(rek => {
@@ -112,7 +118,7 @@ export async function GET(request: NextRequest) {
     const summary: DashboardSummary = {
       totalMasuk,
       totalKeluar,
-      saldo: totalMasuk - totalKeluar,
+      saldo: totalSaldoAwal + totalMasuk - totalKeluar,
       jumlahTransaksi: transaksis.length,
       jumlahMasuk: masukTx.length,
       jumlahKeluar: keluarTx.length,
