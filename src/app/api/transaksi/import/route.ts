@@ -18,6 +18,15 @@ const importItemSchema = z.object({
   deskripsi: z.string().min(1).max(500),
   jumlah: z.number().int().positive(),
   rekening_id: z.string().min(1),
+  /**
+   * Nomor referensi CSV bank. Optional untuk backward-compat, tapi saat
+   * import dari template bank harus dikirim supaya deteksi duplikat
+   * pada import berikutnya bisa bekerja.
+   *
+   * - CSV biasa: `<ref>` (mis. `320CHDP260060511`)
+   * - Hasil split: `<ref>_split_<N>` (mis. `320CHDP260060511_split_1`)
+   */
+  bank_ref: z.string().max(200).optional(),
 });
 
 const importBatchSchema = z.object({
@@ -55,6 +64,11 @@ export async function POST(request: NextRequest) {
     // then a single batch append. Avoids 1204 API calls for 602 items.
     // ============================================================
 
+    // Ensure the `bank_ref` column exists in the sheet header row —
+    // idempotent, no-op if already present. Protects against older
+    // spreadsheets that were created before this column existed.
+    await sheetsService.ensureColumnHeader(SHEET_NAMES.TRANSAKSI, 'bank_ref');
+
     // 1. Read existing transaksi rows once (1 API call)
     const existingRows = await sheetsService.getRows(SHEET_NAMES.TRANSAKSI);
 
@@ -71,6 +85,10 @@ export async function POST(request: NextRequest) {
     }
 
     // 3. Generate IDs in memory + build all rows
+    // Column order must match SHEET_HEADERS[TRANSAKSI]:
+    //   id, tanggal, jenis, kategori_id, deskripsi, jumlah, rekening_id,
+    //   bukti_url, status, void_reason, void_date, koreksi_dari_id,
+    //   created_by, created_at, updated_at, mutasi_ref, bank_ref
     const ids: string[] = [];
     const rowsToAppend: string[][] = items.map((item, idx) => {
       const counter = maxCounter + idx + 1;
@@ -81,6 +99,7 @@ export async function POST(request: NextRequest) {
         item.jumlah.toString(), item.rekening_id, '',
         TransaksiStatus.AKTIF, '', '', '',
         createdBy, now, now, '',
+        item.bank_ref || '',
       ];
     });
 

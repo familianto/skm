@@ -716,6 +716,7 @@ export const muamalatTemplate: BankTemplate = {
         kategori_id: '',
         status: 'split',
         kategoriLabel: '',
+        referensi: row.referensi,
         isCashDeposit: true,
         detectedKeywords: detectCashDepositKeywords(row.keterangan),
         reviewSuggestion:
@@ -757,6 +758,7 @@ export const muamalatTemplate: BankTemplate = {
         kategori_id,
         status,
         kategoriLabel: rule.kategoriName,
+        referensi: row.referensi,
         reviewSuggestion,
       };
     }
@@ -770,6 +772,7 @@ export const muamalatTemplate: BankTemplate = {
       kategori_id: '',
       status: 'review',
       kategoriLabel: '',
+      referensi: row.referensi,
       reviewSuggestion: getReviewSuggestion(row) ?? undefined,
     };
   },

@@ -102,6 +102,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       existing.created_at,
       now,
       existing.mutasi_ref || '',
+      existing.bank_ref || '',
     ];
 
     await sheetsService.updateRow(SHEET_NAMES.TRANSAKSI, result.rowIndex, updated);
@@ -133,6 +134,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
           pairExisting.created_at,
           now,
           pairExisting.mutasi_ref || '',
+          pairExisting.bank_ref || '',
         ];
         await sheetsService.updateRow(SHEET_NAMES.TRANSAKSI, pairIndex + 2, pairUpdated);
       }

@@ -90,6 +90,13 @@ export interface Transaksi {
   created_at: string;
   updated_at: string;
   mutasi_ref: string;
+  /**
+   * Nomor referensi asli dari CSV bank. Terisi saat import, kosong untuk
+   * input manual. Untuk transaksi hasil split, disimpan dengan suffix
+   * `_split_N` (mis. `320CHDP260060511_split_1`). Kolom internal — tidak
+   * ditampilkan di UI. Dipakai untuk deteksi duplikat saat import ulang.
+   */
+  bank_ref: string;
 }
 
 export interface Kategori {

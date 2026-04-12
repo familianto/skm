@@ -347,7 +347,8 @@ Batch import transaksi dari CSV rekening koran bank.
       "kategori_id": "KAT-20260406-0002",
       "deskripsi": "PURCHASE QRIS ACQ ...",
       "jumlah": 150000,
-      "rekening_id": "REK-20260101-0001"
+      "rekening_id": "REK-20260101-0001",
+      "bank_ref": "320CHDP260060511"
     }
   ]
 }
@@ -356,6 +357,12 @@ Batch import transaksi dari CSV rekening koran bank.
 **Validation:**
 - `items`: Array of 1-500 transaksi
 - Each item follows the same schema as `POST /api/transaksi`
+- `bank_ref` (optional, max 200 chars): Nomor Referensi CSV bank. Untuk
+  import dari template bank **wajib** di-isi supaya deteksi duplikat
+  pada import berikutnya bisa bekerja.
+  - CSV biasa: `<ref>`
+  - Split-child: `<ref>_split_<N>` (1-based)
+  - "Tidak Split" (split-status → review): `<ref>` tanpa suffix
 
 **Response (201):**
 ```json
@@ -369,9 +376,79 @@ Batch import transaksi dari CSV rekening koran bank.
 ```
 
 **Side Effects:**
-- Append rows ke sheet transaksi (satu per item)
+- Memanggil `ensureColumnHeader('transaksi', 'bank_ref')` — idempotent,
+  menambah kolom kalau belum ada.
+- Append rows ke sheet transaksi (satu per item) dengan `bank_ref`
+  tersimpan di kolom ke-17.
 - Tulis audit log (`CREATE`, entitas_id: `BATCH_IMPORT`)
 - Setiap transaksi mendapat ID unik `TRX-YYYYMMDD-XXXX`
+
+### `POST /api/transaksi/check-duplicates`
+
+Cek duplikat sebelum batch import dari CSV. Dipakai UI Import CSV untuk
+menampilkan SummaryDialog pre-confirmation. Deteksi hybrid dua lapis:
+
+- **Layer 1 (pasti duplikat)**: exact match atau split prefix match
+  pada kolom `bank_ref` di sheet transaksi.
+- **Layer 2 (mungkin duplikat)**: untuk baris yang tidak match Layer 1,
+  cari row existing dengan `bank_ref` kosong (input manual) dan
+  tanggal + jumlah + jenis sama.
+
+Row dengan status `VOID` diabaikan di kedua layer.
+
+**Request Body:**
+```json
+{
+  "items": [
+    {
+      "bank_ref": "320CHDP260060511",
+      "tanggal": "2026-03-28",
+      "jumlah": 150000,
+      "jenis": "MASUK"
+    }
+  ]
+}
+```
+
+**Validation:**
+- `items`: Array of 1-2000 cek items.
+- `bank_ref`: string, min 1 (untuk split-children kirim `<ref>_split_<N>`).
+- `tanggal`: `YYYY-MM-DD`.
+- `jumlah`: integer positif.
+- `jenis`: `MASUK` atau `KELUAR`.
+
+**Response (200):**
+```json
+{
+  "success": true,
+  "data": {
+    "duplicates": {
+      "320CHDP260060511": {
+        "type": "exact",
+        "transactionId": "TRX-20260328-0001"
+      },
+      "320CHDP260060612_split_1": {
+        "type": "split",
+        "transactionIds": ["TRX-20260328-0005", "TRX-20260328-0006"]
+      }
+    },
+    "possibleDuplicates": [
+      {
+        "tanggal": "2026-03-28",
+        "jumlah": 150000,
+        "jenis": "MASUK",
+        "bank_ref": "320CHDP260060711",
+        "existingTransactionId": "TRX-20260327-0002",
+        "existingDescription": "Infaq Jumat manual"
+      }
+    ]
+  }
+}
+```
+
+**Side Effects:**
+- Memanggil `ensureColumnHeader('transaksi', 'bank_ref')` (idempotent).
+- Read-only — tidak menulis ke sheet.
 
 ---
 

@@ -223,6 +223,41 @@ class GoogleSheetsService {
   }
 
   /**
+   * Ensure a specific column header exists in an existing sheet — append
+   * it at the next free column if missing. Idempotent.
+   *
+   * Dipakai untuk menambah kolom baru (mis. `bank_ref`) ke sheet yang
+   * sudah terlanjur dibuat tanpa menimpa header yang ada. Safe untuk
+   * dipanggil pada setiap request (cache hit → 1 API call).
+   */
+  async ensureColumnHeader(sheetName: string, columnName: string): Promise<void> {
+    const client = await this.getClient();
+
+    // Read the entire header row (up to column ZZ — plenty of room)
+    const response = await client.spreadsheets.values.get({
+      spreadsheetId: this.spreadsheetId,
+      range: `${sheetName}!A1:ZZ1`,
+    });
+    const headerRow = (response.data.values?.[0] as string[]) || [];
+
+    // Already present — no-op
+    if (headerRow.includes(columnName)) return;
+
+    // Append the new column header at the next free position
+    const nextIndex = headerRow.length; // 0-based
+    const colLetter = columnIndexToLetter(nextIndex);
+
+    await client.spreadsheets.values.update({
+      spreadsheetId: this.spreadsheetId,
+      range: `${sheetName}!${colLetter}1`,
+      valueInputOption: 'RAW',
+      requestBody: {
+        values: [[columnName]],
+      },
+    });
+  }
+
+  /**
    * Set up header row for a sheet (if not already present)
    */
   async setupHeaders(sheetName: string): Promise<void> {
@@ -255,6 +290,20 @@ class GoogleSheetsService {
       },
     });
   }
+}
+
+/**
+ * Convert a 0-based column index to A1-notation column letter.
+ * 0 → A, 1 → B, ..., 25 → Z, 26 → AA, 27 → AB, ...
+ */
+function columnIndexToLetter(index: number): string {
+  let n = index;
+  let letter = '';
+  while (n >= 0) {
+    letter = String.fromCharCode((n % 26) + 65) + letter;
+    n = Math.floor(n / 26) - 1;
+  }
+  return letter;
 }
 
 /**

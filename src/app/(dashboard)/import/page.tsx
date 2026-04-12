@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table';
+import { Modal } from '@/components/ui/modal';
 import { useToast } from '@/components/ui/toast';
 import { useKategori } from '@/hooks/use-kategori';
 import { useRekening } from '@/hooks/use-rekening';
@@ -20,6 +21,43 @@ import { TransaksiJenis } from '@/types';
 
 /** Ambang nominal MASUK yang memunculkan visual cue amber */
 const LARGE_MASUK_THRESHOLD = 2_000_000;
+
+// ============================================================
+// Duplicate detection types (match /api/transaksi/check-duplicates)
+// ============================================================
+
+type DuplicateEntry =
+  | { type: 'exact'; transactionId: string }
+  | { type: 'split'; transactionIds: string[] };
+
+interface PossibleDuplicateItem {
+  tanggal: string;
+  jumlah: number;
+  jenis: TransaksiJenis;
+  bank_ref: string;
+  existingTransactionId: string;
+  existingDescription: string;
+}
+
+interface CheckDuplicatesResponse {
+  duplicates: Record<string, DuplicateEntry>;
+  possibleDuplicates: PossibleDuplicateItem[];
+}
+
+/**
+ * Build the final `bank_ref` stored on sheet transaksi for an ImportRow.
+ * - Normal (non-split) row: `<referensi>`
+ * - Split-child row: `<referensi>_split_<N>` (1-based per splitIndex)
+ * - "Tidak Split" (no splitParent, even though it's a split-status row): `<referensi>`
+ */
+function buildBankRef(row: ImportRow): string {
+  const base = row.referensi || '';
+  if (!base) return '';
+  if (row.splitParent) {
+    return `${base}_split_${row.splitParent.splitIndex}`;
+  }
+  return base;
+}
 
 /**
  * Map detected SETOR TUNAI keywords → nama kategori untuk pre-fill split form.
@@ -76,6 +114,35 @@ export default function ImportPage() {
     rowKey: string;
     drafts: SplitDraftRow[];
   } | null>(null);
+
+  // Duplicate detection flow state
+  //
+  // `checkingDuplicates`: shown on the Submit button while we call
+  //   /api/transaksi/check-duplicates before opening the summary dialog.
+  // `summaryDialog`: classification result + the set of rows that made it
+  //   through to the review step. `null` = dialog closed.
+  // `possibleKeep`: map of possible-duplicate bank_ref → checked state.
+  //   Default UNCHECKED (user must opt-in to include fallback matches).
+  const [checkingDuplicates, setCheckingDuplicates] = useState(false);
+  const [summaryDialog, setSummaryDialog] = useState<{
+    totalCsv: number;
+    unhandledSplit: number;
+    duplicates: Record<string, DuplicateEntry>;
+    possibleDuplicates: PossibleDuplicateItem[];
+    // Rows that survived Layer 1 (exact/split match) — candidates for insert.
+    // Possible-duplicate rows are also in here; they're filtered at confirm
+    // time based on `possibleKeep`.
+    importableRows: ImportRow[];
+    // Rows skipped because they matched Layer 1 (exact or split), kept for
+    // display in the "Duplikat (di-skip)" collapsible section.
+    duplicateRows: Array<{
+      row: ImportRow;
+      entry: DuplicateEntry;
+    }>;
+  } | null>(null);
+  const [possibleKeep, setPossibleKeep] = useState<Record<string, boolean>>({});
+  const [showDupDetails, setShowDupDetails] = useState(false);
+  const [showPossibleDetails, setShowPossibleDetails] = useState(true);
 
   // Resolve rekening ID for the selected bank
   const rekeningId = useMemo(() => {
@@ -362,6 +429,7 @@ export default function ImportPage() {
       kategori_id: original.kategori_id,
       status: original.status,
       kategoriLabel: original.kategoriLabel,
+      referensi: original.referensi,
       reviewSuggestion: original.reviewSuggestion,
       isCashDeposit: original.isCashDeposit,
       detectedKeywords: original.detectedKeywords,
@@ -377,6 +445,10 @@ export default function ImportPage() {
         keterangan: d.deskripsi || original.keterangan,
         jumlah: d.jumlah,
         jenis: original.jenis,
+        // Preserve the original bank referensi on every child — the final
+        // `bank_ref` stored in sheet transaksi will be `<ref>_split_<N>`
+        // (composed in handleConfirmImport based on splitParent.splitIndex).
+        referensi: original.referensi,
         kategori_id: d.kategori_id,
         kategoriLabel: kat?.nama || '',
         status: 'auto',
@@ -484,99 +556,229 @@ export default function ImportPage() {
     return importable.every((r) => r.kategori_id !== '');
   }, [filteredRows]);
 
-  // Handle import — chunked, with progress and partial-success reporting
+  /**
+   * Actual insert — runs AFTER the summary dialog has been confirmed.
+   * Chunked, with progress and partial-success reporting. Each payload item
+   * carries `bank_ref` so the next import attempt can detect duplicates.
+   *
+   * `skippedDuplicates` count is used purely for the toast message.
+   */
+  const executeImport = useCallback(
+    async (rowsToImport: ImportRow[], skippedDuplicates: number) => {
+      setImporting(true);
+      setImportResult(null);
+      try {
+        // Build items. Split-children sudah punya kategori_id + jumlah sendiri.
+        // Format tanggal as "YYYY-MM-DD 00:00:00" (SKM convention).
+        const formatTanggalForImport = (t: string) => {
+          const datePart = t.slice(0, 10);
+          return `${datePart} 00:00:00`;
+        };
+
+        const items = rowsToImport.map((row) => ({
+          tanggal: formatTanggalForImport(row.tanggal),
+          jenis: row.jenis,
+          kategori_id: row.kategori_id,
+          deskripsi: row.keterangan,
+          jumlah: row.jumlah,
+          rekening_id: rekeningId,
+          bank_ref: buildBankRef(row),
+        }));
+
+        // Chunk into batches of 100 — keeps each request well under serverless
+        // timeout and Google Sheets API rate limits.
+        const CHUNK_SIZE = 100;
+        const chunks: typeof items[] = [];
+        for (let i = 0; i < items.length; i += CHUNK_SIZE) {
+          chunks.push(items.slice(i, i + CHUNK_SIZE));
+        }
+
+        let succeeded = 0;
+        let failed = 0;
+        const errors: string[] = [];
+        setImportProgress({ current: 0, total: chunks.length, succeeded: 0 });
+
+        for (let i = 0; i < chunks.length; i++) {
+          setImportProgress({ current: i + 1, total: chunks.length, succeeded });
+          try {
+            const res = await fetch('/api/transaksi/import', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ items: chunks[i] }),
+            });
+            const data = await res.json();
+            if (data.success && data.data) {
+              succeeded += data.data.imported;
+              setImportProgress({ current: i + 1, total: chunks.length, succeeded });
+            } else {
+              failed += chunks[i].length;
+              errors.push(`Batch ${i + 1}: ${data.error || `HTTP ${res.status}`}`);
+            }
+          } catch (err) {
+            failed += chunks[i].length;
+            const msg = err instanceof Error ? err.message : String(err);
+            errors.push(`Batch ${i + 1}: ${msg}`);
+          }
+
+          // Small delay between chunks to be polite to Google Sheets API
+          if (i < chunks.length - 1) {
+            await new Promise((resolve) => setTimeout(resolve, 300));
+          }
+        }
+
+        setImported(true);
+        setImportResult({ imported: succeeded, failed, errors });
+
+        const dupSuffix =
+          skippedDuplicates > 0 ? `, ${skippedDuplicates} duplikat di-skip` : '';
+
+        if (failed === 0) {
+          toast(`${succeeded} transaksi berhasil diimport${dupSuffix}`);
+        } else if (succeeded === 0) {
+          toast(`Import gagal — ${failed} transaksi tidak tersimpan`, 'error');
+        } else {
+          toast(
+            `${succeeded} berhasil, ${failed} gagal${dupSuffix} — lihat detail`,
+            'error'
+          );
+        }
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : 'Terjadi kesalahan saat import';
+        toast(msg, 'error');
+      } finally {
+        setImporting(false);
+        setImportProgress(null);
+      }
+    },
+    [rekeningId, toast]
+  );
+
+  /**
+   * Entry point for Submit button. Runs the duplicate check first, then
+   * opens the SummaryDialog. User reviews and clicks "Import X Transaksi"
+   * to actually run executeImport.
+   */
   const handleImport = async () => {
     if (!rekeningId) {
       toast('Rekening bank tidak ditemukan. Pastikan rekening Bank Muamalat sudah terdaftar.', 'error');
       return;
     }
 
-    setImporting(true);
-    setImportResult(null);
+    // Collect importable rows (skip unhandled SETOR TUNAI)
+    const importable = filteredRows.filter(
+      (r) => !(r.status === 'split' && !r.splitParent)
+    );
+    const unhandledSplit = filteredRows.length - importable.length;
+
+    if (importable.length === 0) {
+      toast('Tidak ada transaksi yang siap diimport', 'error');
+      return;
+    }
+
+    setCheckingDuplicates(true);
     try {
-      // Build items. Unhandled SETOR TUNAI (status='split' tanpa splitParent)
-      // di-skip. Split-children sudah punya kategori_id + jumlah sendiri.
-      // Format tanggal as "YYYY-MM-DD 00:00:00" (SKM convention).
-      const items: { tanggal: string; jenis: TransaksiJenis; kategori_id: string; deskripsi: string; jumlah: number; rekening_id: string }[] = [];
-      const formatTanggalForImport = (t: string) => {
-        const datePart = t.slice(0, 10);
-        return `${datePart} 00:00:00`;
-      };
+      // Build check items — one per importable row. Each carries the final
+      // `bank_ref` we would store, so Layer 1 can match exact/split history.
+      const checkItems = importable.map((row) => ({
+        bank_ref: buildBankRef(row),
+        tanggal: row.tanggal.slice(0, 10),
+        jumlah: row.jumlah,
+        jenis: row.jenis,
+      }));
 
-      for (const row of filteredRows) {
-        // Skip SETOR TUNAI yang belum di-split
-        if (row.status === 'split' && !row.splitParent) continue;
-
-        const tanggal = formatTanggalForImport(row.tanggal);
-        items.push({
-          tanggal,
-          jenis: row.jenis,
-          kategori_id: row.kategori_id,
-          deskripsi: row.keterangan,
-          jumlah: row.jumlah,
-          rekening_id: rekeningId,
-        });
+      // Guard: every row must have a non-empty bank_ref. Without it the
+      // API validator (z.string().min(1)) will reject the batch.
+      const missingRef = checkItems.some((it) => !it.bank_ref);
+      if (missingRef) {
+        toast(
+          'Beberapa baris tidak punya nomor referensi dari CSV — tidak bisa cek duplikat.',
+          'error'
+        );
+        setCheckingDuplicates(false);
+        return;
       }
 
-      // Chunk into batches of 100 — keeps each request well under serverless
-      // timeout and Google Sheets API rate limits.
-      const CHUNK_SIZE = 100;
-      const chunks: typeof items[] = [];
-      for (let i = 0; i < items.length; i += CHUNK_SIZE) {
-        chunks.push(items.slice(i, i + CHUNK_SIZE));
+      const res = await fetch('/api/transaksi/check-duplicates', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ items: checkItems }),
+      });
+      const data = await res.json();
+      if (!data.success || !data.data) {
+        toast(data.error || 'Gagal memeriksa duplikat', 'error');
+        setCheckingDuplicates(false);
+        return;
       }
 
-      let succeeded = 0;
-      let failed = 0;
-      const errors: string[] = [];
-      setImportProgress({ current: 0, total: chunks.length, succeeded: 0 });
+      const result = data.data as CheckDuplicatesResponse;
 
-      for (let i = 0; i < chunks.length; i++) {
-        setImportProgress({ current: i + 1, total: chunks.length, succeeded });
-        try {
-          const res = await fetch('/api/transaksi/import', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ items: chunks[i] }),
-          });
-          const data = await res.json();
-          if (data.success && data.data) {
-            succeeded += data.data.imported;
-            setImportProgress({ current: i + 1, total: chunks.length, succeeded });
-          } else {
-            failed += chunks[i].length;
-            errors.push(`Batch ${i + 1}: ${data.error || `HTTP ${res.status}`}`);
-          }
-        } catch (err) {
-          failed += chunks[i].length;
-          const msg = err instanceof Error ? err.message : String(err);
-          errors.push(`Batch ${i + 1}: ${msg}`);
-        }
-
-        // Small delay between chunks to be polite to Google Sheets API
-        if (i < chunks.length - 1) {
-          await new Promise((resolve) => setTimeout(resolve, 300));
-        }
+      // Classify each importable row into duplicate / candidate.
+      const duplicateRows: Array<{ row: ImportRow; entry: DuplicateEntry }> = [];
+      for (const row of importable) {
+        const ref = buildBankRef(row);
+        const entry = result.duplicates[ref];
+        if (entry) duplicateRows.push({ row, entry });
       }
 
-      setImported(true);
-      setImportResult({ imported: succeeded, failed, errors });
-
-      if (failed === 0) {
-        toast(`${succeeded} transaksi berhasil diimport`);
-      } else if (succeeded === 0) {
-        toast(`Import gagal — ${failed} transaksi tidak tersimpan`, 'error');
-      } else {
-        toast(`${succeeded} berhasil, ${failed} gagal — lihat detail`, 'error');
+      // Default all possible duplicates to UNCHECKED (user must opt-in)
+      const initialKeep: Record<string, boolean> = {};
+      for (const pd of result.possibleDuplicates) {
+        initialKeep[pd.bank_ref] = false;
       }
+      setPossibleKeep(initialKeep);
+      setShowDupDetails(false);
+      setShowPossibleDetails(true);
+
+      setSummaryDialog({
+        totalCsv: rows.length,
+        unhandledSplit,
+        duplicates: result.duplicates,
+        possibleDuplicates: result.possibleDuplicates,
+        importableRows: importable,
+        duplicateRows,
+      });
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Terjadi kesalahan saat import';
+      const msg = err instanceof Error ? err.message : 'Gagal memeriksa duplikat';
       toast(msg, 'error');
     } finally {
-      setImporting(false);
-      setImportProgress(null);
+      setCheckingDuplicates(false);
     }
   };
+
+  /**
+   * Called when user clicks "Import X Transaksi" in the summary dialog.
+   * Filters the importable rows: removes Layer 1 duplicates, and removes
+   * Layer 2 possible-duplicates the user did NOT check.
+   */
+  const handleConfirmImport = useCallback(async () => {
+    if (!summaryDialog) return;
+
+    const { importableRows, duplicates, possibleDuplicates } = summaryDialog;
+
+    const possibleRefs = new Set(possibleDuplicates.map((p) => p.bank_ref));
+
+    const finalRows = importableRows.filter((row) => {
+      const ref = buildBankRef(row);
+      // Drop Layer 1 duplicates outright
+      if (duplicates[ref]) return false;
+      // Layer 2: only include if user checked the box
+      if (possibleRefs.has(ref) && !possibleKeep[ref]) return false;
+      return true;
+    });
+
+    const skippedCount = importableRows.length - finalRows.length;
+
+    // Close dialog before starting the actual import so the progress
+    // bar is visible on the main page.
+    setSummaryDialog(null);
+
+    if (finalRows.length === 0) {
+      toast('Semua transaksi di-skip — tidak ada yang diimport', 'error');
+      return;
+    }
+
+    await executeImport(finalRows, skippedCount);
+  }, [summaryDialog, possibleKeep, executeImport, toast]);
 
   const handleReset = () => {
     setRows([]);
@@ -585,6 +787,9 @@ export default function ImportPage() {
     setFilterDateFrom('');
     setFilterDateTo('');
     setSplitEditing(null);
+    setSummaryDialog(null);
+    setPossibleKeep({});
+    setCheckingDuplicates(false);
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
@@ -768,14 +973,19 @@ export default function ImportPage() {
               </div>
             )}
             <div className="flex gap-3 items-center">
-              <Button onClick={handleImport} disabled={importing || !canImport}>
-                {importing
-                  ? (importProgress
-                    ? `Mengimport batch ${importProgress.current}/${importProgress.total}...`
-                    : 'Mengimport...')
-                  : `Konfirmasi Import (${filteredRows.length - unhandledSplitCount} transaksi)`}
+              <Button
+                onClick={handleImport}
+                disabled={importing || checkingDuplicates || !canImport}
+              >
+                {checkingDuplicates
+                  ? 'Memeriksa duplikasi...'
+                  : importing
+                    ? (importProgress
+                      ? `Mengimport batch ${importProgress.current}/${importProgress.total}...`
+                      : 'Mengimport...')
+                    : `Submit Import (${filteredRows.length - unhandledSplitCount} transaksi)`}
               </Button>
-              {!canImport && !importing && (
+              {!canImport && !importing && !checkingDuplicates && (
                 <span className="text-sm text-amber-600">Semua transaksi harus memiliki kategori sebelum import.</span>
               )}
               {importing && importProgress && (
@@ -803,7 +1013,245 @@ export default function ImportPage() {
           </p>
         </Card>
       )}
+
+      {/* Duplicate detection summary dialog */}
+      <SummaryDialog
+        data={summaryDialog}
+        possibleKeep={possibleKeep}
+        setPossibleKeep={setPossibleKeep}
+        showDupDetails={showDupDetails}
+        setShowDupDetails={setShowDupDetails}
+        showPossibleDetails={showPossibleDetails}
+        setShowPossibleDetails={setShowPossibleDetails}
+        onClose={() => setSummaryDialog(null)}
+        onConfirm={handleConfirmImport}
+      />
     </div>
+  );
+}
+
+// ============================================================
+// Summary Dialog — shows duplicate detection result before import
+// ============================================================
+
+interface SummaryDialogProps {
+  data: {
+    totalCsv: number;
+    unhandledSplit: number;
+    duplicates: Record<string, DuplicateEntry>;
+    possibleDuplicates: PossibleDuplicateItem[];
+    importableRows: ImportRow[];
+    duplicateRows: Array<{ row: ImportRow; entry: DuplicateEntry }>;
+  } | null;
+  possibleKeep: Record<string, boolean>;
+  setPossibleKeep: React.Dispatch<React.SetStateAction<Record<string, boolean>>>;
+  showDupDetails: boolean;
+  setShowDupDetails: React.Dispatch<React.SetStateAction<boolean>>;
+  showPossibleDetails: boolean;
+  setShowPossibleDetails: React.Dispatch<React.SetStateAction<boolean>>;
+  onClose: () => void;
+  onConfirm: () => void;
+}
+
+function SummaryDialog({
+  data,
+  possibleKeep,
+  setPossibleKeep,
+  showDupDetails,
+  setShowDupDetails,
+  showPossibleDetails,
+  setShowPossibleDetails,
+  onClose,
+  onConfirm,
+}: SummaryDialogProps) {
+  if (!data) return null;
+
+  const {
+    totalCsv,
+    unhandledSplit,
+    duplicates,
+    possibleDuplicates,
+    importableRows,
+    duplicateRows,
+  } = data;
+
+  const possibleRefs = new Set(possibleDuplicates.map((p) => p.bank_ref));
+  const duplicateCount = duplicateRows.length;
+  const possibleCount = possibleDuplicates.length;
+  const checkedPossibles = possibleDuplicates.filter(
+    (p) => possibleKeep[p.bank_ref]
+  ).length;
+
+  // Clean rows = importable − layer 1 duplicates − possible duplicates
+  // (possibles only count toward the final total when the user checks them)
+  const cleanCount = importableRows.filter((r) => {
+    const ref = buildBankRef(r);
+    if (duplicates[ref]) return false;
+    if (possibleRefs.has(ref)) return false;
+    return true;
+  }).length;
+
+  const finalImportCount = cleanCount + checkedPossibles;
+
+  return (
+    <Modal
+      open={true}
+      onClose={onClose}
+      title="Review Duplikat Sebelum Import"
+      className="max-w-2xl"
+    >
+      <div className="space-y-4">
+        {/* Counts summary */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-sm">
+          <div className="bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">
+            <p className="text-xs text-gray-500">Total CSV</p>
+            <p className="text-lg font-bold">{totalCsv}</p>
+          </div>
+          <div className="bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2">
+            <p className="text-xs text-emerald-700">Siap Import</p>
+            <p className="text-lg font-bold text-emerald-700">{cleanCount}</p>
+          </div>
+          <div className="bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+            <p className="text-xs text-red-700">Duplikat (auto-skip)</p>
+            <p className="text-lg font-bold text-red-700">{duplicateCount}</p>
+          </div>
+          <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+            <p className="text-xs text-amber-700">Mungkin Duplikat</p>
+            <p className="text-lg font-bold text-amber-700">{possibleCount}</p>
+          </div>
+          {unhandledSplit > 0 && (
+            <div className="bg-blue-50 border border-blue-200 rounded-lg px-3 py-2">
+              <p className="text-xs text-blue-700">Belum di-split (skip)</p>
+              <p className="text-lg font-bold text-blue-700">{unhandledSplit}</p>
+            </div>
+          )}
+        </div>
+
+        {/* Duplikat section (read-only, skip otomatis) */}
+        {duplicateCount > 0 && (
+          <div className="border border-red-200 rounded-lg overflow-hidden">
+            <button
+              type="button"
+              onClick={() => setShowDupDetails((v) => !v)}
+              className="w-full flex items-center justify-between px-3 py-2 bg-red-50 hover:bg-red-100 transition-colors text-left"
+            >
+              <span className="text-sm font-semibold text-red-800">
+                Duplikat — {duplicateCount} akan di-skip otomatis
+              </span>
+              <span className="text-xs text-red-700">
+                {showDupDetails ? 'Sembunyikan' : 'Tampilkan'}
+              </span>
+            </button>
+            {showDupDetails && (
+              <div className="max-h-60 overflow-y-auto text-xs divide-y divide-red-100">
+                {duplicateRows.map(({ row, entry }) => (
+                  <div key={row.key} className="px-3 py-2">
+                    <div className="flex justify-between gap-2">
+                      <span className="font-mono text-gray-700">
+                        {row.tanggal.slice(0, 10)}
+                      </span>
+                      <span className="font-semibold">
+                        {formatRupiah(row.jumlah)}
+                      </span>
+                    </div>
+                    <div className="text-gray-600 mt-0.5 line-clamp-2">
+                      {row.keterangan}
+                    </div>
+                    <div className="text-red-700 mt-0.5">
+                      {entry.type === 'exact'
+                        ? `↪ Sudah diimport sebagai ${entry.transactionId}`
+                        : `↪ Sudah diimport sebagai ${entry.transactionIds.length} split: ${entry.transactionIds.join(', ')}`}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Mungkin Duplikat section (checkboxes — default UNCHECKED) */}
+        {possibleCount > 0 && (
+          <div className="border border-amber-200 rounded-lg overflow-hidden">
+            <button
+              type="button"
+              onClick={() => setShowPossibleDetails((v) => !v)}
+              className="w-full flex items-center justify-between px-3 py-2 bg-amber-50 hover:bg-amber-100 transition-colors text-left"
+            >
+              <span className="text-sm font-semibold text-amber-800">
+                Mungkin Duplikat — {possibleCount} ditemukan ({checkedPossibles} dipilih)
+              </span>
+              <span className="text-xs text-amber-700">
+                {showPossibleDetails ? 'Sembunyikan' : 'Tampilkan'}
+              </span>
+            </button>
+            {showPossibleDetails && (
+              <div className="max-h-72 overflow-y-auto text-xs divide-y divide-amber-100">
+                <div className="px-3 py-2 bg-amber-50/50 text-[11px] text-amber-900">
+                  Centang baris yang kamu <strong>yakin</strong> adalah transaksi
+                  berbeda (bukan duplikat dari data manual existing). Default:
+                  tidak dicentang = tidak diimport.
+                </div>
+                {possibleDuplicates.map((pd) => {
+                  const checked = !!possibleKeep[pd.bank_ref];
+                  const csvRow = importableRows.find(
+                    (r) => buildBankRef(r) === pd.bank_ref
+                  );
+                  return (
+                    <label
+                      key={pd.bank_ref}
+                      className="px-3 py-2 flex gap-3 items-start cursor-pointer hover:bg-amber-50/60"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={(e) =>
+                          setPossibleKeep((prev) => ({
+                            ...prev,
+                            [pd.bank_ref]: e.target.checked,
+                          }))
+                        }
+                        className="mt-0.5 accent-emerald-600"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex justify-between gap-2">
+                          <span className="font-mono text-gray-700">
+                            {pd.tanggal}
+                          </span>
+                          <span className="font-semibold">
+                            {formatRupiah(pd.jumlah)}
+                          </span>
+                        </div>
+                        {csvRow && (
+                          <div className="text-gray-600 mt-0.5 line-clamp-2">
+                            CSV: {csvRow.keterangan}
+                          </div>
+                        )}
+                        <div className="text-amber-800 mt-0.5 line-clamp-2">
+                          ↪ Mirip existing {pd.existingTransactionId}
+                          {pd.existingDescription
+                            ? `: ${pd.existingDescription}`
+                            : ''}
+                        </div>
+                      </div>
+                    </label>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Action buttons */}
+        <div className="flex justify-end gap-3 pt-2 border-t border-gray-200">
+          <Button variant="secondary" onClick={onClose}>
+            Batal
+          </Button>
+          <Button onClick={onConfirm} disabled={finalImportCount === 0}>
+            Import {finalImportCount} Transaksi
+          </Button>
+        </div>
+      </div>
+    </Modal>
   );
 }
 

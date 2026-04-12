@@ -67,8 +67,15 @@ Karena Google Sheets tidak punya enforced schema, dokumen ini ADALAH schema-nya.
 | M | `created_by` | string | Ya | Siapa yang membuat | `Bendahara` |
 | N | `created_at` | timestamp | Ya | Waktu dibuat | `2026-03-23T08:00:00Z` |
 | O | `updated_at` | timestamp | Ya | Waktu terakhir diupdate | `2026-03-23T08:00:00Z` |
+| P | `mutasi_ref` | string | Tidak | Ref pair untuk transaksi mutasi antar-rekening | `MUT-20260323-0001` |
+| Q | `bank_ref` | string | Tidak | Nomor Referensi CSV bank untuk deteksi duplikat saat import. Split-child pakai suffix `_split_<N>`. Kosong untuk input manual. | `320CHDP260060511` |
 
-**Cell reference**: `transaksi!A2:O`
+**Cell reference**: `transaksi!A2:Q`
+
+**Backward compatibility**: Kolom `bank_ref` ditambahkan setelah sprint
+awal. Service `sheetsService.ensureColumnHeader('transaksi', 'bank_ref')`
+dipanggil dari endpoint import & check-duplicates (idempotent) untuk
+meng-upgrade sheet lama tanpa migrasi manual.
 
 ### Aturan Bisnis Transaksi
 
@@ -247,7 +254,7 @@ Script untuk membuat semua header di Google Sheets saat initial setup:
 ```typescript
 const SHEET_HEADERS = {
   master: ['id', 'nama_masjid', 'alamat', 'kota', 'provinsi', 'telepon', 'email', 'pin_hash', 'logo_url', 'tahun_buku_aktif', 'mata_uang', 'created_at', 'updated_at'],
-  transaksi: ['id', 'tanggal', 'jenis', 'kategori_id', 'deskripsi', 'jumlah', 'rekening_id', 'bukti_url', 'status', 'void_reason', 'void_date', 'koreksi_dari_id', 'created_by', 'created_at', 'updated_at'],
+  transaksi: ['id', 'tanggal', 'jenis', 'kategori_id', 'deskripsi', 'jumlah', 'rekening_id', 'bukti_url', 'status', 'void_reason', 'void_date', 'koreksi_dari_id', 'created_by', 'created_at', 'updated_at', 'mutasi_ref', 'bank_ref'],
   kategori: ['id', 'nama', 'jenis', 'deskripsi', 'is_active', 'created_at'],
   rekening_bank: ['id', 'nama_bank', 'nomor_rekening', 'atas_nama', 'saldo_awal', 'is_active', 'created_at', 'updated_at'],
   audit_log: ['id', 'timestamp', 'aksi', 'entitas', 'entitas_id', 'detail', 'user_info'],
