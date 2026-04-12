@@ -699,30 +699,57 @@ export default function ImportPage() {
       return;
     }
 
-    // Collect importable rows (skip unhandled SETOR TUNAI)
+    // Separate rows into importable and unhandled split (SETOR TUNAI belum di-split)
     const importable = filteredRows.filter(
       (r) => !(r.status === 'split' && !r.splitParent)
     );
-    const unhandledSplit = filteredRows.length - importable.length;
+    const unhandledSplitRows = filteredRows.filter(
+      (r) => r.status === 'split' && !r.splitParent
+    );
 
-    if (importable.length === 0) {
+    if (importable.length === 0 && unhandledSplitRows.length === 0) {
       toast('Tidak ada transaksi yang siap diimport', 'error');
       return;
     }
 
     setCheckingDuplicates(true);
     try {
-      // Build check items — one per importable row. Each carries the final
-      // `bank_ref` we would store, so Layer 1 can match exact/split history.
-      const checkItems = importable.map((row) => ({
-        bank_ref: buildBankRef(row),
-        tanggal: row.tanggal.slice(0, 10),
-        jumlah: row.jumlah,
-        jenis: row.jenis,
-      }));
+      // Build check items from BOTH importable AND unhandled split rows.
+      // Unhandled split rows need to be checked because they may have been
+      // imported and split in a previous import — if so, they should show
+      // as duplicates (type: 'split'), not as "belum di-split".
+      const checkItems = [
+        ...importable.map((row) => ({
+          bank_ref: buildBankRef(row),
+          tanggal: row.tanggal.slice(0, 10),
+          jumlah: row.jumlah,
+          jenis: row.jenis,
+        })),
+        ...unhandledSplitRows
+          .filter((row) => !!row.referensi)
+          .map((row) => ({
+            bank_ref: row.referensi,
+            tanggal: row.tanggal.slice(0, 10),
+            jumlah: row.jumlah,
+            jenis: row.jenis,
+          })),
+      ];
 
-      // Guard: every row must have a non-empty bank_ref. Without it the
-      // API validator (z.string().min(1)) will reject the batch.
+      // Guard: need at least one item to check, and every item must have
+      // a non-empty bank_ref (API validator z.string().min(1) would reject).
+      if (checkItems.length === 0) {
+        // No items to check — skip straight to summary with no duplicates
+        setSummaryDialog({
+          totalCsv: rows.length,
+          unhandledSplit: unhandledSplitRows.length,
+          duplicates: {},
+          possibleDuplicates: [],
+          importableRows: importable,
+          duplicateRows: [],
+        });
+        setCheckingDuplicates(false);
+        return;
+      }
       const missingRef = checkItems.some((it) => !it.bank_ref);
       if (missingRef) {
         toast(
@@ -754,6 +781,21 @@ export default function ImportPage() {
         const entry = result.duplicates[ref];
         if (entry) duplicateRows.push({ row, entry });
       }
+
+      // Also classify unhandled split rows — if they were previously imported
+      // and split, they show as duplicates instead of "belum di-split".
+      for (const row of unhandledSplitRows) {
+        const ref = row.referensi;
+        if (!ref) continue;
+        const entry = result.duplicates[ref];
+        if (entry) duplicateRows.push({ row, entry });
+      }
+
+      // Unhandled split count = only those NOT already detected as duplicates
+      const duplicateRefs = new Set(duplicateRows.map(d => d.row.referensi || buildBankRef(d.row)));
+      const unhandledSplit = unhandledSplitRows.filter(
+        (r) => !r.referensi || !duplicateRefs.has(r.referensi)
+      ).length;
 
       // Default all possible duplicates to UNCHECKED (user must opt-in)
       const initialKeep: Record<string, boolean> = {};
