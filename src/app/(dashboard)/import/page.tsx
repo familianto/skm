@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useMemo, useRef, memo } from 'react';
+import { useState, useCallback, useEffect, useMemo, useRef, memo } from 'react';
 import Link from 'next/link';
 import Papa from 'papaparse';
 import { PageTitle } from '@/components/layout/page-title';
@@ -15,7 +15,7 @@ import { useKategori } from '@/hooks/use-kategori';
 import { useRekening } from '@/hooks/use-rekening';
 import { useTransaksi } from '@/hooks/use-transaksi';
 import { getAvailableBanks, getBankTemplate } from '@/lib/bank-templates';
-import type { ImportRow, SplitDraftRow } from '@/lib/bank-templates';
+import type { ImportRow, ImportStatus, SplitDraftRow } from '@/lib/bank-templates';
 import { formatRupiah, formatTanggal } from '@/lib/utils';
 import { TransaksiJenis } from '@/types';
 
@@ -95,7 +95,7 @@ export default function ImportPage() {
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const banks = useMemo(() => getAvailableBanks(), []);
-  const { data: kategoris } = useKategori();
+  const { data: kategoris, loading: kategoriLoading } = useKategori();
   const { data: rekenings } = useRekening();
   const { data: existingTransaksis } = useTransaksi();
 
@@ -164,6 +164,32 @@ export default function ImportPage() {
     },
     [kategoris]
   );
+
+  // Re-resolve kategori IDs when kategoris data becomes available.
+  // Handles race condition where CSV was uploaded before categories finished loading:
+  // rows already have kategoriLabel (pattern match) but kategori_id is empty.
+  useEffect(() => {
+    if (kategoris.length === 0) return;
+    setRows(prev => {
+      if (prev.length === 0) return prev;
+      let changed = false;
+      const updated = prev.map(row => {
+        if (row.kategori_id || !row.kategoriLabel || row.status === 'split') return row;
+        const resolved = resolveKategori(row.kategoriLabel, row.jenis);
+        if (!resolved) return row;
+        changed = true;
+        // Only upgrade to 'auto' if the review was caused by unresolved kategori
+        const wasUnresolvedDowngrade = row.reviewSuggestion?.includes('belum ada di sheet');
+        return {
+          ...row,
+          kategori_id: resolved,
+          status: (wasUnresolvedDowngrade ? 'auto' : row.status) as ImportStatus,
+          reviewSuggestion: wasUnresolvedDowngrade ? undefined : row.reviewSuggestion,
+        };
+      });
+      return changed ? updated : prev;
+    });
+  }, [kategoris, resolveKategori]);
 
   // Build highlight regex per bank template (memoized — runs once per bank)
   const highlightRegex = useMemo(() => {
@@ -816,13 +842,16 @@ export default function ImportPage() {
             </select>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Upload CSV</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Upload CSV{kategoriLoading ? ' (memuat kategori...)' : ''}
+            </label>
             <input
               ref={fileInputRef}
               type="file"
               accept=".csv"
               onChange={handleFileUpload}
-              className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-emerald-50 file:text-emerald-700 hover:file:bg-emerald-100"
+              disabled={kategoriLoading}
+              className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-emerald-50 file:text-emerald-700 hover:file:bg-emerald-100 disabled:opacity-50"
             />
           </div>
           {rows.length > 0 && (
