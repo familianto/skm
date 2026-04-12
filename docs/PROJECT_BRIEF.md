@@ -159,8 +159,16 @@ Lihat detail lengkap di `DATABASE_SCHEMA.md`.
 - Auto-kategorisasi berdasarkan pattern rules di keterangan transaksi
 - Preview tabel dengan status: Auto / Review / Perlu Split
 - Split handler untuk transaksi gabungan (misal Setor Tunai)
-- Duplikat detection (tanggal + jumlah + keterangan)
-- Batch insert ke sheet Transaksi via API
+- **Hybrid duplicate detection** berdasarkan Nomor Referensi CSV (kolom
+  `bank_ref` di sheet transaksi) + fallback tanggal+jumlah+jenis untuk
+  matching dengan input manual (lihat Import Duplicate Detection di
+  `docs/BANK_TEMPLATES.md` & endpoint
+  `POST /api/transaksi/check-duplicates` di `docs/API_REFERENCE.md`).
+- SummaryDialog pre-import: menampilkan Siap Import / Duplikat (auto-skip)
+  / Mungkin Duplikat dengan checkbox opt-in per baris sebelum user
+  menekan "Import N Transaksi".
+- Batch insert ke sheet Transaksi via API, dengan `bank_ref` tersimpan
+  per row untuk mencegah re-import.
 - Template bank disimpan di `src/lib/bank-templates/` — lihat `docs/BANK_TEMPLATES.md`
 
 ### 5.9 Import Master Bank & Rekonsiliasi (Sprint 4) — BARU

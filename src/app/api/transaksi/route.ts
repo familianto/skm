@@ -122,15 +122,16 @@ export async function POST(request: NextRequest) {
       const baseCounter = parseInt(parts[2], 10);
       const idIn = `${parts[0]}-${parts[1]}-${String(baseCounter + 1).padStart(4, '0')}`;
 
+      // Columns must match SHEET_HEADERS[TRANSAKSI], including trailing bank_ref
       const rowOut = [
         idOut, tanggal, TransaksiJenis.KELUAR, mutasiKatId, deskripsi, jumlah.toString(),
         dari_rekening_id, '', TransaksiStatus.AKTIF, '', '', '',
-        createdBy, now, now, mutasiRef,
+        createdBy, now, now, mutasiRef, '',
       ];
       const rowIn = [
         idIn, tanggal, TransaksiJenis.MASUK, mutasiKatId, deskripsi, jumlah.toString(),
         ke_rekening_id, '', TransaksiStatus.AKTIF, '', '', '',
-        createdBy, now, now, mutasiRef,
+        createdBy, now, now, mutasiRef, '',
       ];
 
       await sheetsService.appendRows(SHEET_NAMES.TRANSAKSI, [rowOut, rowIn]);
@@ -146,7 +147,8 @@ export async function POST(request: NextRequest) {
         deskripsi, jumlah, rekening_id: dari_rekening_id,
         bukti_url: '', status: TransaksiStatus.AKTIF,
         void_reason: '', void_date: '', koreksi_dari_id: '',
-        created_by: createdBy, created_at: now, updated_at: now, mutasi_ref: mutasiRef,
+        created_by: createdBy, created_at: now, updated_at: now,
+        mutasi_ref: mutasiRef, bank_ref: '',
       };
       return NextResponse.json<ApiResponse<Transaksi>>(
         { success: true, data: trxOut },
@@ -167,11 +169,12 @@ export async function POST(request: NextRequest) {
     const id = await sheetsService.getNextId(ID_PREFIXES.TRANSAKSI);
 
     // columns: id, tanggal, jenis, kategori_id, deskripsi, jumlah, rekening_id,
-    //          bukti_url, status, void_reason, void_date, koreksi_dari_id, created_by, created_at, updated_at, mutasi_ref
+    //          bukti_url, status, void_reason, void_date, koreksi_dari_id,
+    //          created_by, created_at, updated_at, mutasi_ref, bank_ref
     await sheetsService.appendRow(SHEET_NAMES.TRANSAKSI, [
       id, tanggal, jenis, kategori_id, deskripsi, jumlah.toString(),
       rekening_id, '', TransaksiStatus.AKTIF, '', '', '',
-      createdBy, now, now, '',
+      createdBy, now, now, '', '',
     ]);
 
     await logAudit(
@@ -184,7 +187,8 @@ export async function POST(request: NextRequest) {
       id, tanggal, jenis, kategori_id, deskripsi, jumlah, rekening_id,
       bukti_url: '', status: TransaksiStatus.AKTIF,
       void_reason: '', void_date: '', koreksi_dari_id: '',
-      created_by: createdBy, created_at: now, updated_at: now, mutasi_ref: '',
+      created_by: createdBy, created_at: now, updated_at: now,
+      mutasi_ref: '', bank_ref: '',
     };
 
     return NextResponse.json<ApiResponse<Transaksi>>(

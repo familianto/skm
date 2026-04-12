@@ -364,7 +364,76 @@ interface CategorizedRow {
   kategori_id: string;
   status: ImportStatus;
   kategoriLabel: string;
+  /**
+   * Nomor referensi dari CSV bank (kolom pertama di muamalat). Wajib
+   * di-pass dari `ParsedBankRow.referensi` — dipakai sebagai `bank_ref`
+   * saat insert ke sheet transaksi untuk deteksi duplikat pada import
+   * ulang (lihat bagian Duplicate Detection di bawah).
+   */
+  referensi: string;
   /** Saran teks (hanya terisi untuk status='review') */
   reviewSuggestion?: string;
 }
 ```
+
+---
+
+## Duplicate Detection (bank_ref)
+
+Mulai versi ini, SKM mencatat **Nomor Referensi CSV bank** di kolom
+`bank_ref` pada sheet `transaksi` untuk mendeteksi duplikat saat import
+ulang. Deteksi dilakukan hybrid dua lapis:
+
+### Layer 1 — Pasti Duplikat (exact / split prefix)
+
+- **Exact match**: `bank_ref` baris CSV sama persis dengan row existing
+  di sheet → otomatis di-skip.
+- **Split prefix match**: `bank_ref` CSV sama dengan prefix base dari
+  row split existing (`<ref>_split_<N>`) → otomatis di-skip. Artinya user
+  tidak bisa re-import sebuah SETOR TUNAI yang sudah di-split
+  sebelumnya, walau split-nya beda jumlah baris.
+
+### Layer 2 — Mungkin Duplikat (fallback manual input)
+
+Untuk baris CSV yang tidak match Layer 1, sistem mencari row existing
+dengan:
+- `bank_ref` **kosong** (artinya input manual, bukan hasil import CSV),
+- tanggal + jumlah + jenis **sama**.
+
+Jika ada match, baris CSV muncul di bagian "Mungkin Duplikat" di
+SummaryDialog **dengan checkbox default UNCHECKED**. User harus
+centang secara eksplisit kalau yakin transaksi berbeda.
+
+### bank_ref Conventions
+
+| Sumber baris | Format `bank_ref` |
+|---|---|
+| CSV biasa (non-split) | `<ref>` (contoh `320CHDP260060511`) |
+| Split-child dari SETOR TUNAI | `<ref>_split_<N>` (1-based) |
+| "Tidak Split" (split-status → review) | `<ref>` (tanpa suffix) |
+| Input manual (halaman Transaksi Baru) | kosong |
+| Mutasi antar-rekening | kosong |
+| Koreksi transaksi | kosong (koreksi baru), preserved (original voided) |
+
+### Flow di Import UI
+
+1. User klik **Submit Import** → button berubah "Memeriksa duplikasi…"
+2. Halaman Import memanggil `POST /api/transaksi/check-duplicates` dengan
+   seluruh items (`bank_ref`, `tanggal`, `jumlah`, `jenis`).
+3. Response di-pakai untuk membuka **SummaryDialog** berisi:
+   - Total CSV, Siap Import, Duplikat (auto-skip), Mungkin Duplikat,
+     Belum di-split (skip) — count cards.
+   - Collapsible "Duplikat" (read-only daftar yang pasti di-skip).
+   - Collapsible "Mungkin Duplikat" dengan checkbox per baris.
+4. Tombol **Import N Transaksi** (N dinamis berdasar centang) memicu
+   insert batch. Baris Layer 1 di-drop, Layer 2 hanya yang dicentang.
+
+### Backward Compatibility
+
+Endpoint `/api/transaksi/check-duplicates` dan `/api/transaksi/import`
+memanggil `sheetsService.ensureColumnHeader('transaksi', 'bank_ref')`
+sebelum menulis / membaca. Helper ini idempotent: kalau kolom sudah ada,
+no-op; kalau belum, menambah header di kolom kosong terdekat tanpa
+menimpa data existing. Sheet lama yang belum punya kolom `bank_ref`
+otomatis terupgrade pada request pertama.
+

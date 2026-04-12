@@ -72,6 +72,12 @@ export interface CategorizedRow {
   status: ImportStatus;
   /** For display in the preview table */
   kategoriLabel: string;
+  /**
+   * Nomor referensi dari CSV bank (kolom pertama). Dipakai sebagai
+   * `bank_ref` saat insert ke sheet transaksi untuk deteksi duplikat
+   * pada import ulang. Diteruskan dari `ParsedBankRow.referensi`.
+   */
+  referensi: string;
   /** Optional suggestion text for status='review' rows */
   reviewSuggestion?: string;
   /** True when row is SETOR TUNAI and must be split by user */
