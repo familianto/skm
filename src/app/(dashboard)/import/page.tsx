@@ -18,7 +18,7 @@ import { getAvailableBanks, getBankTemplate } from '@/lib/bank-templates';
 import type { ImportRow, ImportStatus, SplitDraftRow } from '@/lib/bank-templates';
 import { formatRupiah, formatTanggal } from '@/lib/utils';
 import { TransaksiJenis } from '@/types';
-import type { Kategori, ApiResponse } from '@/types';
+import type { Kategori } from '@/types';
 
 /** Ambang nominal MASUK yang memunculkan visual cue amber */
 const LARGE_MASUK_THRESHOLD = 2_000_000;
@@ -209,8 +209,8 @@ export default function ImportPage() {
     );
   }, [existingTransaksis]);
 
-  // Handle file upload — fetch categories on-demand for reliable resolution
-  const handleFileUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Handle file upload
+  const handleFileUpload = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -220,48 +220,12 @@ export default function ImportPage() {
       return;
     }
 
-    // Fetch categories fresh — don't rely on hook state which may be empty
-    // due to race condition, silent fetch failure, or stale closure.
-    // Use AbortController with 15s timeout to prevent hanging.
-    let freshKategoris: Kategori[] = [];
-    const controller = new AbortController();
-    const fetchTimeout = setTimeout(() => controller.abort(), 15_000);
-    try {
-      const res = await fetch('/api/kategori', { signal: controller.signal });
-      if (!res.ok) {
-        console.error('CSV Import: /api/kategori returned', res.status, res.statusText);
-      }
-      const json: ApiResponse<Kategori[]> = await res.json();
-      if (json.success && json.data && json.data.length > 0) {
-        freshKategoris = json.data;
-      } else if (!json.success) {
-        console.error('CSV Import: /api/kategori error:', json.error);
-      }
-    } catch (err) {
-      console.error('CSV Import: fetch /api/kategori failed:', err instanceof Error ? err.message : err);
-    } finally {
-      clearTimeout(fetchTimeout);
-    }
-
-    // Fallback to hook state if fresh fetch failed
-    if (freshKategoris.length === 0 && kategoris.length > 0) {
-      freshKategoris = kategoris;
-    }
-
-    if (freshKategoris.length === 0) {
-      toast('Gagal memuat data kategori. Pastikan koneksi internet stabil lalu refresh halaman.', 'error');
-      // Reset file input so user can retry
+    // Guard: if categories haven't loaded yet, tell the user to wait
+    if (kategoris.length === 0) {
+      toast('Data kategori belum tersedia. Tunggu beberapa detik lalu coba lagi.', 'error');
       e.target.value = '';
       return;
     }
-
-    const freshResolver = (nama: string, jenis: TransaksiJenis): string => {
-      if (!nama) return '';
-      const k = freshKategoris.find(
-        (x) => x.nama === nama && x.jenis === jenis
-      );
-      return k?.id || '';
-    };
 
     Papa.parse(file, {
       complete: (results) => {
@@ -275,7 +239,7 @@ export default function ImportPage() {
           const parsedRow = template.parseRow(raw);
           if (!parsedRow) continue;
 
-          const categorized = template.categorize(parsedRow, freshResolver);
+          const categorized = template.categorize(parsedRow, resolveKategori);
           counter++;
           parsed.push({
             ...categorized,
@@ -303,7 +267,7 @@ export default function ImportPage() {
 
     // Reset file input so the same file can be re-uploaded
     e.target.value = '';
-  }, [bankId, isDuplicate, kategoris, toast]);
+  }, [bankId, isDuplicate, kategoris, resolveKategori, toast]);
 
   // Update kategori for a row
   const updateRowKategori = useCallback((key: string, kategori_id: string) => {
