@@ -18,6 +18,7 @@ import { getAvailableBanks, getBankTemplate } from '@/lib/bank-templates';
 import type { ImportRow, ImportStatus, SplitDraftRow } from '@/lib/bank-templates';
 import { formatRupiah, formatTanggal } from '@/lib/utils';
 import { TransaksiJenis } from '@/types';
+import type { Kategori, ApiResponse } from '@/types';
 
 /** Ambang nominal MASUK yang memunculkan visual cue amber */
 const LARGE_MASUK_THRESHOLD = 2_000_000;
@@ -208,8 +209,8 @@ export default function ImportPage() {
     );
   }, [existingTransaksis]);
 
-  // Handle file upload
-  const handleFileUpload = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+  // Handle file upload — fetch categories on-demand for reliable resolution
+  const handleFileUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -218,6 +219,34 @@ export default function ImportPage() {
       toast('Template bank tidak ditemukan', 'error');
       return;
     }
+
+    // Fetch categories fresh — don't rely on hook state which may be empty
+    // due to race condition, silent fetch failure, or stale closure
+    let freshKategoris: Kategori[] = kategoris;
+    try {
+      const res = await fetch('/api/kategori');
+      const json: ApiResponse<Kategori[]> = await res.json();
+      if (json.success && json.data && json.data.length > 0) {
+        freshKategoris = json.data;
+      }
+    } catch {
+      // Fallback to hook state
+    }
+
+    if (freshKategoris.length === 0) {
+      toast('Gagal memuat data kategori — coba refresh halaman', 'error');
+      // Reset file input so user can retry
+      e.target.value = '';
+      return;
+    }
+
+    const freshResolver = (nama: string, jenis: TransaksiJenis): string => {
+      if (!nama) return '';
+      const k = freshKategoris.find(
+        (x) => x.nama === nama && x.jenis === jenis
+      );
+      return k?.id || '';
+    };
 
     Papa.parse(file, {
       complete: (results) => {
@@ -231,7 +260,7 @@ export default function ImportPage() {
           const parsedRow = template.parseRow(raw);
           if (!parsedRow) continue;
 
-          const categorized = template.categorize(parsedRow, resolveKategori);
+          const categorized = template.categorize(parsedRow, freshResolver);
           counter++;
           parsed.push({
             ...categorized,
@@ -249,7 +278,8 @@ export default function ImportPage() {
           setFilterDateFrom(dates[0]);
           setFilterDateTo(dates[dates.length - 1]);
         }
-        toast(`${parsed.length} transaksi berhasil diparsing`);
+        const autoCount = parsed.filter(r => r.status === 'auto').length;
+        toast(`${parsed.length} transaksi diparsing (${autoCount} auto-mapped)`);
       },
       error: () => {
         toast('Gagal membaca file CSV', 'error');
@@ -258,7 +288,7 @@ export default function ImportPage() {
 
     // Reset file input so the same file can be re-uploaded
     e.target.value = '';
-  }, [bankId, isDuplicate, resolveKategori, toast]);
+  }, [bankId, isDuplicate, kategoris, toast]);
 
   // Update kategori for a row
   const updateRowKategori = useCallback((key: string, kategori_id: string) => {
@@ -1287,8 +1317,6 @@ function SummaryDialog({
 // ============================================================
 // Row Group Component (main row + optional split sub-rows)
 // ============================================================
-
-import type { Kategori } from '@/types';
 
 // ============================================================
 // Highlight helpers
