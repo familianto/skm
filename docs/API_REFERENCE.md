@@ -920,3 +920,67 @@ Cek koneksi ke Google Sheets.
 | 401 | Unauthorized (belum login / session expired) |
 | 404 | Not Found (data tidak ditemukan) |
 | 500 | Internal Server Error (error server / Google API) |
+
+---
+
+## Qurban Public Endpoints
+
+### `GET /api/publik/qurban`
+
+Ambil data publik Qurban 1447H dari Google Sheets terpisah (Qurban master data).
+
+**Auth:** Tidak perlu (public endpoint).
+
+**Caching:** In-memory TTL 5 menit + `Cache-Control: public, s-maxage=300, stale-while-revalidate=60`.
+
+**Data Source:** Google Sheets ID dari env var `GOOGLE_SHEETS_QURBAN_ID`, sheets: `master_hewan`, `daftar_hewan`, `peserta`.
+
+**Response (200):**
+```json
+{
+  "success": true,
+  "data": {
+    "updated_at": "2026-06-05T14:30:00.000Z",
+    "summary": {
+      "total_sapi": 6,
+      "total_kambing": 4,
+      "sapi_breakdown": { "A": 2, "B": 2, "C": 1, "D": 1 },
+      "kambing_breakdown": { "A": 2, "B": 1, "C": 1 },
+      "sapi_penitipan": 1,
+      "kambing_penitipan": 1,
+      "total_muqorib": 10,
+      "total_lunas": 9,
+      "total_belum": 1
+    },
+    "hewan": [
+      {
+        "id_hewan": "SP-A01",
+        "jenis": "Sapi",
+        "tipe": "A",
+        "berat_rata2": "±325 Kg",
+        "kuota": 7,
+        "terisi": 7,
+        "is_penitipan": false,
+        "harga_per_orang": 3500000,
+        "harga_qurban": 24500000,
+        "bop_per_ekor": 1750000,
+        "peserta": [
+          { "slot": 1, "nama": "HOPY FAMILIANTO", "status_bayar": "Lunas", "tipe_qurban": "Beli" }
+        ]
+      }
+    ],
+    "payment": {
+      "bank_name": "BSI",
+      "account_number": "7171234567",
+      "account_holder": "Masjid Al Jabar Jatinegara Baru",
+      "panitia_hp": "0821-xxxx-xxxx"
+    }
+  }
+}
+```
+
+**Catatan:**
+- `is_penitipan` ditentukan dari `peserta.tipe_qurban === "Penitipan"`, bukan dari `daftar_hewan.pengadaan`
+- Peserta dengan `nama` kosong di-filter (skip template rows)
+- Slot number di-parse dari `kode_muqorib` format `{id_hewan}-{slot_number}`
+- Payment info diambil dari env vars `QURBAN_PAYMENT_*`

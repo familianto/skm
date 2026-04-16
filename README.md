@@ -11,6 +11,7 @@ Sistem manajemen keuangan masjid berbasis web yang transparan, akuntabel, dan mu
 - **Upload Bukti** — Lampirkan foto bukti transaksi (struk, kwitansi)
 - **Export Laporan** — Download laporan dalam format PDF atau Excel, dengan filter kategori per jenis (Masuk/Keluar)
 - **Display Publik** — Halaman read-only untuk ditampilkan di TV/monitor masjid
+- **Landing Page Qurban** — Laporan progress Qurban publik dengan search, filter, share WA, dan TV mode
 - **Multi-Masjid** — Dapat diadopsi oleh masjid lain dengan mudah
 - **Bulk Edit Kategori** — Ubah kategori banyak transaksi sekaligus dengan checkbox dan dialog konfirmasi
 - **Proteksi Hapus** — Kategori dan rekening yang memiliki transaksi tidak dapat dihapus tanpa memindahkan transaksi terlebih dahulu

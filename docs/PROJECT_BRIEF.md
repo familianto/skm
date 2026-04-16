@@ -153,7 +153,16 @@ Lihat detail lengkap di `DATABASE_SCHEMA.md`.
 - **Rate limiting**: Maksimal 5x percobaan login gagal berturut-turut, setelahnya akun di-lock selama 5 menit dengan countdown timer real-time
 - **Warning visual**: Peringatan sisa percobaan setelah gagal ke-3 dengan border merah pada input
 
-### 5.8 Import CSV Rekening Koran — BARU
+### 5.8 Landing Page Qurban Publik — BARU
+- **Route publik** `/publik/qurban` (mobile) dan `/publik/qurban/tv` (TV display)
+- Data dari Google Sheets terpisah (master hewan, daftar hewan, peserta)
+- Summary card, search, tab filter (Semua/Sapi/Kambing/Penitipan)
+- Card per hewan dengan slot list, status bayar, badge PENITIPAN
+- Share ke WA (text terformat), Copy Link
+- TV mode: 4 slides auto-rotate (Ringkasan, Top Sapi, Top Kambing, Penitipan)
+- Cache 5 menit, auto-refresh, `noindex` meta tag
+
+### 5.9 Import CSV Rekening Koran — BARU
 - Import transaksi dari CSV rekening koran bank
 - Arsitektur extensible: bank template per bank (saat ini: Bank Muamalat)
 - Auto-kategorisasi berdasarkan pattern rules di keterangan transaksi
