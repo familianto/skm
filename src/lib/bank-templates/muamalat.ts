@@ -67,7 +67,24 @@ const masukRules: PatternRule[] = [
     reviewSuggestion: 'Setoran campuran — pertimbangkan split manual',
   },
 
-  // 4. CDT TRF BENFC (BIFAST/BERSAMA) + KARPET/WAKAF → Donasi & Wakaf Pembangunan
+  // 4. Qurban (keyword QRB di keterangan, dominan dari pembayaran Muqorib
+  //    via transfer) → default Qurban Sapi. User dapat override ke
+  //    Qurban Kambing / Qurban Jasa Titip & Pakan saat review.
+  //    Ditempatkan setelah ZAKAT MAL tetapi sebelum grup CDT TRF BENFC /
+  //    INTERNAL TRANSFER generik agar QRB menang atas default Infaq.
+  //    Regex `\bQRB` (tanpa trailing `\b`) sengaja agar varian seperti
+  //    "QRBK" / "QRBS" tetap tertangkap — teller kadang menempel huruf
+  //    sesudah kode QRB. Word boundary di depan cegah false match untuk
+  //    nama berakhiran QRB (mis. "FAQRB").
+  //    Catatan: SETOR TUNAI sudah di-intercept sebelum loop rules, jadi
+  //    kombinasi SETOR TUNAI + QRB tetap masuk alur split (bukan sini).
+  {
+    match: (k) => /\bQRB/i.test(k),
+    kategoriName: 'Qurban Sapi',
+    status: 'auto',
+  },
+
+  // 5. CDT TRF BENFC (BIFAST/BERSAMA) + KARPET/WAKAF → Donasi & Wakaf Pembangunan
   {
     match: (k) =>
       /CDT TRF BENFC\s+(BIFAST|BERSAMA)/i.test(k) &&
@@ -76,14 +93,14 @@ const masukRules: PatternRule[] = [
     status: 'auto',
   },
 
-  // 5. CDT TRF BENFC (BIFAST/BERSAMA) umum → Infaq & Sedekah
+  // 6. CDT TRF BENFC (BIFAST/BERSAMA) umum → Infaq & Sedekah
   {
     match: (k) => /CDT TRF BENFC\s+(BIFAST|BERSAMA)/i.test(k),
     kategoriName: 'Infaq & Sedekah',
     status: 'auto',
   },
 
-  // 6. INTERNAL TRANSFER MOBILE BANKING + KARPET/WAKAF → Donasi & Wakaf Pembangunan
+  // 7. INTERNAL TRANSFER MOBILE BANKING + KARPET/WAKAF → Donasi & Wakaf Pembangunan
   {
     match: (k) =>
       /INTERNAL TRANSFER MOBILE BANKING/i.test(k) &&
@@ -92,7 +109,7 @@ const masukRules: PatternRule[] = [
     status: 'auto',
   },
 
-  // 7. INTERNAL TRANSFER MOBILE BANKING + ZAKAT MAL → Zakat Mal
+  // 8. INTERNAL TRANSFER MOBILE BANKING + ZAKAT MAL → Zakat Mal
   //    Regex baru: MAL / MAAL / MALL
   {
     match: (k) =>
@@ -101,7 +118,7 @@ const masukRules: PatternRule[] = [
     status: 'auto',
   },
 
-  // 8. INTERNAL TRANSFER MOBILE BANKING + TPQ/Fatih → Lain-lain Masuk
+  // 9. INTERNAL TRANSFER MOBILE BANKING + TPQ/Fatih → Lain-lain Masuk
   {
     match: (k) =>
       /INTERNAL TRANSFER MOBILE BANKING/i.test(k) && /TPQ|Fatih/i.test(k),
@@ -109,7 +126,7 @@ const masukRules: PatternRule[] = [
     status: 'auto',
   },
 
-  // 9. INTERNAL TRANSFER MOBILE BANKING + Infaq/Infak → Infaq & Sedekah
+  // 10. INTERNAL TRANSFER MOBILE BANKING + Infaq/Infak → Infaq & Sedekah
   {
     match: (k) =>
       /INTERNAL TRANSFER MOBILE BANKING/i.test(k) && /INFA[QK]/i.test(k),
@@ -117,7 +134,7 @@ const masukRules: PatternRule[] = [
     status: 'auto',
   },
 
-  // 10. INTERNAL TRANSFER MOBILE BANKING umum → review
+  // 11. INTERNAL TRANSFER MOBILE BANKING umum → review
   {
     match: (k) => /INTERNAL TRANSFER MOBILE BANKING/i.test(k),
     kategoriName: 'Infaq & Sedekah',
@@ -125,21 +142,21 @@ const masukRules: PatternRule[] = [
     reviewSuggestion: 'Transfer internal — verifikasi jenis penerimaan',
   },
 
-  // 11. FLIPTECH + TPQ → Lain-lain Masuk
+  // 12. FLIPTECH + TPQ → Lain-lain Masuk
   {
     match: (k) => /FLIPTECH(\s+LENTERA)?/i.test(k) && /TPQ/i.test(k),
     kategoriName: 'Lain-lain Masuk',
     status: 'auto',
   },
 
-  // 12. FLIPTECH + zakat → Zakat Mal
+  // 13. FLIPTECH + zakat → Zakat Mal
   {
     match: (k) => /FLIPTECH(\s+LENTERA)?/i.test(k) && /zakat/i.test(k),
     kategoriName: 'Zakat Mal',
     status: 'auto',
   },
 
-  // 13. Infaq Jumat (NON setor tunai) — weekly infaq via teller/transfer
+  // 14. Infaq Jumat (NON setor tunai) — weekly infaq via teller/transfer
   //     Fix 1 regex: tangkap "SETORAN INFAQ PER PEKAN", "INFAQ PER PEKAN",
   //     "PER PEKAN / INFAQ", dan "SETORAN PER PEKAN" (semua tanpa tarawih).
   {
@@ -152,7 +169,7 @@ const masukRules: PatternRule[] = [
     status: 'auto',
   },
 
-  // 14. Catch-all fallback → Lain-lain Masuk (review)
+  // 15. Catch-all fallback → Lain-lain Masuk (review)
   {
     match: () => true,
     kategoriName: 'Lain-lain Masuk',
@@ -163,6 +180,18 @@ const masukRules: PatternRule[] = [
 
 // --- KELUAR (Debit) rules ---
 const keluarRules: PatternRule[] = [
+  // ----- Qurban -----
+  // Keyword QRB di keterangan KELUAR → default Qurban Pembelian Hewan.
+  // Diletakkan di atas agar menang terhadap rule KELUAR lain yang lebih
+  // generik. User dapat override ke Qurban Operasional atau Qurban Biaya
+  // Jasa & Pakan Ternak saat review. Regex konsisten dengan MASUK:
+  // `\bQRB` (prefix) agar varian "QRBK"/"QRBS" juga tertangkap.
+  {
+    match: (k) => /\bQRB/i.test(k),
+    kategoriName: 'Qurban Pembelian Hewan',
+    status: 'auto',
+  },
+
   // ----- Hadiah Kajian -----
   // Taraweh version (specific first) → Kegiatan Ramadhan
   {
@@ -447,6 +476,11 @@ const HIGHLIGHT_KEYWORDS = {
     'Infaq',
     'Infak',
     'infaq',
+    // Qurban
+    'QRB',
+    'QURBAN',
+    'Qurban',
+    'qurban',
   ],
   keluar: [
     // Honor
@@ -519,6 +553,11 @@ const HIGHLIGHT_KEYWORDS = {
     'BIFAST',
     // CMS out
     'INTERNAL TRANSFER CMS',
+    // Qurban
+    'QRB',
+    'QURBAN',
+    'Qurban',
+    'qurban',
   ],
 };
 
@@ -542,6 +581,10 @@ const CASH_DEPOSIT_KEYWORDS: Array<{ key: string; regex: RegExp }> = [
   { key: 'KARPET', regex: /\bKARPET\b/i },
   { key: 'WAKAF', regex: /\bWA[KQ]AF\b/i },
   { key: 'PEMBANGUNAN', regex: /\bPEMBANGUNAN\b/i },
+  // QRB (transfer Muqorib) / QURBAN — pre-fill split form dengan Qurban Sapi.
+  // Regex prefix `\bQRB` menangkap QRB / QRBK / QRBS; alternasi `\bQURBAN\b`
+  // menangkap kata penuh saat bendahara menulis "QURBAN" di slip setor tunai.
+  { key: 'QURBAN', regex: /\bQRB|\bQURBAN\b/i },
 ];
 
 export function detectCashDepositKeywords(keterangan: string): string[] {
