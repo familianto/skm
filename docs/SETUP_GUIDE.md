@@ -240,3 +240,53 @@ Setiap push ke branch `main` akan auto-deploy.
 
 - Nama sheet case-sensitive: `transaksi` ≠ `Transaksi`
 - Pastikan nama sheet persis sama dengan yang di `constants.ts`
+
+---
+
+## Qurban Public Landing Page
+
+Halaman publik untuk menampilkan progress Qurban kepada jamaah.
+
+### Routes
+
+| Route | Deskripsi |
+|---|---|
+| `/publik/qurban` | Mobile/Desktop view untuk jamaah |
+| `/publik/qurban/tv` | TV display untuk layar masjid (auto-rotate 4 slide, 10 detik) |
+| `/api/publik/qurban` | API endpoint (public, cache 5 menit) |
+
+### Environment Variables
+
+Tambahkan ke `.env.local`:
+
+```env
+# Google Sheets Qurban (spreadsheet terpisah dari SKM utama)
+GOOGLE_SHEETS_QURBAN_ID=10tUkEXJlP3ulvaZ798pBq95nLdHrLm5BlYuDFmCLHFU
+
+# Payment info (ditampilkan di landing page & WA share text)
+QURBAN_PAYMENT_BANK_NAME=BSI
+QURBAN_PAYMENT_ACCOUNT_NUMBER=7171234567
+QURBAN_PAYMENT_ACCOUNT_HOLDER=Masjid Al Jabar Jatinegara Baru
+QURBAN_PANITIA_HP=0821-xxxx-xxxx
+```
+
+### Google Sheets Qurban Structure
+
+Spreadsheet terpisah dengan 3 sheets:
+- `master_hewan` — Master data harga per jenis & kelas hewan
+- `daftar_hewan` — List hewan yang ter-register untuk Qurban tahun ini
+- `peserta` — Daftar muqorib yang sudah booking slot
+
+Service account yang sama dengan SKM utama harus di-share ke spreadsheet Qurban ini (Viewer access cukup).
+
+### Fitur
+
+- Summary card (total sapi/kambing, muqorib, status bayar)
+- Search peserta by name
+- Tab filter: Semua / Sapi / Kambing / Penitipan
+- Card per hewan dengan slot list dan status bayar
+- Payment info card (rekening bank + keyword transfer)
+- Share ke WA (pre-formatted text) + Copy Link
+- TV mode: auto-rotate 4 slides (Ringkasan, Top Sapi, Top Kambing, Penitipan)
+- Auto-refresh data setiap 5 menit
+- `noindex` meta tag (tidak muncul di Google search)
