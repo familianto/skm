@@ -79,6 +79,7 @@ function buildPrefillKategoriNames(keywords: string[] | undefined): string[] {
     'PER PEKAN': hasRamadhan ? 'Infaq Ramadhan' : 'Infaq Jumat',
     'TARAWIH': 'Infaq Ramadhan',
     'RAMADHAN': 'Infaq Ramadhan',
+    'QURBAN': 'Qurban Sapi',
   };
   const result: string[] = [];
   const seen = new Set<string>();
