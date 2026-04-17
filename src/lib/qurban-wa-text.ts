@@ -120,7 +120,7 @@ export function generateQurbanWAText(data: QurbanPublikResponse, pageUrl: string
   t += '\u26A0\uFE0F *PENTING*\n';
   t += 'Isi kolom Berita/Keterangan:\n';
   t += '*QRB [NAMA ANDA]*\n\n';
-  t += 'Contoh: QRB AHMAD FAUZI\n\n';
+  t += 'Contoh: QRB FULAN\n\n';
   if (payment.panitia_hp) {
     t += `_Jika ATM tanpa keterangan, kirim bukti ke: ${payment.panitia_hp}_\n\n`;
   }
