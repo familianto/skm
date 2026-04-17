@@ -12,6 +12,11 @@ import type {
 let cache: { data: QurbanPublikResponse; timestamp: number } | null = null;
 const CACHE_TTL = 5 * 60 * 1000;
 
+function parseNumber(val: string | undefined): number {
+  if (!val) return 0;
+  return parseInt(val.replace(/[^0-9-]/g, ''), 10) || 0;
+}
+
 interface MasterHewan {
   jenis: string;
   tipe: string;
@@ -34,10 +39,10 @@ function parseMaster(row: string[]): MasterHewan {
     jenis: row[0] || '',
     tipe: row[1] || '',
     berat_rata2: row[2] || '',
-    harga_qurban: parseInt(row[3], 10) || 0,
-    bop_per_ekor: parseInt(row[4], 10) || 0,
+    harga_qurban: parseNumber(row[3]),
+    bop_per_ekor: parseNumber(row[4]),
     // harga_hewan = row[5], jumlah_slot = row[6]
-    harga_per_orang: parseInt(row[7], 10) || 0,
+    harga_per_orang: parseNumber(row[7]),
   };
 }
 
@@ -46,7 +51,7 @@ function parseHewan(row: string[]) {
     id_hewan: row[0] || '',
     jenis: row[1] || '',
     tipe: row[2] || '',
-    kuota: parseInt(row[3], 10) || 0,
+    kuota: parseNumber(row[3]),
   };
 }
 
