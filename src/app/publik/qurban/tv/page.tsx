@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { formatRupiah } from '@/lib/utils';
 import type { QurbanPublikResponse, QurbanHewanItem } from '@/types/qurban';
 
@@ -281,6 +281,8 @@ export default function QurbanTVPage() {
   const [data, setData] = useState<QurbanPublikResponse | null>(null);
   const [currentSlide, setCurrentSlide] = useState(0);
   const [now, setNow] = useState(new Date());
+  const [progress, setProgress] = useState(0);
+  const slideStartRef = useRef(0);
 
   useEffect(() => {
     async function fetchData() {
@@ -300,11 +302,19 @@ export default function QurbanTVPage() {
 
   useEffect(() => {
     if (slides.length === 0) return;
-    const timer = setInterval(() => {
+    slideStartRef.current = Date.now();
+    const frame = () => {
+      const elapsed = Date.now() - slideStartRef.current;
+      const p = Math.min(elapsed / SLIDE_DURATION, 1);
+      setProgress(p);
+      if (p < 1) rafId = requestAnimationFrame(frame);
+    };
+    let rafId = requestAnimationFrame(frame);
+    const timer = setTimeout(() => {
       setCurrentSlide(prev => (prev + 1) % slides.length);
     }, SLIDE_DURATION);
-    return () => clearInterval(timer);
-  }, [slides.length]);
+    return () => { cancelAnimationFrame(rafId); clearTimeout(timer); };
+  }, [safeSlide, slides.length]);
 
   useEffect(() => {
     const timer = setInterval(() => setNow(new Date()), 60_000);
@@ -385,14 +395,19 @@ export default function QurbanTVPage() {
           </div>
 
           {/* Footer */}
-          <footer className="flex justify-between items-center tv-small opacity-60 border-t border-white/15 pt-[0.6vh] mt-[0.8vh] flex-shrink-0">
-            <span>{'\u{1F4F1}'} Info lengkap: skm-pi.vercel.app/publik/qurban</span>
-            <div className="flex gap-[0.35vw]">
-              {slides.map((_, i) => (
-                <div key={i} className={`w-[0.45vw] h-[0.45vw] rounded-full ${i === safeSlide ? 'bg-white' : 'bg-white/25'}`} />
-              ))}
+          <footer className="mt-[0.8vh] flex-shrink-0">
+            <div className="flex items-center gap-[0.8vw] mb-[0.5vh]">
+              <div className="flex-1 h-[0.4vh] bg-white/15 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-white/70 rounded-full"
+                  style={{ width: `${slides.length > 0 ? ((safeSlide + progress) / slides.length) * 100 : 0}%` }}
+                />
+              </div>
+              <span className="tv-small opacity-60 flex-shrink-0">Slide {safeSlide + 1} / {slides.length}</span>
             </div>
-            <span>Slide {safeSlide + 1}/{slides.length} &middot; {slide.label.replace(/[\u{1F404}\u{1F410}\u{1F3F7}\uFE0F]/gu, '').trim()}</span>
+            <div className="tv-small opacity-50">
+              {'\u{1F4F1}'} Info lengkap: skm-pi.vercel.app/publik/qurban
+            </div>
           </footer>
         </div>
       </div>
