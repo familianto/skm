@@ -328,6 +328,10 @@ export default function QurbanPage() {
           )}
         </div>
 
+        <p className="mx-3 mt-3 text-[11px] text-gray-400 italic leading-relaxed px-1">
+          {'ℹ️'} Penomoran slot dan pengelompokan muqorib pada daftar ini bersifat sementara. Panitia berhak mengatur ulang untuk kebutuhan operasional penyembelihan.
+        </p>
+
         <PaymentCard data={data} />
 
         {/* Share Buttons */}
