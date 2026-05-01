@@ -128,7 +128,7 @@ export function generateQurbanWAText(data: QurbanPublikResponse, pageUrl: string
   t += '*Konfirmasi Pembayaran*\n';
   t += 'Konfirmasi via WhatsApp dan tunggu verifikasi dari panitia\n';
   
-  t += 'https://wa.me/6282320873017 (PIC. Ust. Bayu)\n';
+  t += 'https://wa.me/6282320873017 (PIC. Ust. Bayu)\n\n';
 
   t += '\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\n';
   t += '\u{1F4F1} Info lengkap:\n';
