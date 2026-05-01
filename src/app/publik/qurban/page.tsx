@@ -140,8 +140,8 @@ function PaymentCard({ data }: { data: QurbanPublikResponse }) {
       </div>
       <div className="bg-amber-50 rounded-lg p-3 text-center border border-dashed border-amber-400">
         <div className="text-[11px] text-amber-700 mb-1">{'\u26A0\uFE0F'} Isi Berita/Keterangan Transfer</div>
-        <div className="font-mono text-sm font-bold text-gray-900 tracking-wider">QRB [NAMA ANDA]</div>
-        <div className="text-[10px] text-amber-600 mt-1">Contoh: QRB FULAN</div>
+        <div className="font-mono text-sm font-bold text-gray-900 tracking-wider">QRB [Nama Anda] atau QURBAN [Nama Anda]</div>
+        <div className="text-[10px] text-amber-600 mt-1">Contoh: QRB Fulan, atau QURBAN Fulan</div>
       </div>
       {payment.panitia_hp && (
         <div className="text-[11px] text-gray-500 mt-2.5 pt-2.5 border-t border-dashed border-gray-200 leading-relaxed">
