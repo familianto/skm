@@ -110,6 +110,8 @@ export function generateQurbanWAText(data: QurbanPublikResponse, pageUrl: string
     t += '\n';
   }
 
+  t += '\u26a0\ufe0f _Penomoran dan pengelompokan muqorib bersifat sementara. Panitia dapat mengatur ulang untuk kebutuhan operasional._\n\n';
+
   // Payment
   t += '\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\n';
   t += '\u{1F4B3} *CARA PEMBAYARAN*\n';

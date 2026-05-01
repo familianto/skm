@@ -141,6 +141,7 @@ function SummarySlide({ data }: { data: QurbanPublikResponse }) {
           <div className="h-full bg-gradient-to-r from-emerald-400 to-emerald-300 rounded-full" style={{ width: `${pct}%` }} />
         </div>
         <div className="tv-small opacity-70">{pct}% muqorib sudah melunasi &middot; Jazakumullah khairan {'\u{1F319}'}</div>
+        <div className="opacity-60 mt-[0.4vh]" style={{ fontSize: 'clamp(10px, 0.9vw, 14px)' }}>Penomoran &amp; pengelompokan muqorib dapat diatur ulang oleh Panitia</div>
       </div>
     </div>
   );
