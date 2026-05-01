@@ -125,8 +125,9 @@ export function generateQurbanWAText(data: QurbanPublikResponse, pageUrl: string
     t += `_Jika ATM tanpa keterangan, kirim bukti ke: ${payment.panitia_hp}_\n\n`;
   }
   
-  t += 'Konfirmasi Pembayaran:\n';
+  t += '*Konfirmasi Pembayaran*\n';
   t += 'Konfirmasi via WhatsApp dan tunggu verifikasi dari panitia\n';
+  
   t += 'https://wa.me/6282320873017 (PIC. Ust. Bayu)\n';
 
   t += '\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\n';
