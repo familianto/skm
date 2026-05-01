@@ -67,19 +67,11 @@ const masukRules: PatternRule[] = [
     reviewSuggestion: 'Setoran campuran — pertimbangkan split manual',
   },
 
-  // 4. Qurban (keyword QRB di keterangan, dominan dari pembayaran Muqorib
-  //    via transfer) → default Qurban Sapi. User dapat override ke
-  //    Qurban Kambing / Qurban Jasa Titip & Pakan saat review.
-  //    Ditempatkan setelah ZAKAT MAL tetapi sebelum grup CDT TRF BENFC /
-  //    INTERNAL TRANSFER generik agar QRB menang atas default Infaq.
-  //    Regex `\bQRB` (tanpa trailing `\b`) sengaja agar varian seperti
-  //    "QRBK" / "QRBS" tetap tertangkap — teller kadang menempel huruf
-  //    sesudah kode QRB. Word boundary di depan cegah false match untuk
-  //    nama berakhiran QRB (mis. "FAQRB").
-  //    Catatan: SETOR TUNAI sudah di-intercept sebelum loop rules, jadi
-  //    kombinasi SETOR TUNAI + QRB tetap masuk alur split (bukan sini).
+  // 4. Qurban — keyword QRB / QURBAN / KURBAN di keterangan MASUK.
+  //    Default Qurban Sapi; user override ke Kambing / Jasa Titip saat review.
+  //    SETOR TUNAI di-intercept sebelum loop → kombinasi tetap split.
   {
-    match: (k) => /\bQRB/i.test(k),
+    match: (k) => /\bQRB\b|\bQURBAN\b|\bKURBAN\b/i.test(k),
     kategoriName: 'Qurban Sapi',
     status: 'auto',
   },
@@ -181,13 +173,11 @@ const masukRules: PatternRule[] = [
 // --- KELUAR (Debit) rules ---
 const keluarRules: PatternRule[] = [
   // ----- Qurban -----
-  // Keyword QRB di keterangan KELUAR → default Qurban Pembelian Hewan.
-  // Diletakkan di atas agar menang terhadap rule KELUAR lain yang lebih
-  // generik. User dapat override ke Qurban Operasional atau Qurban Biaya
-  // Jasa & Pakan Ternak saat review. Regex konsisten dengan MASUK:
-  // `\bQRB` (prefix) agar varian "QRBK"/"QRBS" juga tertangkap.
+  // Keyword QRB / QURBAN / KURBAN di keterangan KELUAR → default
+  // Qurban Pembelian Hewan. User override ke Operasional / Biaya Jasa
+  // & Pakan Ternak saat review.
   {
-    match: (k) => /\bQRB/i.test(k),
+    match: (k) => /\bQRB\b|\bQURBAN\b|\bKURBAN\b/i.test(k),
     kategoriName: 'Qurban Pembelian Hewan',
     status: 'auto',
   },
@@ -481,6 +471,9 @@ const HIGHLIGHT_KEYWORDS = {
     'QURBAN',
     'Qurban',
     'qurban',
+    'KURBAN',
+    'Kurban',
+    'kurban',
   ],
   keluar: [
     // Honor
@@ -558,6 +551,9 @@ const HIGHLIGHT_KEYWORDS = {
     'QURBAN',
     'Qurban',
     'qurban',
+    'KURBAN',
+    'Kurban',
+    'kurban',
   ],
 };
 
@@ -581,10 +577,7 @@ const CASH_DEPOSIT_KEYWORDS: Array<{ key: string; regex: RegExp }> = [
   { key: 'KARPET', regex: /\bKARPET\b/i },
   { key: 'WAKAF', regex: /\bWA[KQ]AF\b/i },
   { key: 'PEMBANGUNAN', regex: /\bPEMBANGUNAN\b/i },
-  // QRB (transfer Muqorib) / QURBAN — pre-fill split form dengan Qurban Sapi.
-  // Regex prefix `\bQRB` menangkap QRB / QRBK / QRBS; alternasi `\bQURBAN\b`
-  // menangkap kata penuh saat bendahara menulis "QURBAN" di slip setor tunai.
-  { key: 'QURBAN', regex: /\bQRB|\bQURBAN\b/i },
+  { key: 'QURBAN', regex: /\bQRB\b|\bQURBAN\b|\bKURBAN\b/i },
 ];
 
 export function detectCashDepositKeywords(keterangan: string): string[] {
@@ -719,19 +712,19 @@ export const muamalatTemplate: BankTemplate = {
     if (!row || row.length < 7) return null;
 
     const referensi = (row[0] || '').trim();
-    const tglTransaksi = (row[1] || '').trim();
+    const tglEfektif = (row[2] || '').trim();
     const debit = parseAmount(row[3] || '');
     const kredit = parseAmount(row[4] || '');
     const saldo = parseAmount(row[5] || '');
     const keterangan = (row[6] || '').trim();
 
     // Skip empty rows or summary rows
-    if (!tglTransaksi || !keterangan) return null;
+    if (!tglEfektif || !keterangan) return null;
     // Must have at least debit or kredit
     if (debit === 0 && kredit === 0) return null;
 
     return {
-      tanggal: parseDate(tglTransaksi),
+      tanggal: parseDate(tglEfektif),
       keterangan,
       debit,
       kredit,
