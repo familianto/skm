@@ -129,8 +129,10 @@ function buildResponse(
 
   hewanList.sort((a, b) => a.id_hewan.localeCompare(b.id_hewan));
 
-  const sapiList = hewanList.filter(h => h.jenis === 'Sapi');
-  const kambingList = hewanList.filter(h => h.jenis === 'Kambing');
+  const hewanAktif = hewanList.filter(h => h.terisi > 0);
+
+  const sapiList = hewanAktif.filter(h => h.jenis === 'Sapi');
+  const kambingList = hewanAktif.filter(h => h.jenis === 'Kambing');
 
   const sapiBreakdown: Record<string, number> = {};
   for (const h of sapiList) {
@@ -141,7 +143,8 @@ function buildResponse(
     kambingBreakdown[h.tipe] = (kambingBreakdown[h.tipe] || 0) + 1;
   }
 
-  const totalLunas = pesertaList.filter(p => p.status_bayar === 'Lunas').length;
+  const aktifPeserta = hewanAktif.flatMap(h => h.peserta);
+  const totalLunas = aktifPeserta.filter(p => p.status_bayar === 'Lunas').length;
 
   const summary: QurbanSummary = {
     total_sapi: sapiList.length,
@@ -150,9 +153,9 @@ function buildResponse(
     kambing_breakdown: kambingBreakdown,
     sapi_penitipan: sapiList.filter(h => h.is_penitipan).length,
     kambing_penitipan: kambingList.filter(h => h.is_penitipan).length,
-    total_muqorib: pesertaList.length,
+    total_muqorib: aktifPeserta.length,
     total_lunas: totalLunas,
-    total_belum: pesertaList.length - totalLunas,
+    total_belum: aktifPeserta.length - totalLunas,
   };
 
   const payment: QurbanPaymentInfo = {
@@ -165,7 +168,7 @@ function buildResponse(
   return {
     updated_at: new Date().toISOString(),
     summary,
-    hewan: hewanList,
+    hewan: hewanAktif,
     payment,
   };
 }
