@@ -119,11 +119,15 @@ export function generateQurbanWAText(data: QurbanPublikResponse, pageUrl: string
   t += `a.n. ${payment.account_holder}\n\n`;
   t += '\u26A0\uFE0F *PENTING*\n';
   t += 'Isi kolom Berita/Keterangan:\n';
-  t += '*QRB [NAMA ANDA]*\n\n';
-  t += 'Contoh: QRB FULAN\n\n';
+  t += '*QRB [Nama Anda] atau QURBAN [Nama Anda]*\n\n';
+  t += 'Contoh: QRB Fulan, atau QURBAN Fulan\n\n';
   if (payment.panitia_hp) {
     t += `_Jika ATM tanpa keterangan, kirim bukti ke: ${payment.panitia_hp}_\n\n`;
   }
+  
+  t += 'Konfirmasi Pembayaran:\n';
+  t += 'Konfirmasi via WhatsApp dan tunggu verifikasi dari panitia\n';
+  t += 'https://wa.me/6282320873017 (PIC. Ust. Bayu)\n';
 
   t += '\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\n';
   t += '\u{1F4F1} Info lengkap:\n';
