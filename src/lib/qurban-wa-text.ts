@@ -39,16 +39,18 @@ export function generateQurbanWAText(data: QurbanPublikResponse, pageUrl: string
 
   // Detail Sapi
   const sapiAll = hewan.filter(h => h.jenis === 'Sapi');
-  const sapiRegular = sapiAll.filter(h => !h.is_penitipan);
-  const sapiPenitipan = sapiAll.filter(h => h.is_penitipan);
 
   t += '\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\n';
   t += '\u{1F404} *DETAIL SAPI*\n';
   t += '\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\n\n';
 
-  for (const h of sapiRegular) {
+  for (const h of sapiAll) {
     if (h.terisi === 0) continue;
-    t += `*${h.id_hewan}* _(Kelas ${h.tipe} \u00b7 ${formatRupiah(h.harga_per_orang)}/slot)_\n`;
+    if (h.is_penitipan) {
+      t += `*${h.id_hewan}* _(Kelas ${h.tipe} \u00b7 Penitipan \u00b7 BOP ${formatRupiah(h.bop_per_ekor)}/ekor)_\n`;
+    } else {
+      t += `*${h.id_hewan}* _(Kelas ${h.tipe} \u00b7 ${formatRupiah(h.harga_per_orang)}/slot)_\n`;
+    }
     for (const p of h.peserta) {
       const status = p.status_bayar === 'Lunas' ? '\u2705' : '\u2014';
       t += `${p.slot}. ${p.nama} ${status}\n`;
@@ -56,56 +58,23 @@ export function generateQurbanWAText(data: QurbanPublikResponse, pageUrl: string
     t += '\n';
   }
 
-  if (sapiPenitipan.length > 0) {
-    t += '\u{1F3F7}\uFE0F *Sapi Penitipan*\n';
-    for (const h of sapiPenitipan) {
-      if (h.terisi === 0) continue;
-      const names = h.peserta
-        .map(p => `${p.nama} ${p.status_bayar === 'Lunas' ? '\u2705' : '\u2014'}`)
-        .join(', ');
-      t += `\u2022 ${h.id_hewan} \u2014 ${names}\n`;
-    }
-    t += '\n';
-  }
-
   // Detail Kambing
   const kambingAll = hewan.filter(h => h.jenis === 'Kambing');
-  const kambingRegular = kambingAll.filter(h => !h.is_penitipan);
-  const kambingPenitipan = kambingAll.filter(h => h.is_penitipan);
 
   t += '\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\n';
   t += '\u{1F410} *DETAIL KAMBING*\n';
   t += '\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\n\n';
 
-  const kambingByTipe = new Map<string, typeof kambingRegular>();
-  for (const h of kambingRegular) {
-    const list = kambingByTipe.get(h.tipe) || [];
-    list.push(h);
-    kambingByTipe.set(h.tipe, list);
-  }
-
-  for (const [tipe, list] of Array.from(kambingByTipe.entries()).sort()) {
-    const price = list[0]?.harga_per_orang || 0;
-    t += `*Kelas ${tipe}* _(${formatRupiah(price)}/ekor)_\n`;
-    let num = 1;
-    for (const h of list) {
-      for (const p of h.peserta) {
-        const status = p.status_bayar === 'Lunas' ? '\u2705' : '\u2014';
-        t += `${num}. ${p.nama} ${status}\n`;
-        num++;
-      }
+  for (const h of kambingAll) {
+    if (h.terisi === 0) continue;
+    if (h.is_penitipan) {
+      t += `*${h.id_hewan}* _(Kelas ${h.tipe} \u00b7 Penitipan \u00b7 BOP ${formatRupiah(h.bop_per_ekor)}/ekor)_\n`;
+    } else {
+      t += `*${h.id_hewan}* _(Kelas ${h.tipe} \u00b7 ${formatRupiah(h.harga_per_orang)}/ekor)_\n`;
     }
-    t += '\n';
-  }
-
-  if (kambingPenitipan.length > 0) {
-    t += '\u{1F3F7}\uFE0F *Kambing Penitipan*\n';
-    for (const h of kambingPenitipan) {
-      if (h.terisi === 0) continue;
-      const names = h.peserta
-        .map(p => `${p.nama} ${p.status_bayar === 'Lunas' ? '\u2705' : '\u2014'}`)
-        .join(', ');
-      t += `\u2022 ${h.id_hewan} \u2014 ${names}\n`;
+    for (const p of h.peserta) {
+      const status = p.status_bayar === 'Lunas' ? '\u2705' : '\u2014';
+      t += `${p.slot}. ${p.nama} ${status}\n`;
     }
     t += '\n';
   }
