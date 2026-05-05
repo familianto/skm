@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Modal } from '@/components/ui/modal';
 import { Input } from '@/components/ui/input';
+import { CurrencyInput } from '@/components/ui/currency-input';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Loading } from '@/components/ui/loading';
@@ -24,12 +25,19 @@ export default function DonaturPage() {
   const [submitting, setSubmitting] = useState(false);
   const [filterKelompok, setFilterKelompok] = useState('');
   const [search, setSearch] = useState('');
-  const [form, setForm] = useState({
+  const [form, setForm] = useState<{
+    nama: string;
+    telepon: string;
+    alamat: string;
+    kelompok: DonaturKelompok;
+    jumlah_komitmen: number | null;
+    catatan: string;
+  }>({
     nama: '',
     telepon: '',
     alamat: '',
-    kelompok: DonaturKelompok.TETAP as DonaturKelompok,
-    jumlah_komitmen: 0,
+    kelompok: DonaturKelompok.TETAP,
+    jumlah_komitmen: null,
     catatan: '',
   });
 
@@ -58,7 +66,7 @@ export default function DonaturPage() {
 
   const openCreate = () => {
     setEditingId(null);
-    setForm({ nama: '', telepon: '', alamat: '', kelompok: DonaturKelompok.TETAP, jumlah_komitmen: 0, catatan: '' });
+    setForm({ nama: '', telepon: '', alamat: '', kelompok: DonaturKelompok.TETAP, jumlah_komitmen: null, catatan: '' });
     setModalOpen(true);
   };
 
@@ -84,7 +92,7 @@ export default function DonaturPage() {
       const res = await fetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
+        body: JSON.stringify({ ...form, jumlah_komitmen: form.jumlah_komitmen ?? 0 }),
       });
 
       const data = await res.json();
@@ -259,11 +267,10 @@ export default function DonaturPage() {
             </select>
           </div>
 
-          <Input
+          <CurrencyInput
             label="Komitmen Donasi/Bulan (Rp)"
-            type="number"
-            value={form.jumlah_komitmen || ''}
-            onChange={(e) => setForm((f) => ({ ...f, jumlah_komitmen: parseInt(e.target.value, 10) || 0 }))}
+            value={form.jumlah_komitmen}
+            onChange={(v) => setForm((f) => ({ ...f, jumlah_komitmen: v }))}
             placeholder="0"
           />
 

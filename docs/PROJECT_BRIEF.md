@@ -312,6 +312,7 @@ Fitur-fitur berikut **tidak termasuk** dalam scope v2.1, tapi bisa ditambahkan d
 - **Card**: `shadow-sm + border-gray-200 + rounded-xl`, padding `p-6`
 - **Table**: Header `bg-gray-50 font-semibold`, row hover `bg-gray-50`, kolom Aksi `text-center`
 - **Rupiah**: Format dengan spasi: `Rp 1.234.567` (via `formatRupiah()` di `lib/utils.ts`)
+- **CurrencyInput** (`components/ui/currency-input.tsx`): Reusable input untuk nominal Rupiah dengan thousand separator titik (format Indonesia). Props: `value: number | null`, `onChange: (value: number | null) => void`. Internally memakai `Intl.NumberFormat('id-ID')` untuk display, raw integer untuk state. Paste "Rp 1.000.000" / "1,000,000" / "1000000" semua di-parse jadi `1000000`. Karakter non-digit otomatis di-strip. Dipakai di: Rekonsiliasi (Saldo Bank Aktual), Rekening Tambah/Edit (Saldo Awal), Donatur Tambah/Edit (Komitmen Donasi/Bulan).
 
 ### Rekonsiliasi Form
 - Form dibatasi `max-w-2xl` agar tidak full-width
@@ -319,6 +320,12 @@ Fitur-fitur berikut **tidak termasuk** dalam scope v2.1, tapi bisa ditambahkan d
 ---
 
 ## Changelog
+
+### v2.4.1 (5 Mei 2026) — Currency Input Separator
+- **Reusable `CurrencyInput` component** (`components/ui/currency-input.tsx`) untuk semua input nominal Rupiah
+- Format: Indonesian thousand separator titik (mis. `1.500.000`); raw integer di state & API, display formatted only
+- Diaplikasikan di: Rekonsiliasi (Saldo Bank Aktual), Rekening Tambah/Edit (Saldo Awal), Donatur Tambah/Edit (Komitmen Donasi/Bulan)
+- API contract tidak berubah — backend tetap menerima/mengirim integer
 
 ### v2.4 (10 April 2026) — Sprint 9
 - **Fitur baru: Bulk Edit Kategori** — Pilih banyak transaksi via checkbox, ubah kategori sekaligus lewat dialog konfirmasi dengan preview perubahan
