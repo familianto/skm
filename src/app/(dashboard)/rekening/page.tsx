@@ -8,6 +8,7 @@ import { Card } from '@/components/ui/card';
 import { Modal } from '@/components/ui/modal';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { Input } from '@/components/ui/input';
+import { CurrencyInput } from '@/components/ui/currency-input';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table';
 import { Loading } from '@/components/ui/loading';
 import { useToast } from '@/components/ui/toast';
@@ -20,7 +21,7 @@ export default function RekeningPage() {
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [form, setForm] = useState({ nama_bank: '', nomor_rekening: '', atas_nama: '', saldo_awal: 0 });
+  const [form, setForm] = useState<{ nama_bank: string; nomor_rekening: string; atas_nama: string; saldo_awal: number | null }>({ nama_bank: '', nomor_rekening: '', atas_nama: '', saldo_awal: null });
   const [submitting, setSubmitting] = useState(false);
 
   // Delete protection & confirmation state
@@ -48,7 +49,7 @@ export default function RekeningPage() {
 
   const openCreate = () => {
     setEditingId(null);
-    setForm({ nama_bank: '', nomor_rekening: '', atas_nama: '', saldo_awal: 0 });
+    setForm({ nama_bank: '', nomor_rekening: '', atas_nama: '', saldo_awal: null });
     setModalOpen(true);
   };
 
@@ -72,7 +73,7 @@ export default function RekeningPage() {
       const res = await fetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
+        body: JSON.stringify({ ...form, saldo_awal: form.saldo_awal ?? 0 }),
       });
 
       const data = await res.json();
@@ -198,11 +199,10 @@ export default function RekeningPage() {
             placeholder="Contoh: Masjid Al-Ikhlas"
           />
 
-          <Input
+          <CurrencyInput
             label="Saldo Awal (Rp)"
-            type="number"
-            value={form.saldo_awal || ''}
-            onChange={(e) => setForm((f) => ({ ...f, saldo_awal: parseInt(e.target.value, 10) || 0 }))}
+            value={form.saldo_awal}
+            onChange={(v) => setForm((f) => ({ ...f, saldo_awal: v }))}
             placeholder="0"
           />
 

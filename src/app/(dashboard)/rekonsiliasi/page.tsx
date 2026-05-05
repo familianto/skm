@@ -5,6 +5,7 @@ import { PageTitle } from '@/components/layout/page-title';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { CurrencyInput } from '@/components/ui/currency-input';
 import { Badge } from '@/components/ui/badge';
 import { Loading } from '@/components/ui/loading';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table';
@@ -19,7 +20,7 @@ export default function RekonsiliasiPage() {
   const { data: rekenings, loading: rekeningLoading } = useRekening();
 
   const [selectedRekening, setSelectedRekening] = useState('');
-  const [saldoBank, setSaldoBank] = useState('');
+  const [saldoBank, setSaldoBank] = useState<number | null>(null);
   const [tanggal, setTanggal] = useState(todayISO());
   const [catatan, setCatatan] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -42,11 +43,11 @@ export default function RekonsiliasiPage() {
       return;
     }
 
-    const saldoBankNum = parseInt(saldoBank.replace(/[^\d]/g, ''), 10);
-    if (isNaN(saldoBankNum) || saldoBankNum < 0) {
+    if (saldoBank == null || saldoBank < 0) {
       toast('Saldo bank harus berupa angka positif', 'error');
       return;
     }
+    const saldoBankNum = saldoBank;
 
     setSubmitting(true);
     setResult(null);
@@ -67,7 +68,7 @@ export default function RekonsiliasiPage() {
       if (json.success && json.data) {
         setResult(json.data);
         toast('Rekonsiliasi berhasil', 'success');
-        setSaldoBank('');
+        setSaldoBank(null);
         setCatatan('');
         await refetch();
       } else {
@@ -113,11 +114,10 @@ export default function RekonsiliasiPage() {
             onChange={(e) => setTanggal(e.target.value)}
           />
 
-          <Input
+          <CurrencyInput
             label="Saldo Bank Aktual (Rp)"
-            type="number"
             value={saldoBank}
-            onChange={(e) => setSaldoBank(e.target.value)}
+            onChange={setSaldoBank}
             placeholder="Masukkan saldo dari mutasi bank"
           />
 
@@ -128,7 +128,7 @@ export default function RekonsiliasiPage() {
             placeholder="Catatan atau keterangan"
           />
 
-          <Button type="submit" disabled={submitting || !selectedRekening || !saldoBank}>
+          <Button type="submit" disabled={submitting || !selectedRekening || saldoBank == null}>
             {submitting ? 'Memproses...' : 'Rekonsiliasi'}
           </Button>
         </form>
