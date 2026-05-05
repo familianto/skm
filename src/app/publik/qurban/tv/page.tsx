@@ -410,7 +410,7 @@ export default function QurbanTVPage() {
           {/* Footer — disclaimer + progress bar + URL */}
           <footer className="flex-shrink-0 mt-[0.6vh]">
             <div className="tv-disclaimer">
-              Penomoran slot dan pengelompokan muqorib pada daftar ini bersifat sementara.<br>Panitia berhak mengatur ulang untuk kebutuhan operasional penyembelihan.</br>
+              Penomoran slot dan pengelompokan muqorib pada daftar ini bersifat sementara.<br>Panitia berhak mengatur ulang untuk kebutuhan operasional penyembelihan.
             </div>
             <div className="flex items-center gap-[0.8vw] mb-[0.3vh]">
               <div className="flex-1 h-[0.35vh] bg-white/15 rounded-full overflow-hidden">
