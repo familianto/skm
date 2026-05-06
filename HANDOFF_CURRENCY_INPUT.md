@@ -97,3 +97,39 @@ Manual testing menunggu deploy ke Vercel preview (lihat checklist di task brief)
 Component `CurrencyInput` siap dipakai untuk form lain yang butuh nominal
 Rupiah (Transaksi, Kategori budget, dll). Tinggal import dari
 `@/components/ui/currency-input`.
+
+---
+
+## Update v2.4.2 (5 Mei 2026) — Rollout
+
+Sprint lanjutan menyebarkan `<CurrencyInput>` ke seluruh form nominal sisa di
+SKM, jadi single source of truth untuk format input nominal.
+
+### Scope tambahan
+
+| Menu | Field | File |
+|---|---|---|
+| Transaksi — Tambah/Edit/Koreksi | Jumlah (Rp) | `src/components/forms/transaction-form.tsx` |
+| Transaksi — Mutasi Internal | Jumlah (Rp) | `src/components/forms/transaction-form.tsx` (sama) |
+| Import CSV — Split SETOR TUNAI | Jumlah per split | `src/app/(dashboard)/import/page.tsx` (`SplitForm`) |
+
+### Menu yang dicek tapi tidak ada perubahan
+
+- **Kelompok Anggaran**: form hanya punya nama, deskripsi, warna, kategori — tidak ada field nominal/budget
+- **Dashboard**: read-only (cards, charts, tables) — tidak ada input nominal
+- **Laporan**: filter hanya tahun/bulan/kategori/kelompok/rekening — tidak ada filter min/max amount
+
+### Perubahan teknis
+
+- Inline helper `formatRupiah(string)` di `transaction-form.tsx` dihapus — display-formatted state diganti raw integer di-state
+- `form.jumlah` di TransactionForm berubah dari `string` (ber-separator) → `number | null`
+- Helper `formatDots` lokal di `SplitForm` (import page) dihapus
+- Callback `updateDraftRow` di import page disederhanakan: tidak ada lagi `parseInt(...replace(...))` ad-hoc — `CurrencyInput` selalu mengirim `number | null`
+- Validation `jumlah > 0` tetap dijalankan di submit handler (tidak lagi via HTML `min`)
+- Edit pre-fill bekerja via `useEffect` di `CurrencyInput` (sync prop `value` → display)
+
+### Verifikasi
+
+- ✅ `npm run type-check` — pass
+- ✅ `npm run lint` — pass
+- ✅ `npm run build` — success

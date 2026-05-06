@@ -8,6 +8,7 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
+import { CurrencyInput } from '@/components/ui/currency-input';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table';
 import { Modal } from '@/components/ui/modal';
 import { useToast } from '@/components/ui/toast';
@@ -417,11 +418,7 @@ export default function ImportPage() {
           drafts: prev.drafts.map((d) => {
             if (d.key !== draftKey) return d;
             if (field === 'jumlah') {
-              const num =
-                typeof value === 'number'
-                  ? value
-                  : parseInt(String(value).replace(/[^\d]/g, ''), 10) || 0;
-              return { ...d, jumlah: num };
+              return { ...d, jumlah: typeof value === 'number' ? value : 0 };
             }
             return { ...d, [field]: value as string };
           }),
@@ -1635,11 +1632,6 @@ function SplitForm({
   const diff = row.jumlah - total;
   const isBalanced = diff === 0;
 
-  const formatDots = (value: string) => {
-    const digits = value.replace(/[^\d]/g, '');
-    return digits.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
-  };
-
   return (
     <TableRow className="bg-amber-50/60">
       <TableCell colSpan={7} className="p-4">
@@ -1685,14 +1677,10 @@ function SplitForm({
                 </div>
                 <div className="col-span-6 sm:col-span-3">
                   <label className="block text-[10px] uppercase tracking-wide text-gray-500 mb-0.5">Jumlah</label>
-                  <Input
-                    type="text"
-                    inputMode="numeric"
-                    value={draft.jumlah ? formatDots(draft.jumlah.toString()) : ''}
-                    onChange={(e) =>
-                      onUpdateDraft(draft.key, 'jumlah', e.target.value)
-                    }
-                    className="w-full text-xs text-right"
+                  <CurrencyInput
+                    value={draft.jumlah > 0 ? draft.jumlah : null}
+                    onChange={(v) => onUpdateDraft(draft.key, 'jumlah', v ?? 0)}
+                    className="text-xs text-right"
                     placeholder="0"
                   />
                 </div>
