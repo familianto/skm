@@ -135,13 +135,14 @@ function SummarySlide({ data }: { data: QurbanPublikResponse }) {
 // --- Detail cards ---
 
 function SlotRow({ slot, nama, statusBayar }: { slot: number; nama: string | null; statusBayar: string | null }) {
+  const isLunas = statusBayar === 'Lunas';
   return (
     <div className="flex items-center gap-[0.3cqw] py-[0.15cqw]">
       <span className="tv-slot-num opacity-40 w-[1.2cqw] flex-shrink-0 text-right">{slot}</span>
       {nama ? (
         <>
-          <span className="tv-muqorib-name flex-1 truncate">{nama}</span>
-          <span className="tv-muqorib-status flex-shrink-0">{statusBayar === 'Lunas' ? '✓' : '—'}</span>
+          <span className={`tv-muqorib-name flex-1 truncate ${isLunas ? 'text-emerald-300 font-bold' : ''}`}>{nama}</span>
+          <span className="tv-muqorib-status flex-shrink-0">{isLunas ? '✓' : '—'}</span>
         </>
       ) : (
         <span className="tv-muqorib-name flex-1 opacity-30 italic">(tersedia)</span>
@@ -218,7 +219,7 @@ function KambingCard({ hewan }: { hewan: QurbanHewanItem }) {
       <div className="flex-1 flex items-center">
         {peserta ? (
           <div className="flex items-center gap-[0.4cqw]">
-            <span className="tv-kambing-nama">{peserta.nama}</span>
+            <span className={`tv-kambing-nama ${peserta.status_bayar === 'Lunas' ? 'text-emerald-300' : ''}`}>{peserta.nama}</span>
             <span className="tv-kambing-status">{peserta.status_bayar === 'Lunas' ? '✓' : '—'}</span>
           </div>
         ) : (
@@ -317,29 +318,29 @@ export default function QurbanTVPage() {
           background: rgba(255,255,255,0.08);
           border: 1px solid rgba(255,255,255,0.15);
           border-radius: 0.6cqw;
-          padding: 1cqw;
+          padding: 1cqw 1.1cqw;
         }
         .tv-card-penitipan {
           border-left: 1.5px solid #f59e0b;
           background: linear-gradient(135deg, rgba(245,158,11,0.08), rgba(255,255,255,0.06));
         }
 
-        /* Section title & meta */
+        /* Section title & meta (outside card — unchanged) */
         .tv-section-title { font-size: 2.6cqw; }
         .tv-section-meta { font-size: 1cqw; }
 
-        /* Sapi card elements */
-        .tv-card-id { font-size: 1.7cqw; font-weight: 800; }
-        .tv-card-counter { font-size: 1.1cqw; font-weight: 700; }
-        .tv-card-info { font-size: 0.95cqw; }
-        .tv-card-kelas { font-size: 1cqw; }
-        .tv-muqorib-name { font-size: 1.15cqw; font-weight: 600; }
-        .tv-slot-num { font-size: 0.9cqw; }
-        .tv-muqorib-status { font-size: 1cqw; color: #6ee7b7; }
+        /* Sapi card elements (+10%) */
+        .tv-card-id { font-size: 1.87cqw; font-weight: 800; }
+        .tv-card-counter { font-size: 1.21cqw; font-weight: 700; }
+        .tv-card-info { font-size: 1.05cqw; }
+        .tv-card-kelas { font-size: 1.1cqw; }
+        .tv-muqorib-name { font-size: 1.27cqw; font-weight: 600; }
+        .tv-slot-num { font-size: 0.99cqw; }
+        .tv-muqorib-status { font-size: 1.1cqw; color: #6ee7b7; }
 
-        /* Kambing card elements */
-        .tv-kambing-nama { font-size: 1.5cqw; font-weight: 700; }
-        .tv-kambing-status { font-size: 1.4cqw; color: #6ee7b7; }
+        /* Kambing card elements (+10%) */
+        .tv-kambing-nama { font-size: 1.65cqw; font-weight: 700; }
+        .tv-kambing-status { font-size: 1.54cqw; color: #6ee7b7; }
 
         /* Summary slide */
         .tv-ring-num { font-size: 4cqw; font-weight: 800; line-height: 1.1; }
@@ -355,9 +356,9 @@ export default function QurbanTVPage() {
         .tv-header-date { font-size: 1.1cqw; }
         .tv-main-title { font-size: 2.8cqw; }
 
-        /* Badge */
+        /* Badge (+10%) */
         .tv-penitipan-badge {
-          font-size: 0.75cqw; font-weight: 700;
+          font-size: 0.83cqw; font-weight: 700;
           background: #d4a017; color: #1a1a1a;
           border-radius: 4px; padding: 0.1cqw 0.35cqw;
           letter-spacing: 0.03em;
@@ -408,7 +409,7 @@ export default function QurbanTVPage() {
           </div>
 
           {/* Footer — disclaimer + progress bar + URL */}
-          <footer className="flex-shrink-0 mt-[0.6vh]">
+          <footer className="flex-shrink-0 mt-[1.3cqw]">
             <div className="tv-disclaimer">
               Penomoran slot dan pengelompokan muqorib pada daftar ini bersifat sementara. Panitia berhak mengatur ulang untuk kebutuhan operasional penyembelihan.
             </div>
