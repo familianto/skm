@@ -163,6 +163,8 @@ Lihat detail lengkap di `DATABASE_SCHEMA.md`.
   - Sapi: 4 card per slide (grid 2×2), dipisah per kelas (A, B, C, D)
   - Kambing: 6 card per slide (grid 3×2), semua kelas digabung
   - Klausul penomoran (versi panjang) di footer semua slide
+  - Nama muqorib lunas: warna hijau (visual distinction dari kejauhan)
+  - Font size dalam card: +10%, padding horizontal card: +10%
 - Cache 5 menit, auto-refresh, `noindex` meta tag
 
 ### 5.9 Import CSV Rekening Koran — BARU
