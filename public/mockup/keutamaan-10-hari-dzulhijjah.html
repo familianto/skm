@@ -4,6 +4,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="dark">
 <title>Keutamaan 10 Hari Pertama Dzulhijjah</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -28,12 +29,16 @@ html, body {
 width: 100%;
 height: 100vh;
 overflow: hidden;
+background-color: #0a1f17;
 background: var(–bg-deep);
+color: #f4ead8;
 color: var(–cream);
-font-family: ‘Cormorant Garamond’, serif;
+font-family: ‘Cormorant Garamond’, Georgia, serif;
 }
 
 body {
+background-color: #102a20;
+background: #102a20;
 background:
 radial-gradient(ellipse at 50% 30%, var(–bg-soft) 0%, var(–bg-mid) 45%, var(–bg-deep) 100%);
 position: relative;
@@ -43,7 +48,7 @@ position: relative;
 body::before {
 content: ‘’;
 position: fixed;
-inset: 0;
+top: 0; right: 0; bottom: 0; left: 0;
 background-image:
 repeating-linear-gradient(45deg, transparent 0, transparent 60px, rgba(201, 169, 110, 0.018) 60px, rgba(201, 169, 110, 0.018) 61px),
 repeating-linear-gradient(-45deg, transparent 0, transparent 60px, rgba(201, 169, 110, 0.018) 60px, rgba(201, 169, 110, 0.018) 61px);
@@ -55,7 +60,7 @@ z-index: 1;
 body::after {
 content: ‘’;
 position: fixed;
-inset: 0;
+top: 0; right: 0; bottom: 0; left: 0;
 background: radial-gradient(ellipse at center, transparent 55%, rgba(0,0,0,0.45) 100%);
 pointer-events: none;
 z-index: 2;
@@ -74,10 +79,11 @@ z-index: 100;
 
 .progress-bar {
 flex: 1;
-height: 3px;
-background: rgba(201, 169, 110, 0.18);
+height: 4px;
+background-color: rgba(201, 169, 110, 0.20);
+background: rgba(201, 169, 110, 0.20);
 border-radius: 2px;
-overflow: hidden;
+overflow: visible;
 position: relative;
 }
 
@@ -87,25 +93,28 @@ top: 0;
 left: 0;
 height: 100%;
 width: 0%;
-background: linear-gradient(90deg, var(–gold-soft), var(–gold-bright));
+background-color: #c9a96e;
+background: linear-gradient(90deg, #b89456 0%, #e6c889 100%);
 border-radius: 2px;
-box-shadow: 0 0 10px rgba(230, 200, 137, 0.35);
+box-shadow: 0 0 14px rgba(230, 200, 137, 0.55);
 }
 
-.progress-bar.completed .progress-fill { width: 100%; }
-.progress-bar.active .progress-fill {
-animation: fillProgress var(–slide-duration) linear forwards;
-}
-
-@keyframes fillProgress {
-from { width: 0%; }
-to   { width: 100%; }
+/* Glowing leading edge that travels with the fill */
+.progress-fill::after {
+content: ‘’;
+position: absolute;
+right: -3px;
+top: -4px;
+bottom: -4px;
+width: 14px;
+background: radial-gradient(ellipse at right center, rgba(255, 230, 170, 0.85) 0%, rgba(230, 200, 137, 0) 75%);
+pointer-events: none;
 }
 
 /* ============ Slides ============ */
 .slide {
 position: absolute;
-inset: 0;
+top: 0; right: 0; bottom: 0; left: 0;
 padding: 50px 90px 70px;
 display: flex;
 flex-direction: column;
@@ -490,28 +499,62 @@ to   { opacity: 1; transform: translateY(0); }
 </section>
 
 <script>
-  const SLIDE_DURATION = 15000; // 15 seconds per slide
-  const slides = document.querySelectorAll('.slide');
-  const bars = document.querySelectorAll('.progress-bar');
-  let currentIndex = 0;
+  var SLIDE_DURATION = 15000; // 15 detik per slide
+  var slides = document.querySelectorAll('.slide');
+  var bars = document.querySelectorAll('.progress-bar');
+  var fills = document.querySelectorAll('.progress-fill');
+  var currentIndex = 0;
+  var rafId = null;
+  var animationStart = 0;
+
+  function animateActiveBar(barIndex) {
+    if (rafId) {
+      cancelAnimationFrame(rafId);
+      rafId = null;
+    }
+    var fill = fills[barIndex];
+    fill.style.width = '0%';
+    animationStart = (window.performance && performance.now) ? performance.now() : Date.now();
+
+    function tick(now) {
+      if (!now) {
+        now = (window.performance && performance.now) ? performance.now() : Date.now();
+      }
+      var elapsed = now - animationStart;
+      var progress = elapsed / SLIDE_DURATION;
+      if (progress > 1) progress = 1;
+      fill.style.width = (progress * 100) + '%';
+      if (progress < 1) {
+        rafId = requestAnimationFrame(tick);
+      }
+    }
+    rafId = requestAnimationFrame(tick);
+  }
 
   function activateSlide(index) {
     // Toggle slide visibility
-    slides.forEach((slide, i) => {
-      slide.classList.toggle('active', i === index);
-    });
+    for (var i = 0; i < slides.length; i++) {
+      if (i === index) {
+        slides[i].classList.add('active');
+      } else {
+        slides[i].classList.remove('active');
+      }
+    }
 
-    // Reset all progress bars first
-    bars.forEach(bar => bar.classList.remove('active', 'completed'));
+    // Set bar fills explicitly: previous = 100%, current = 0%, future = 0%
+    for (var j = 0; j < bars.length; j++) {
+      bars[j].classList.remove('active', 'completed');
+      if (j < index) {
+        bars[j].classList.add('completed');
+        fills[j].style.width = '100%';
+      } else if (j > index) {
+        fills[j].style.width = '0%';
+      }
+    }
 
-    // Force reflow so the animation restarts cleanly when looping
-    void bars[0].offsetWidth;
-
-    // Apply new states
-    bars.forEach((bar, i) => {
-      if (i < index) bar.classList.add('completed');
-      if (i === index) bar.classList.add('active');
-    });
+    // Animate the current bar
+    bars[index].classList.add('active');
+    animateActiveBar(index);
   }
 
   function nextSlide() {
