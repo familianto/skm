@@ -1,5 +1,4 @@
 <!DOCTYPE html>
-
 <html lang="id">
 <head>
 <meta charset="UTF-8">
@@ -23,411 +22,419 @@
     --slide-duration: 15s;
   }
 
-- { margin: 0; padding: 0; box-sizing: border-box; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
 
-html, body {
-width: 100%;
-height: 100vh;
-overflow: hidden;
-background-color: #0a1f17;
-background: var(–bg-deep);
-color: #f4ead8;
-color: var(–cream);
-font-family: ‘Cormorant Garamond’, Georgia, serif;
-}
+  html, body {
+    width: 100%;
+    height: 100vh;
+    overflow: hidden;
+    background-color: #0a1f17;
+    background: var(--bg-deep);
+    color: #f4ead8;
+    color: var(--cream);
+    font-family: 'Cormorant Garamond', Georgia, serif;
+  }
 
-body {
-background-color: #102a20;
-background: #102a20;
-background:
-radial-gradient(ellipse at 50% 30%, var(–bg-soft) 0%, var(–bg-mid) 45%, var(–bg-deep) 100%);
-position: relative;
-}
+  body {
+    position: relative;
+  }
 
-/* Subtle geometric texture */
-body::before {
-content: ‘’;
-position: fixed;
-top: 0; right: 0; bottom: 0; left: 0;
-background-image:
-repeating-linear-gradient(45deg, transparent 0, transparent 60px, rgba(201, 169, 110, 0.018) 60px, rgba(201, 169, 110, 0.018) 61px),
-repeating-linear-gradient(-45deg, transparent 0, transparent 60px, rgba(201, 169, 110, 0.018) 60px, rgba(201, 169, 110, 0.018) 61px);
-pointer-events: none;
-z-index: 1;
-}
+  /* ============ Stage: 16:9 container, JS-fitted to viewport ============ */
+  .stage {
+    position: absolute;
+    /* Width / height / top / left set via JS to maintain 16:9 */
+    background-color: #102a20;
+    background: #102a20;
+    background:
+      radial-gradient(ellipse at 50% 30%, var(--bg-soft) 0%, var(--bg-mid) 45%, var(--bg-deep) 100%);
+    overflow: hidden;
+  }
 
-/* Vignette */
-body::after {
-content: ‘’;
-position: fixed;
-top: 0; right: 0; bottom: 0; left: 0;
-background: radial-gradient(ellipse at center, transparent 55%, rgba(0,0,0,0.45) 100%);
-pointer-events: none;
-z-index: 2;
-}
+  /* Subtle geometric texture inside stage */
+  .stage::before {
+    content: '';
+    position: absolute;
+    top: 0; right: 0; bottom: 0; left: 0;
+    background-image:
+      repeating-linear-gradient(45deg, transparent 0, transparent 60px, rgba(201, 169, 110, 0.018) 60px, rgba(201, 169, 110, 0.018) 61px),
+      repeating-linear-gradient(-45deg, transparent 0, transparent 60px, rgba(201, 169, 110, 0.018) 60px, rgba(201, 169, 110, 0.018) 61px);
+    pointer-events: none;
+    z-index: 1;
+  }
 
-/* ============ Progress bars (Stories style) ============ */
-.progress-container {
-position: fixed;
-bottom: 28px;
-left: 32px;
-right: 32px;
-display: flex;
-gap: 10px;
-z-index: 100;
-}
+  /* Vignette inside stage */
+  .stage::after {
+    content: '';
+    position: absolute;
+    top: 0; right: 0; bottom: 0; left: 0;
+    background: radial-gradient(ellipse at center, transparent 55%, rgba(0,0,0,0.45) 100%);
+    pointer-events: none;
+    z-index: 2;
+  }
 
-.progress-bar {
-flex: 1;
-height: 4px;
-background-color: rgba(201, 169, 110, 0.20);
-background: rgba(201, 169, 110, 0.20);
-border-radius: 2px;
-overflow: visible;
-position: relative;
-}
+  /* ============ Progress bars (Stories style) ============ */
+  .progress-container {
+    position: absolute;
+    bottom: 5%;
+    left: 6%;
+    right: 6%;
+    display: flex;
+    gap: 10px;
+    z-index: 100;
+  }
 
-.progress-fill {
-position: absolute;
-top: 0;
-left: 0;
-height: 100%;
-width: 0%;
-background-color: #c9a96e;
-background: linear-gradient(90deg, #b89456 0%, #e6c889 100%);
-border-radius: 2px;
-box-shadow: 0 0 14px rgba(230, 200, 137, 0.55);
-}
+  .progress-bar {
+    flex: 1;
+    height: 4px;
+    background-color: rgba(201, 169, 110, 0.20);
+    background: rgba(201, 169, 110, 0.20);
+    border-radius: 2px;
+    overflow: visible;
+    position: relative;
+  }
 
-/* Glowing leading edge that travels with the fill */
-.progress-fill::after {
-content: ‘’;
-position: absolute;
-right: -3px;
-top: -4px;
-bottom: -4px;
-width: 14px;
-background: radial-gradient(ellipse at right center, rgba(255, 230, 170, 0.85) 0%, rgba(230, 200, 137, 0) 75%);
-pointer-events: none;
-}
+  .progress-fill {
+    position: absolute;
+    top: 0;
+    left: 0;
+    height: 100%;
+    width: 0%;
+    background-color: #c9a96e;
+    background: linear-gradient(90deg, #b89456 0%, #e6c889 100%);
+    border-radius: 2px;
+    box-shadow: 0 0 14px rgba(230, 200, 137, 0.55);
+  }
 
-/* ============ Slides ============ */
-.slide {
-position: absolute;
-top: 0; right: 0; bottom: 0; left: 0;
-padding: 50px 90px 70px;
-display: flex;
-flex-direction: column;
-opacity: 0;
-visibility: hidden;
-transition: opacity 0.7s ease;
-z-index: 5;
-}
+  /* Glowing leading edge that travels with the fill */
+  .progress-fill::after {
+    content: '';
+    position: absolute;
+    right: -3px;
+    top: -4px;
+    bottom: -4px;
+    width: 14px;
+    background: radial-gradient(ellipse at right center, rgba(255, 230, 170, 0.85) 0%, rgba(230, 200, 137, 0) 75%);
+    pointer-events: none;
+  }
 
-.slide.active {
-opacity: 1;
-visibility: visible;
-}
+  /* ============ Slides ============ */
+  .slide {
+    position: absolute;
+    top: 6%;
+    right: 6%;
+    bottom: 13%;
+    left: 6%;
+    display: flex;
+    flex-direction: column;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.7s ease;
+    z-index: 5;
+  }
 
-/* ============ Common header ============ */
-.slide-header {
-text-align: center;
-display: flex;
-flex-direction: column;
-justify-content: center;
-align-items: center;
-gap: 14px;
-}
+  .slide.active {
+    opacity: 1;
+    visibility: visible;
+  }
 
-.slide-header .title {
-font-family: ‘Cormorant Garamond’, serif;
-font-weight: 500;
-font-size: clamp(2rem, 3.4vw, 3.4rem);
-color: var(–gold-bright);
-letter-spacing: 0.015em;
-line-height: 1.1;
-}
+  /* ============ Common header ============ */
+  .slide-header {
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: 14px;
+  }
 
-.ornament {
-display: flex;
-align-items: center;
-gap: 18px;
-color: var(–gold);
-font-size: 14px;
-}
+  .slide-header .title {
+    font-family: 'Cormorant Garamond', serif;
+    font-weight: 500;
+    font-size: clamp(2rem, 3.4vw, 3.4rem);
+    color: var(--gold-bright);
+    letter-spacing: 0.015em;
+    line-height: 1.1;
+  }
 
-.ornament::before, .ornament::after {
-content: ‘’;
-height: 1px;
-width: 80px;
-background: linear-gradient(90deg, transparent, var(–gold), transparent);
-}
+  .ornament {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    color: var(--gold);
+    font-size: 14px;
+  }
 
-.reference {
-font-family: ‘Cormorant Garamond’, serif;
-font-size: clamp(0.95rem, 1.3vw, 1.3rem);
-color: var(–gold);
-letter-spacing: 0.18em;
-text-transform: uppercase;
-font-weight: 500;
-}
+  .ornament::before, .ornament::after {
+    content: '';
+    height: 1px;
+    width: 80px;
+    background: linear-gradient(90deg, transparent, var(--gold), transparent);
+  }
 
-/* ============ Slide 1 — Dalil ============ */
-#slide1 .slide-header { flex: 0 0 13%; }
-#slide1 .quran-section { flex: 1 1 50%; }
-#slide1 .divider-block { flex: 0 0 auto; margin: 8px 0; }
-#slide1 .hadith-section { flex: 1 1 37%; }
+  .reference {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: clamp(0.95rem, 1.3vw, 1.3rem);
+    color: var(--gold);
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    font-weight: 500;
+  }
 
-.quran-section, .hadith-section {
-display: flex;
-flex-direction: column;
-justify-content: center;
-align-items: center;
-text-align: center;
-padding: 0 40px;
-}
+  /* ============ Slide 1 — Dalil ============ */
+  #slide1 .slide-header { flex: 0 0 13%; }
+  #slide1 .quran-section { flex: 1 1 50%; }
+  #slide1 .divider-block { flex: 0 0 auto; margin: 8px 0; }
+  #slide1 .hadith-section { flex: 1 1 37%; }
 
-.quran-arabic {
-font-family: ‘Amiri’, serif;
-font-size: clamp(2.8rem, 5.2vw, 5.2rem);
-font-weight: 400;
-line-height: 1.7;
-color: var(–cream);
-direction: rtl;
-margin-bottom: 28px;
-letter-spacing: 0.01em;
-}
+  .quran-section, .hadith-section {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    padding: 0 40px;
+  }
 
-.quran-translation {
-font-family: ‘Cormorant Garamond’, serif;
-font-style: italic;
-font-weight: 400;
-font-size: clamp(1.4rem, 2.1vw, 2.1rem);
-line-height: 1.5;
-color: var(–cream-mute);
-max-width: 1200px;
-margin-bottom: 18px;
-}
+  .quran-arabic {
+    font-family: 'Amiri', serif;
+    font-size: clamp(2.8rem, 5.2vw, 5.2rem);
+    font-weight: 400;
+    line-height: 1.7;
+    color: var(--cream);
+    direction: rtl;
+    margin-bottom: 28px;
+    letter-spacing: 0.01em;
+  }
 
-.divider {
-position: relative;
-width: 70%;
-max-width: 900px;
-height: 1px;
-margin: 0 auto;
-background: linear-gradient(90deg, transparent, var(–gold-soft), transparent);
-}
+  .quran-translation {
+    font-family: 'Cormorant Garamond', serif;
+    font-style: italic;
+    font-weight: 400;
+    font-size: clamp(1.4rem, 2.1vw, 2.1rem);
+    line-height: 1.5;
+    color: var(--cream-mute);
+    max-width: 1200px;
+    margin-bottom: 18px;
+  }
 
-.divider::after {
-content: ‘✦’;
-position: absolute;
-top: 50%;
-left: 50%;
-transform: translate(-50%, -50%);
-background: var(–bg-mid);
-color: var(–gold);
-padding: 0 18px;
-font-size: 13px;
-}
+  .divider {
+    position: relative;
+    width: 70%;
+    max-width: 900px;
+    height: 1px;
+    margin: 0 auto;
+    background: linear-gradient(90deg, transparent, var(--gold-soft), transparent);
+  }
 
-.hadith-text {
-font-family: ‘Cormorant Garamond’, serif;
-font-style: italic;
-font-weight: 400;
-font-size: clamp(1.5rem, 2.3vw, 2.3rem);
-line-height: 1.5;
-color: var(–cream);
-max-width: 1300px;
-margin-bottom: 22px;
-position: relative;
-}
+  .divider::after {
+    content: '✦';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: var(--bg-mid);
+    color: var(--gold);
+    padding: 0 18px;
+    font-size: 13px;
+  }
 
-.hadith-text::before, .hadith-text::after {
-color: var(–gold);
-font-family: ‘Cormorant Garamond’, serif;
-font-style: normal;
-font-size: 1.6em;
-line-height: 0;
-vertical-align: -0.35em;
-}
-.hadith-text::before { content: ‘\201C’; margin-right: 6px; }
-.hadith-text::after  { content: ‘\201D’; margin-left: 6px;  }
+  .hadith-text {
+    font-family: 'Cormorant Garamond', serif;
+    font-style: italic;
+    font-weight: 400;
+    font-size: clamp(1.5rem, 2.3vw, 2.3rem);
+    line-height: 1.5;
+    color: var(--cream);
+    max-width: 1300px;
+    margin-bottom: 22px;
+    position: relative;
+  }
 
-/* ============ Slide 2 — Intisari ============ */
-#slide2 .slide-header { flex: 0 0 16%; }
-#slide2 .callout-wrap { flex: 0 0 22%; }
-#slide2 .amalan-section { flex: 1 1 47%; }
-#slide2 .closing { flex: 0 0 15%; }
+  .hadith-text::before, .hadith-text::after {
+    color: var(--gold);
+    font-family: 'Cormorant Garamond', serif;
+    font-style: normal;
+    font-size: 1.6em;
+    line-height: 0;
+    vertical-align: -0.35em;
+  }
+  .hadith-text::before { content: '\201C'; margin-right: 6px; }
+  .hadith-text::after  { content: '\201D'; margin-left: 6px;  }
 
-.callout-wrap {
-display: flex;
-align-items: center;
-justify-content: center;
-padding: 0 40px;
-}
+  /* ============ Slide 2 — Intisari ============ */
+  #slide2 .slide-header { flex: 0 0 16%; }
+  #slide2 .callout-wrap { flex: 0 0 22%; }
+  #slide2 .amalan-section { flex: 1 1 47%; }
+  #slide2 .closing { flex: 0 0 15%; }
 
-.callout {
-position: relative;
-max-width: 1300px;
-padding: 26px 70px;
-border-top: 1px solid var(–gold);
-border-bottom: 1px solid var(–gold);
-text-align: center;
-}
+  .callout-wrap {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 40px;
+  }
 
-.callout::before, .callout::after {
-content: ‘’;
-position: absolute;
-width: 28px;
-height: 28px;
-border: 1px solid var(–gold);
-}
-.callout::before {
-top: -1px; left: -1px;
-border-right: none; border-bottom: none;
-}
-.callout::after {
-bottom: -1px; right: -1px;
-border-left: none; border-top: none;
-}
+  .callout {
+    position: relative;
+    max-width: 1300px;
+    padding: 26px 70px;
+    border-top: 1px solid var(--gold);
+    border-bottom: 1px solid var(--gold);
+    text-align: center;
+  }
 
-.callout-text {
-font-family: ‘Cormorant Garamond’, serif;
-font-style: italic;
-font-weight: 500;
-font-size: clamp(1.4rem, 2.2vw, 2.2rem);
-line-height: 1.4;
-color: var(–gold-bright);
-}
+  .callout::before, .callout::after {
+    content: '';
+    position: absolute;
+    width: 28px;
+    height: 28px;
+    border: 1px solid var(--gold);
+  }
+  .callout::before {
+    top: -1px; left: -1px;
+    border-right: none; border-bottom: none;
+  }
+  .callout::after {
+    bottom: -1px; right: -1px;
+    border-left: none; border-top: none;
+  }
 
-.amalan-section {
-display: flex;
-flex-direction: column;
-justify-content: center;
-align-items: center;
-padding: 20px 0;
-}
+  .callout-text {
+    font-family: 'Cormorant Garamond', serif;
+    font-style: italic;
+    font-weight: 500;
+    font-size: clamp(1.4rem, 2.2vw, 2.2rem);
+    line-height: 1.4;
+    color: var(--gold-bright);
+  }
 
-.amalan-grid {
-display: grid;
-grid-template-columns: 1fr 1fr;
-column-gap: 80px;
-width: 100%;
-max-width: 1300px;
-align-items: center;
-}
+  .amalan-section {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    padding: 20px 0;
+  }
 
-.amalan-col {
-list-style: none;
-display: flex;
-flex-direction: column;
-gap: 18px;
-}
+  .amalan-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    column-gap: 80px;
+    width: 100%;
+    max-width: 1300px;
+    align-items: center;
+  }
 
-.amalan-item {
-display: flex;
-align-items: baseline;
-gap: 28px;
-padding: 2px 0;
-}
+  .amalan-col {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+  }
 
-.amalan-number {
-font-family: ‘Cormorant Garamond’, serif;
-font-weight: 300;
-font-size: clamp(1.2rem, 1.7vw, 1.7rem);
-color: var(–gold);
-min-width: 48px;
-text-align: right;
-letter-spacing: 0.05em;
-}
+  .amalan-item {
+    display: flex;
+    align-items: baseline;
+    gap: 28px;
+    padding: 2px 0;
+  }
 
-.amalan-text {
-font-family: ‘Cormorant Garamond’, serif;
-font-weight: 400;
-font-size: clamp(1.4rem, 2vw, 2rem);
-color: var(–cream);
-flex: 1;
-line-height: 1.3;
-}
+  .amalan-number {
+    font-family: 'Cormorant Garamond', serif;
+    font-weight: 300;
+    font-size: clamp(1.2rem, 1.7vw, 1.7rem);
+    color: var(--gold);
+    min-width: 48px;
+    text-align: right;
+    letter-spacing: 0.05em;
+  }
 
-.amalan-detail {
-color: var(–cream-dim);
-font-style: italic;
-font-size: 0.82em;
-margin-left: 6px;
-}
+  .amalan-text {
+    font-family: 'Cormorant Garamond', serif;
+    font-weight: 400;
+    font-size: clamp(1.4rem, 2vw, 2rem);
+    color: var(--cream);
+    flex: 1;
+    line-height: 1.3;
+  }
 
-.closing {
-display: flex;
-align-items: center;
-justify-content: center;
-text-align: center;
-}
+  .amalan-detail {
+    color: var(--cream-dim);
+    font-style: italic;
+    font-size: 0.82em;
+    margin-left: 6px;
+  }
 
-.closing-text {
-font-family: ‘Cormorant Garamond’, serif;
-font-style: italic;
-font-weight: 400;
-font-size: clamp(1.3rem, 1.9vw, 1.9rem);
-color: var(–cream-mute);
-letter-spacing: 0.02em;
-}
+  .closing {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+  }
 
-.closing-text::before, .closing-text::after {
-content: ‘—’;
-color: var(–gold);
-margin: 0 16px;
-font-style: normal;
-}
+  .closing-text {
+    font-family: 'Cormorant Garamond', serif;
+    font-style: italic;
+    font-weight: 400;
+    font-size: clamp(1.3rem, 1.9vw, 1.9rem);
+    color: var(--cream-mute);
+    letter-spacing: 0.02em;
+  }
 
-/* ============ Entrance animations ============ */
-.slide.active .slide-header,
-.slide.active .quran-section > *,
-.slide.active .hadith-section > *,
-.slide.active .divider,
-.slide.active .callout,
-.slide.active .amalan-item,
-.slide.active .closing-text {
-animation: fadeRise 0.9s ease-out backwards;
-}
+  .closing-text::before, .closing-text::after {
+    content: '—';
+    color: var(--gold);
+    margin: 0 16px;
+    font-style: normal;
+  }
 
-.slide.active .slide-header { animation-delay: 0.05s; }
-.slide.active .quran-arabic { animation-delay: 0.25s; }
-.slide.active .quran-translation { animation-delay: 0.45s; }
-.slide.active .quran-section .reference { animation-delay: 0.6s; }
-.slide.active .divider { animation-delay: 0.7s; }
-.slide.active .hadith-text { animation-delay: 0.85s; }
-.slide.active .hadith-section .reference { animation-delay: 1s; }
+  /* ============ Entrance animations ============ */
+  .slide.active .slide-header,
+  .slide.active .quran-section > *,
+  .slide.active .hadith-section > *,
+  .slide.active .divider,
+  .slide.active .callout,
+  .slide.active .amalan-item,
+  .slide.active .closing-text {
+    animation: fadeRise 0.9s ease-out backwards;
+  }
 
-.slide.active .callout { animation-delay: 0.25s; }
-.slide.active .amalan-col:nth-child(1) .amalan-item:nth-child(1) { animation-delay: 0.5s; }
-.slide.active .amalan-col:nth-child(1) .amalan-item:nth-child(2) { animation-delay: 0.62s; }
-.slide.active .amalan-col:nth-child(1) .amalan-item:nth-child(3) { animation-delay: 0.74s; }
-.slide.active .amalan-col:nth-child(2) .amalan-item:nth-child(1) { animation-delay: 0.86s; }
-.slide.active .amalan-col:nth-child(2) .amalan-item:nth-child(2) { animation-delay: 0.98s; }
-.slide.active .closing-text { animation-delay: 1.2s; }
+  .slide.active .slide-header { animation-delay: 0.05s; }
+  .slide.active .quran-arabic { animation-delay: 0.25s; }
+  .slide.active .quran-translation { animation-delay: 0.45s; }
+  .slide.active .quran-section .reference { animation-delay: 0.6s; }
+  .slide.active .divider { animation-delay: 0.7s; }
+  .slide.active .hadith-text { animation-delay: 0.85s; }
+  .slide.active .hadith-section .reference { animation-delay: 1s; }
 
-@keyframes fadeRise {
-from { opacity: 0; transform: translateY(14px); }
-to   { opacity: 1; transform: translateY(0); }
-}
+  .slide.active .callout { animation-delay: 0.25s; }
+  .slide.active .amalan-col:nth-child(1) .amalan-item:nth-child(1) { animation-delay: 0.5s; }
+  .slide.active .amalan-col:nth-child(1) .amalan-item:nth-child(2) { animation-delay: 0.62s; }
+  .slide.active .amalan-col:nth-child(1) .amalan-item:nth-child(3) { animation-delay: 0.74s; }
+  .slide.active .amalan-col:nth-child(2) .amalan-item:nth-child(1) { animation-delay: 0.86s; }
+  .slide.active .amalan-col:nth-child(2) .amalan-item:nth-child(2) { animation-delay: 0.98s; }
+  .slide.active .closing-text { animation-delay: 1.2s; }
 
-/* ============ Responsive tweaks for narrower viewports ============ */
-@media (max-width: 1280px) {
-.slide { padding: 60px 60px 50px; }
-}
+  @keyframes fadeRise {
+    from { opacity: 0; transform: translateY(14px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  /* ============ Responsive tweaks for narrower viewports ============ */
+  @media (max-width: 1280px) {
+    .slide { padding: 60px 60px 50px; }
+  }
 </style>
-
 </head>
 <body>
 
+<div class="stage">
 <div class="progress-container">
   <div class="progress-bar" id="bar1"><div class="progress-fill"></div></div>
   <div class="progress-bar" id="bar2"><div class="progress-fill"></div></div>
 </div>
 
 <!-- ===== Slide 1: Dalil ===== -->
-
 <section class="slide" id="slide1">
   <div class="slide-header">
     <h1 class="title">Keutamaan 10 Hari Pertama Dzulhijjah</h1>
@@ -451,7 +458,6 @@ to   { opacity: 1; transform: translateY(0); }
 </section>
 
 <!-- ===== Slide 2: Intisari ===== -->
-
 <section class="slide" id="slide2">
   <div class="slide-header">
     <h1 class="title">10 Hari Emas Sepanjang Tahun</h1>
@@ -498,7 +504,37 @@ to   { opacity: 1; transform: translateY(0); }
   </div>
 </section>
 
+</div><!-- /.stage -->
+
 <script>
+  // ===== Stage sizing: enforce 16:9 ratio, letterbox if viewport differs =====
+  function fitStage() {
+    var stage = document.querySelector('.stage');
+    if (!stage) return;
+    var w = window.innerWidth;
+    var h = window.innerHeight;
+    var targetRatio = 16 / 9;
+    var viewportRatio = w / h;
+    var stageW, stageH;
+    if (viewportRatio > targetRatio) {
+      // Viewport lebih lebar dari 16:9 → fit ke tinggi, letterbox kiri-kanan
+      stageH = h;
+      stageW = h * targetRatio;
+    } else {
+      // Viewport lebih tinggi/sempit → fit ke lebar, letterbox atas-bawah
+      stageW = w;
+      stageH = w / targetRatio;
+    }
+    stage.style.width = stageW + 'px';
+    stage.style.height = stageH + 'px';
+    stage.style.left = ((w - stageW) / 2) + 'px';
+    stage.style.top = ((h - stageH) / 2) + 'px';
+  }
+  window.addEventListener('resize', fitStage);
+  window.addEventListener('orientationchange', fitStage);
+  fitStage();
+
+  // ===== Slide & progress bar logic =====
   var SLIDE_DURATION = 15000; // 15 detik per slide
   var slides = document.querySelectorAll('.slide');
   var bars = document.querySelectorAll('.progress-bar');
