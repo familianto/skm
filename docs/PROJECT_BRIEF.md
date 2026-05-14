@@ -373,3 +373,25 @@ Fitur-fitur berikut **tidak termasuk** dalam scope v2.1, tapi bisa ditambahkan d
 - Tambah fitur Import Master Bank & Rekonsiliasi
 - Tambah panduan adopsi untuk masjid lain
 - Update dokumentasi development lengkap
+
+## Display Layer Conventions
+
+### Tipe Qurban / Pengadaan Display Mapping
+
+Master data di GSheet menggunakan istilah legacy:
+- `peserta.tipe_qurban`: `'Beli'` atau `'Penitipan'`
+- `daftar_hewan.pengadaan`: `'Via Panitia'`, `'Penitipan'`, atau `'Bawa Sendiri'`
+
+Untuk display ke user di public-facing pages, istilah `'Penitipan'` di-translate jadi `'Bawa Sendiri'`. Translasi disentral di:
+- **Helper**: `src/lib/qurban-display.ts` → `displayTipeQurban(raw)`
+- **Konstanta**: `LABEL_BAWA_SENDIRI = 'Bawa Sendiri'`, `LABEL_BELI = 'Beli'`
+
+| Layer | Pakai apa? |
+|---|---|
+| Logic comparison (`if`, `filter`, etc.) | `'Penitipan'` (master data) |
+| Type definitions | `'Penitipan'` valid |
+| Data fetching (qurban-sheets.ts) | Raw "Penitipan" |
+| Display JSX (page.tsx, components) | `LABEL_BAWA_SENDIRI` constant |
+| WA share message (qurban-wa-text.ts) | `LABEL_BAWA_SENDIRI` constant |
+
+Kalau perlu mengubah istilah lagi nanti, edit di `src/lib/qurban-display.ts` saja.

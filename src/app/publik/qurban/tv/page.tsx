@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { formatRupiah } from '@/lib/utils';
+import { LABEL_BAWA_SENDIRI } from '@/lib/qurban-display';
 import type { QurbanPublikResponse, QurbanHewanItem } from '@/types/qurban';
 
 const SLIDE_DURATION = 10_000;
@@ -110,7 +111,7 @@ function AnimalSummaryCard({ icon, label, total, breakdown, penitipanCount }: {
           </div>
         ))}
         {penitipanCount > 0 && (
-          <div className="tv-ring-penitipan mt-[0.5vh] opacity-60">{penitipanCount} ekor Penitipan</div>
+          <div className="tv-ring-penitipan mt-[0.5vh] opacity-60">{penitipanCount} ekor {LABEL_BAWA_SENDIRI}</div>
         )}
       </div>
     </div>
@@ -192,7 +193,7 @@ function SapiCard({ hewan }: { hewan: QurbanHewanItem }) {
       <div className="flex justify-between items-center mb-[0.5vh]">
         <div className="flex items-center gap-[0.4vw]">
           <span className="tv-hewan-id font-bold">{hewan.id_hewan}</span>
-          {isPenitipan && <span className="tv-penitipan-badge">PENITIPAN</span>}
+          {isPenitipan && <span className="tv-penitipan-badge">{LABEL_BAWA_SENDIRI.toUpperCase()}</span>}
         </div>
         <span className={`tv-slot-badge font-bold px-[0.6vw] py-[0.15vh] rounded-full ${
           isFull ? 'bg-emerald-500/30' : hewan.terisi === 0 ? 'bg-white/10 opacity-50' : 'bg-white/10'
@@ -228,7 +229,7 @@ function KambingCard({ hewan }: { hewan: QurbanHewanItem }) {
         <div className="flex items-center gap-[0.4vw]">
           <span className="tv-hewan-id font-bold">{hewan.id_hewan}</span>
           <span className="tv-small opacity-60">Kelas {hewan.tipe}</span>
-          {isPenitipan && <span className="tv-penitipan-badge">PENITIPAN</span>}
+          {isPenitipan && <span className="tv-penitipan-badge">{LABEL_BAWA_SENDIRI.toUpperCase()}</span>}
         </div>
         <span className={`tv-slot-badge font-bold px-[0.6vw] py-[0.15vh] rounded-full ${
           isFull ? 'bg-emerald-500/30' : hewan.terisi === 0 ? 'bg-white/10 opacity-50' : 'bg-white/10'
