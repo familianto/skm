@@ -48,9 +48,14 @@ export const SHEET_HEADERS: Record<string, string[]> = {
   ],
   [SHEET_NAMES.AUDIT_LOG]: [
     'id', 'timestamp', 'aksi', 'entitas', 'entitas_id', 'detail', 'user_info',
+    // F01 migration: per Tahap 4 §2.3 (Choice B Minimal Extension)
+    'user_id', 'ip_address',
   ],
   [SHEET_NAMES.ANGGOTA]: [
     'id', 'nama', 'telepon', 'email', 'peran', 'is_active', 'created_at',
+    // F01 migration: per HANDOFF Tahap 2 §4.1 + Tahap 4 §6.2
+    'pin_hash', 'created_by', 'updated_at', 'last_login_at',
+    'failed_attempts', 'locked_until',
   ],
   [SHEET_NAMES.REKONSILIASI]: [
     'id', 'rekening_id', 'tanggal', 'saldo_bank', 'saldo_sistem',
