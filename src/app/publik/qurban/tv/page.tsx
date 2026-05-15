@@ -97,7 +97,7 @@ function AnimalSummaryCard({ icon, label, total, breakdown, penitipanCount }: {
           </div>
         ))}
         {penitipanCount > 0 && (
-          <div className="tv-ring-penitipan mt-[0.4cqw] opacity-60">{penitipanCount} ekor Penitipan</div>
+          <div className="tv-ring-penitipan mt-[0.4cqw] opacity-60">{penitipanCount} ekor {LABEL_BAWA_SENDIRI}</div>
         )}
       </div>
     </div>
@@ -175,7 +175,7 @@ function SapiCard({ hewan }: { hewan: QurbanHewanItem }) {
       <div className="flex justify-between items-center mb-[0.3cqw]">
         <div className="flex items-center gap-[0.4cqw]">
           <span className="tv-card-id">{hewan.id_hewan}</span>
-          {isPenitipan && <span className="tv-penitipan-badge">PENITIPAN</span>}
+          {isPenitipan && <span className="tv-penitipan-badge">{LABEL_BAWA_SENDIRI.toUpperCase()}</span>}
         </div>
         <span className={`tv-card-counter px-[0.5cqw] py-[0.1cqw] rounded-full ${
           isFull ? 'bg-emerald-500/30' : hewan.terisi === 0 ? 'bg-white/10 opacity-50' : 'bg-white/10'
@@ -205,7 +205,7 @@ function KambingCard({ hewan }: { hewan: QurbanHewanItem }) {
         <div className="flex items-center gap-[0.4cqw]">
           <span className="tv-card-id">{hewan.id_hewan}</span>
           <span className="tv-card-kelas opacity-60">Kelas {hewan.tipe}</span>
-          {isPenitipan && <span className="tv-penitipan-badge">PENITIPAN</span>}
+          {isPenitipan && <span className="tv-penitipan-badge">{LABEL_BAWA_SENDIRI.toUpperCase()}</span>}
         </div>
         <span className={`tv-card-counter px-[0.5cqw] py-[0.1cqw] rounded-full ${
           isFull ? 'bg-emerald-500/30' : hewan.terisi === 0 ? 'bg-white/10 opacity-50' : 'bg-white/10'
