@@ -159,7 +159,12 @@ Lihat detail lengkap di `DATABASE_SCHEMA.md`.
 - Summary card, search, tab filter (Semua/Sapi/Kambing/Penitipan)
 - Card per hewan dengan slot list, status bayar, badge PENITIPAN
 - Share ke WA (text terformat), Copy Link
-- TV mode: 4 slides auto-rotate (Ringkasan, Top Sapi, Top Kambing, Penitipan)
+- TV mode: slide auto-rotate 10 detik per slide
+  - Sapi: 4 card per slide (grid 2×2), dipisah per kelas (A, B, C, D)
+  - Kambing: 6 card per slide (grid 3×2), semua kelas digabung
+  - Klausul penomoran (versi panjang) di footer semua slide
+  - Nama muqorib lunas: warna hijau (visual distinction dari kejauhan)
+  - Font size dalam card: +10%, padding horizontal card: +10%
 - Cache 5 menit, auto-refresh, `noindex` meta tag
 
 ### 5.9 Import CSV Rekening Koran — BARU
@@ -309,6 +314,7 @@ Fitur-fitur berikut **tidak termasuk** dalam scope v2.1, tapi bisa ditambahkan d
 - **Card**: `shadow-sm + border-gray-200 + rounded-xl`, padding `p-6`
 - **Table**: Header `bg-gray-50 font-semibold`, row hover `bg-gray-50`, kolom Aksi `text-center`
 - **Rupiah**: Format dengan spasi: `Rp 1.234.567` (via `formatRupiah()` di `lib/utils.ts`)
+- **CurrencyInput** (`components/ui/currency-input.tsx`): Reusable input untuk nominal Rupiah dengan thousand separator titik (format Indonesia). Props: `value: number | null`, `onChange: (value: number | null) => void`. Internally memakai `Intl.NumberFormat('id-ID')` untuk display, raw integer untuk state. Paste "Rp 1.000.000" / "1,000,000" / "1000000" semua di-parse jadi `1000000`. Karakter non-digit otomatis di-strip. Dipakai di SELURUH form input nominal SKM: Rekonsiliasi (Saldo Bank Aktual), Rekening Tambah/Edit (Saldo Awal), Donatur Tambah/Edit (Komitmen Donasi/Bulan), Transaksi Tambah/Edit/Koreksi/Mutasi Internal (Jumlah), Import CSV split SETOR TUNAI (Jumlah per split). Single source of truth untuk format nominal input.
 
 ### Rekonsiliasi Form
 - Form dibatasi `max-w-2xl` agar tidak full-width
@@ -316,6 +322,20 @@ Fitur-fitur berikut **tidak termasuk** dalam scope v2.1, tapi bisa ditambahkan d
 ---
 
 ## Changelog
+
+### v2.4.2 (5 Mei 2026) — CurrencyInput Rollout
+- Standardisasi `<CurrencyInput>` ke seluruh form nominal di SKM
+- Cakupan baru: Transaksi (Tambah/Edit/Koreksi/Mutasi Internal — field Jumlah), Import CSV split SETOR TUNAI (Jumlah per split)
+- Inline `formatRupiah(string)` di `transaction-form.tsx` dan `formatDots` di `import/page.tsx` dihapus — semua delegated ke `CurrencyInput`
+- State internal form berubah: `jumlah` di TransactionForm sekarang `number | null` (bukan string ber-separator)
+- Kelompok Anggaran: tidak ada field nominal (out-of-scope), Dashboard read-only, Laporan tidak punya filter min/max amount — tidak ada perubahan
+- API contract tidak berubah — backend tetap menerima/mengirim integer
+
+### v2.4.1 (5 Mei 2026) — Currency Input Separator
+- **Reusable `CurrencyInput` component** (`components/ui/currency-input.tsx`) untuk semua input nominal Rupiah
+- Format: Indonesian thousand separator titik (mis. `1.500.000`); raw integer di state & API, display formatted only
+- Diaplikasikan di: Rekonsiliasi (Saldo Bank Aktual), Rekening Tambah/Edit (Saldo Awal), Donatur Tambah/Edit (Komitmen Donasi/Bulan)
+- API contract tidak berubah — backend tetap menerima/mengirim integer
 
 ### v2.4 (10 April 2026) — Sprint 9
 - **Fitur baru: Bulk Edit Kategori** — Pilih banyak transaksi via checkbox, ubah kategori sekaligus lewat dialog konfirmasi dengan preview perubahan

@@ -1,0 +1,1556 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mockup — Sistem Distribusi Qurban 1447H</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  :root {
+    --primary: #0d5c3f;
+    --primary-dark: #0a4530;
+    --primary-light: #e8f0ec;
+    --success: #16a34a;
+    --warning: #f59e0b;
+    --danger: #dc2626;
+    --gray-50: #f9fafb;
+    --gray-100: #f3f4f6;
+    --gray-200: #e5e7eb;
+    --gray-300: #d1d5db;
+    --gray-500: #6b7280;
+    --gray-700: #374151;
+    --gray-900: #111827;
+  }
+  body {
+    font-family: -apple-system, "SF Pro Display", "Inter", system-ui, sans-serif;
+    background: #1a1a1a;
+    color: var(--gray-900);
+    min-height: 100vh;
+    padding: 24px 16px;
+  }
+
+  /* ============= Page Header ============= */
+  .page-header {
+    max-width: 1400px;
+    margin: 0 auto 24px;
+    color: #fff;
+  }
+  .page-title {
+    font-size: 22px;
+    font-weight: 700;
+    margin-bottom: 6px;
+  }
+  .page-subtitle {
+    font-size: 13px;
+    color: #aaa;
+    line-height: 1.5;
+  }
+
+  /* ============= View Tabs ============= */
+  .tabs {
+    max-width: 1400px;
+    margin: 0 auto 24px;
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+  .tab {
+    background: rgba(255,255,255,0.08);
+    border: 1px solid rgba(255,255,255,0.15);
+    color: #fff;
+    padding: 10px 20px;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .tab:hover { background: rgba(255,255,255,0.15); }
+  .tab.active {
+    background: var(--primary);
+    border-color: var(--primary);
+  }
+  .tab-spacer { flex: 1; }
+  .reset-btn {
+    background: rgba(220,38,38,0.15);
+    border: 1px solid rgba(220,38,38,0.4);
+    color: #fca5a5;
+    padding: 10px 16px;
+    border-radius: 8px;
+    font-size: 13px;
+    cursor: pointer;
+  }
+  .reset-btn:hover { background: rgba(220,38,38,0.25); }
+
+  /* ============= View Container ============= */
+  .view-container {
+    max-width: 1400px;
+    margin: 0 auto;
+  }
+  .view { display: none; }
+  .view.active { display: block; }
+
+  /* ============= PETUGAS VIEW (Mobile Frame) ============= */
+  .petugas-stage {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+  }
+  .stage-info {
+    background: rgba(13,92,63,0.15);
+    border: 1px solid rgba(13,92,63,0.4);
+    color: #86efac;
+    padding: 10px 14px;
+    border-radius: 8px;
+    font-size: 12px;
+    max-width: 480px;
+    text-align: center;
+    line-height: 1.5;
+  }
+  .switch-petugas {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  .switch-petugas button {
+    background: #fff;
+    border: 1px solid var(--gray-300);
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-size: 12px;
+    cursor: pointer;
+  }
+  .switch-petugas button.active {
+    background: var(--primary);
+    color: #fff;
+    border-color: var(--primary);
+  }
+
+  .mobile-frame {
+    width: 390px;
+    height: 780px;
+    background: #fff;
+    border-radius: 32px;
+    overflow: hidden;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+    border: 8px solid #1f2937;
+    display: flex;
+    flex-direction: column;
+  }
+  .mobile-status-bar {
+    height: 32px;
+    background: #fff;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0 24px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--gray-900);
+    flex-shrink: 0;
+  }
+  .mobile-content {
+    flex: 1;
+    overflow-y: auto;
+    background: var(--gray-50);
+    position: relative;
+  }
+  .app-header {
+    background: var(--primary);
+    color: #fff;
+    padding: 16px 20px;
+  }
+  .app-header-greeting {
+    font-size: 13px;
+    opacity: 0.85;
+    margin-bottom: 2px;
+  }
+  .app-header-name {
+    font-size: 17px;
+    font-weight: 700;
+    margin-bottom: 4px;
+  }
+  .app-header-cluster {
+    font-size: 12px;
+    background: rgba(255,255,255,0.15);
+    padding: 4px 8px;
+    border-radius: 6px;
+    display: inline-block;
+  }
+
+  .app-body { padding: 16px; }
+
+  .action-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-bottom: 20px;
+  }
+  .action-btn {
+    background: #fff;
+    border: 1px solid var(--gray-200);
+    border-radius: 12px;
+    padding: 16px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    cursor: pointer;
+    transition: all 0.15s;
+    text-align: left;
+    width: 100%;
+    font-family: inherit;
+  }
+  .action-btn:hover {
+    border-color: var(--primary);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+  }
+  .action-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 10px;
+    background: var(--primary-light);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
+    flex-shrink: 0;
+  }
+  .action-text-main {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--gray-900);
+    margin-bottom: 2px;
+  }
+  .action-text-sub {
+    font-size: 12px;
+    color: var(--gray-500);
+  }
+
+  .history-section { padding-top: 8px; }
+  .history-title {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--gray-500);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 10px;
+    display: flex;
+    justify-content: space-between;
+  }
+  .history-empty {
+    text-align: center;
+    padding: 20px;
+    color: var(--gray-500);
+    font-size: 13px;
+    background: #fff;
+    border-radius: 10px;
+    border: 1px dashed var(--gray-300);
+  }
+  .history-card {
+    background: #fff;
+    border: 1px solid var(--gray-200);
+    border-radius: 10px;
+    padding: 12px;
+    margin-bottom: 8px;
+  }
+  .history-card-row1 {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 4px;
+  }
+  .history-card-tipe {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    padding: 2px 8px;
+    border-radius: 4px;
+    letter-spacing: 0.03em;
+  }
+  .history-card-tipe.RT { background: #dbeafe; color: #1e40af; }
+  .history-card-tipe.MUQORIB { background: #dcfce7; color: #166534; }
+  .history-card-tipe.LAINNYA { background: #fef3c7; color: #92400e; }
+  .history-card-time {
+    font-size: 11px;
+    color: var(--gray-500);
+  }
+  .history-card-target {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--gray-900);
+    margin-bottom: 2px;
+  }
+  .history-card-detail {
+    font-size: 12px;
+    color: var(--gray-500);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .history-card.void {
+    opacity: 0.5;
+    background: var(--gray-100);
+  }
+  .history-card.void .history-card-target {
+    text-decoration: line-through;
+  }
+  .undo-btn {
+    background: var(--danger);
+    color: #fff;
+    border: none;
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    margin-top: 8px;
+    width: 100%;
+  }
+  .undo-btn:hover { background: #b91c1c; }
+
+  /* ============= Modal (form input) ============= */
+  .modal-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(0,0,0,0.5);
+    display: none;
+    align-items: flex-end;
+    z-index: 100;
+  }
+  .modal-overlay.active { display: flex; }
+  .modal {
+    background: #fff;
+    width: 100%;
+    border-radius: 20px 20px 0 0;
+    padding: 20px;
+    max-height: 92%;
+    overflow-y: auto;
+  }
+  .modal-handle {
+    width: 36px;
+    height: 4px;
+    background: var(--gray-300);
+    border-radius: 2px;
+    margin: -8px auto 16px;
+  }
+  .modal-title {
+    font-size: 17px;
+    font-weight: 700;
+    color: var(--gray-900);
+    margin-bottom: 16px;
+  }
+  .form-group { margin-bottom: 14px; }
+  .form-label {
+    display: block;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--gray-700);
+    margin-bottom: 6px;
+  }
+  .form-input, .form-select, .form-textarea {
+    width: 100%;
+    padding: 11px 12px;
+    border: 1px solid var(--gray-300);
+    border-radius: 8px;
+    font-size: 14px;
+    font-family: inherit;
+    background: #fff;
+  }
+  .form-input:focus, .form-select:focus, .form-textarea:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(13,92,63,0.1);
+  }
+  .form-textarea { resize: vertical; min-height: 60px; }
+  .info-box {
+    background: var(--primary-light);
+    border-left: 3px solid var(--primary);
+    padding: 10px 12px;
+    border-radius: 6px;
+    font-size: 12px;
+    color: var(--primary);
+    margin-bottom: 14px;
+    line-height: 1.5;
+  }
+  .modal-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 20px;
+  }
+  .btn {
+    flex: 1;
+    padding: 12px;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    border: none;
+    font-family: inherit;
+  }
+  .btn-primary {
+    background: var(--primary);
+    color: #fff;
+  }
+  .btn-primary:hover { background: var(--primary-dark); }
+  .btn-primary:disabled {
+    background: var(--gray-300);
+    cursor: not-allowed;
+  }
+  .btn-secondary {
+    background: var(--gray-100);
+    color: var(--gray-700);
+  }
+
+  .muqorib-search-result {
+    background: #fff;
+    border: 1px solid var(--gray-200);
+    border-radius: 8px;
+    margin-top: 4px;
+    max-height: 200px;
+    overflow-y: auto;
+  }
+  .muqorib-result-item {
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--gray-100);
+    cursor: pointer;
+    font-size: 13px;
+  }
+  .muqorib-result-item:hover { background: var(--gray-50); }
+  .muqorib-result-item:last-child { border-bottom: none; }
+  .muqorib-result-name {
+    font-weight: 600;
+    color: var(--gray-900);
+  }
+  .muqorib-result-meta {
+    font-size: 11px;
+    color: var(--gray-500);
+    margin-top: 2px;
+  }
+  .muqorib-special {
+    background: #fef3c7;
+    border: 1px solid #fbbf24;
+    padding: 8px 10px;
+    border-radius: 6px;
+    font-size: 12px;
+    color: #92400e;
+    margin-bottom: 12px;
+  }
+
+  /* ============= Toast ============= */
+  .toast {
+    position: absolute;
+    top: 50px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--gray-900);
+    color: #fff;
+    padding: 10px 16px;
+    border-radius: 8px;
+    font-size: 13px;
+    z-index: 200;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s;
+  }
+  .toast.show { opacity: 1; }
+  .toast.success { background: var(--success); }
+  .toast.warning { background: var(--warning); }
+
+  /* ============= PIC DASHBOARD ============= */
+  .dashboard {
+    background: var(--gray-50);
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+  }
+  .dashboard-header {
+    background: #fff;
+    padding: 24px;
+    border-bottom: 1px solid var(--gray-200);
+  }
+  .dashboard-title {
+    font-size: 24px;
+    font-weight: 800;
+    color: var(--gray-900);
+    margin-bottom: 4px;
+  }
+  .dashboard-subtitle {
+    color: var(--gray-500);
+    font-size: 13px;
+  }
+  .dashboard-body { padding: 24px; }
+
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+  .stat-card {
+    background: #fff;
+    padding: 20px;
+    border-radius: 10px;
+    border: 1px solid var(--gray-200);
+  }
+  .stat-label {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--gray-500);
+    margin-bottom: 8px;
+  }
+  .stat-value {
+    font-size: 28px;
+    font-weight: 800;
+    color: var(--gray-900);
+    line-height: 1;
+  }
+  .stat-meta {
+    font-size: 12px;
+    color: var(--gray-500);
+    margin-top: 6px;
+  }
+  .stat-card.success .stat-value { color: var(--success); }
+  .stat-card.warning .stat-value { color: var(--warning); }
+
+  .panel-grid {
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    gap: 16px;
+  }
+  @media (max-width: 900px) {
+    .panel-grid { grid-template-columns: 1fr; }
+    .stats-grid { grid-template-columns: repeat(2, 1fr); }
+  }
+
+  .panel {
+    background: #fff;
+    border-radius: 10px;
+    border: 1px solid var(--gray-200);
+    overflow: hidden;
+  }
+  .panel-head {
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--gray-200);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .panel-title {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--gray-900);
+  }
+  .live-dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    background: var(--success);
+    border-radius: 50%;
+    margin-right: 6px;
+    animation: pulse 1.5s infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+  .panel-body { padding: 16px 20px; max-height: 400px; overflow-y: auto; }
+
+  .feed-item {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    gap: 12px;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--gray-100);
+    align-items: center;
+  }
+  .feed-item:last-child { border-bottom: none; }
+  .feed-time {
+    font-size: 11px;
+    color: var(--gray-500);
+    font-family: ui-monospace, monospace;
+    white-space: nowrap;
+  }
+  .feed-content {
+    font-size: 13px;
+    color: var(--gray-700);
+    line-height: 1.4;
+  }
+  .feed-content strong { color: var(--gray-900); }
+  .feed-badge {
+    font-size: 10px;
+    font-weight: 700;
+    padding: 3px 7px;
+    border-radius: 4px;
+    text-transform: uppercase;
+  }
+  .feed-badge.RT { background: #dbeafe; color: #1e40af; }
+  .feed-badge.MUQORIB { background: #dcfce7; color: #166534; }
+  .feed-badge.LAINNYA { background: #fef3c7; color: #92400e; }
+
+  .breakdown-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--gray-100);
+  }
+  .breakdown-row:last-child { border-bottom: none; }
+  .breakdown-label {
+    font-size: 13px;
+    color: var(--gray-700);
+  }
+  .breakdown-value {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--gray-900);
+  }
+
+  /* ============= KETUA SUMMARY ============= */
+  .ketua-card {
+    background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+    color: #fff;
+    padding: 32px;
+    border-radius: 12px;
+    margin-bottom: 16px;
+  }
+  .ketua-label {
+    font-size: 13px;
+    opacity: 0.85;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 12px;
+  }
+  .ketua-progress-row {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+  .ketua-big-number {
+    font-size: 56px;
+    font-weight: 800;
+    line-height: 1;
+  }
+  .ketua-out-of {
+    font-size: 18px;
+    opacity: 0.85;
+  }
+  .ketua-progress-bar {
+    height: 12px;
+    background: rgba(255,255,255,0.2);
+    border-radius: 999px;
+    overflow: hidden;
+    margin-bottom: 8px;
+  }
+  .ketua-progress-fill {
+    height: 100%;
+    background: #fff;
+    border-radius: 999px;
+    transition: width 0.5s;
+  }
+  .ketua-progress-pct {
+    font-size: 14px;
+    opacity: 0.85;
+  }
+  .ketua-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+  }
+  @media (max-width: 700px) {
+    .ketua-grid { grid-template-columns: 1fr; }
+  }
+  .ketua-block {
+    background: #fff;
+    padding: 20px;
+    border-radius: 10px;
+    border: 1px solid var(--gray-200);
+  }
+  .ketua-block-label {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--gray-500);
+    text-transform: uppercase;
+    margin-bottom: 8px;
+    letter-spacing: 0.04em;
+  }
+  .ketua-block-value {
+    font-size: 28px;
+    font-weight: 800;
+    color: var(--gray-900);
+    margin-bottom: 8px;
+  }
+  .ketua-block-detail {
+    font-size: 12px;
+    color: var(--gray-500);
+    line-height: 1.6;
+  }
+
+  .wa-preview {
+    background: #fff;
+    border: 1px solid var(--gray-200);
+    border-radius: 10px;
+    padding: 16px;
+    margin-top: 16px;
+  }
+  .wa-preview-title {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--gray-500);
+    text-transform: uppercase;
+    margin-bottom: 10px;
+  }
+  .wa-msg {
+    background: #d1fae5;
+    border-radius: 8px 8px 8px 2px;
+    padding: 10px 12px;
+    font-size: 13px;
+    color: var(--gray-900);
+    line-height: 1.4;
+    max-width: 80%;
+    margin-bottom: 6px;
+    white-space: pre-line;
+  }
+
+  /* Hide scrollbars in mobile preview */
+  .mobile-content::-webkit-scrollbar { width: 0; }
+</style>
+</head>
+<body>
+
+<div class="page-header">
+  <h1 class="page-title">📦 Mockup Sistem Distribusi Qurban 1447H</h1>
+  <p class="page-subtitle">
+    Demo interaktif. Coba submit dari view <b>Petugas</b>, lalu pindah ke <b>PIC</b> atau <b>Ketua</b> — data update real-time.<br>
+    Active window dummy: 27 Mei – 10 Juni 2026 (14 hari sejak Idul Adha).
+  </p>
+</div>
+
+<div class="tabs">
+  <button class="tab active" data-view="petugas">📱 Petugas (Mobile)</button>
+  <button class="tab" data-view="pic">📊 PIC Dashboard</button>
+  <button class="tab" data-view="ketua">👤 Ketua Summary</button>
+  <div class="tab-spacer"></div>
+  <button class="reset-btn" onclick="resetDemo()">🔄 Reset Demo</button>
+</div>
+
+<div class="view-container">
+
+  <!-- ============== PETUGAS VIEW ============== -->
+  <div id="view-petugas" class="view active">
+    <div class="petugas-stage">
+      <div class="stage-info">
+        Login disimulasikan. Pilih petugas untuk lihat tampilan dari sudut pandang masing-masing
+        (cluster &amp; akses muqorib otomatis difilter).
+      </div>
+      <div class="switch-petugas" id="switchPetugas"></div>
+      <div class="mobile-frame">
+        <div class="mobile-status-bar">
+          <span>09:42</span>
+          <span>📶 100%</span>
+        </div>
+        <div class="mobile-content" id="mobileContent">
+          <!-- rendered by JS -->
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============== PIC VIEW ============== -->
+  <div id="view-pic" class="view">
+    <div class="dashboard">
+      <div class="dashboard-header">
+        <div class="dashboard-title">📊 Monitoring Distribusi</div>
+        <div class="dashboard-subtitle" id="picSubtitle">
+          PIC Koordinator Distributor · Update real-time
+        </div>
+      </div>
+      <div class="dashboard-body">
+
+        <div class="stats-grid" id="picStats"></div>
+
+        <div class="panel-grid">
+          <div class="panel">
+            <div class="panel-head">
+              <div class="panel-title">
+                <span class="live-dot"></span>Live Feed Pengiriman
+              </div>
+              <div style="font-size: 11px; color: var(--gray-500);" id="feedCount">0 records</div>
+            </div>
+            <div class="panel-body" id="liveFeed"></div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-head">
+              <div class="panel-title">Breakdown per Cluster</div>
+            </div>
+            <div class="panel-body" id="clusterBreakdown"></div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- ============== KETUA VIEW ============== -->
+  <div id="view-ketua" class="view">
+    <div class="ketua-card">
+      <div class="ketua-label">Total Bungkus Terdistribusi</div>
+      <div class="ketua-progress-row">
+        <div class="ketua-big-number" id="ketuaTotal">0</div>
+        <div class="ketua-out-of">/ ~3500 bungkus (target estimasi)</div>
+      </div>
+      <div class="ketua-progress-bar">
+        <div class="ketua-progress-fill" id="ketuaProgressFill" style="width: 0%;"></div>
+      </div>
+      <div class="ketua-progress-pct" id="ketuaProgressPct">0% dari target</div>
+    </div>
+
+    <div class="ketua-grid" id="ketuaBlocks"></div>
+
+    <div class="wa-preview">
+      <div class="wa-preview-title">📱 Preview WA broadcast ke Ketua (tiap jam)</div>
+      <div class="wa-msg" id="waPreview">[ menunggu data ]</div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ==================================================================
+// MOCK DATA
+// ==================================================================
+const RT_LIST = [
+  { kode: 'RT001', ketua: 'Pak Mahmud' },
+  { kode: 'RT002', ketua: 'Pak Imam' },
+  { kode: 'RT003', ketua: 'Pak Dadan' },
+  { kode: 'RT004', ketua: 'Pak Husein' },
+  { kode: 'RT005', ketua: 'Pak Ridwan' },
+  { kode: 'RT006', ketua: 'Pak Sutarno' }
+];
+
+const CLUSTERS = [
+  { id: 'C01', nama: 'Cluster 1', rts: ['RT001'] },
+  { id: 'C02', nama: 'Cluster 2', rts: ['RT002', 'RT003'] },
+  { id: 'C03', nama: 'Cluster 3', rts: ['RT004'] },
+  { id: 'C04', nama: 'Cluster 4', rts: ['RT005', 'RT006'] }
+];
+
+const PETUGAS = [
+  { id: 'P01', nama: 'Pak Budi', cluster: 'C01' },
+  { id: 'P02', nama: 'Bu Siti', cluster: 'C02' },
+  { id: 'P03', nama: 'Pak Anto', cluster: 'C03' },
+  { id: 'P04', nama: 'Pak Joko', cluster: 'C04' },
+  { id: 'P05', nama: 'Pak Rudi', cluster: 'C01' }
+];
+
+// Muqorib mock — derive from peserta data with RT mapping
+const MUQORIB = [
+  { kode: 'SP-A01-1', nama: 'DENNY ABBAS', rt: 'RT001', bagian: 'Tulang Iga' },
+  { kode: 'SP-A01-2', nama: 'H ISHAK', rt: 'RT001' },
+  { kode: 'SP-A01-3', nama: 'FEBRIYAN HIDAYAT LUBIS', rt: 'RT002' },
+  { kode: 'SP-A01-4', nama: 'M. RESAWAN HAKIM', rt: 'RT002' },
+  { kode: 'SP-A01-5', nama: 'BOBY', rt: 'RT003' },
+  { kode: 'SP-B01-1', nama: 'DARMAWAN', rt: 'RT001' },
+  { kode: 'SP-B01-2', nama: 'FUAD SULAIMAN', rt: 'RT003' },
+  { kode: 'SP-B01-3', nama: 'SIGIT PRAMONO', rt: 'RT004' },
+  { kode: 'SP-B02-3', nama: 'ATAINA MUTIA', rt: 'RT004', bagian: 'Khas Dalam' },
+  { kode: 'SP-C01-1', nama: 'FERRY FADRI AL ILHAM', rt: 'RT005', bagian: 'Tulang Iga, Kulit' },
+  { kode: 'SP-C01-2', nama: 'DANIA FARASCARINA', rt: 'RT005' },
+  { kode: 'SP-D01-1', nama: 'YOYOK SUBIANTO SAKIDI', rt: 'RT002' },
+  { kode: 'SP-D01-3', nama: 'DR. MULYADI', rt: 'RT006' },
+  { kode: 'SP-D01-5', nama: 'HOPY FAMILIANTO', rt: 'RT004', bagian: 'Tulang Iga, Khas Dalam' },
+  { kode: 'KMB-D01', nama: 'DEDI SURYADINATA', rt: 'RT001' },
+  { kode: 'KMB-D02', nama: 'DHIDIK TRI WIBOWO', rt: 'RT003' },
+  { kode: 'KMB-D03', nama: 'SUYONO SALAMUN', rt: 'RT006' }
+];
+
+const KATEGORI_LAINNYA = [
+  'Tetangga Muqorib',
+  'Mustahik',
+  'Lembaga / Yayasan',
+  'Panitia & Petugas',
+  'Lainnya'
+];
+
+const TARGET_TOTAL = 3500;
+const UNDO_WINDOW_SEC = 60;
+
+// ==================================================================
+// STATE
+// ==================================================================
+const STORAGE_KEY = 'qurban-distribusi-mockup-v1';
+let currentPetugasId = 'P01';
+let currentView = 'petugas';
+let pengiriman = []; // { id, ts, petugas, cluster, tipe, target_kode, target_nama, rt, kategori, bungkus, penerima, status }
+let nextId = 1;
+
+function loadState() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) {
+      const data = JSON.parse(raw);
+      pengiriman = data.pengiriman || [];
+      nextId = data.nextId || 1;
+      return;
+    }
+  } catch (e) { /* ignore */ }
+  // Initial seed
+  seedInitialData();
+}
+
+function saveState() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify({ pengiriman, nextId }));
+}
+
+function seedInitialData() {
+  const now = Date.now();
+  pengiriman = [
+    {
+      id: 'K' + String(nextId++).padStart(4, '0'),
+      ts: now - 45 * 60 * 1000,
+      petugas: 'P01', cluster: 'C01',
+      tipe: 'RT', target_kode: 'RT001', target_nama: 'RT 001',
+      rt: 'RT001', kategori: '',
+      bungkus: 100, penerima: 'Pak Mahmud', status: 'AKTIF'
+    },
+    {
+      id: 'K' + String(nextId++).padStart(4, '0'),
+      ts: now - 32 * 60 * 1000,
+      petugas: 'P02', cluster: 'C02',
+      tipe: 'RT', target_kode: 'RT002', target_nama: 'RT 002',
+      rt: 'RT002', kategori: '',
+      bungkus: 120, penerima: 'Pak Imam', status: 'AKTIF'
+    },
+    {
+      id: 'K' + String(nextId++).padStart(4, '0'),
+      ts: now - 25 * 60 * 1000,
+      petugas: 'P03', cluster: 'C03',
+      tipe: 'MUQORIB', target_kode: 'SP-D01-5', target_nama: 'HOPY FAMILIANTO',
+      rt: 'RT004', kategori: '',
+      bungkus: 5, penerima: 'Istri Pak Hopy', status: 'AKTIF'
+    },
+    {
+      id: 'K' + String(nextId++).padStart(4, '0'),
+      ts: now - 18 * 60 * 1000,
+      petugas: 'P04', cluster: 'C04',
+      tipe: 'RT', target_kode: 'RT005', target_nama: 'RT 005',
+      rt: 'RT005', kategori: '',
+      bungkus: 150, penerima: 'Pak Ridwan', status: 'AKTIF'
+    },
+    {
+      id: 'K' + String(nextId++).padStart(4, '0'),
+      ts: now - 10 * 60 * 1000,
+      petugas: 'P02', cluster: 'C02',
+      tipe: 'LAINNYA', target_kode: '', target_nama: 'Bu Aminah',
+      rt: 'RT002', kategori: 'Tetangga Muqorib',
+      bungkus: 2, penerima: 'Bu Aminah', status: 'AKTIF'
+    },
+    {
+      id: 'K' + String(nextId++).padStart(4, '0'),
+      ts: now - 5 * 60 * 1000,
+      petugas: 'P01', cluster: 'C01',
+      tipe: 'MUQORIB', target_kode: 'SP-B01-1', target_nama: 'DARMAWAN',
+      rt: 'RT001', kategori: '',
+      bungkus: 5, penerima: 'Pak Darmawan', status: 'AKTIF'
+    }
+  ];
+}
+
+function resetDemo() {
+  if (!confirm('Reset semua data demo? Ini akan menghapus semua entry.')) return;
+  localStorage.removeItem(STORAGE_KEY);
+  pengiriman = [];
+  nextId = 1;
+  seedInitialData();
+  saveState();
+  renderAll();
+}
+
+// ==================================================================
+// HELPERS
+// ==================================================================
+function getCurrentPetugas() {
+  return PETUGAS.find(p => p.id === currentPetugasId);
+}
+function getCluster(id) {
+  return CLUSTERS.find(c => c.id === id);
+}
+function formatTime(ts) {
+  const d = new Date(ts);
+  return d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+}
+function formatRelative(ts) {
+  const diff = Math.floor((Date.now() - ts) / 1000);
+  if (diff < 60) return diff + ' detik lalu';
+  if (diff < 3600) return Math.floor(diff / 60) + ' menit lalu';
+  if (diff < 86400) return Math.floor(diff / 3600) + ' jam lalu';
+  return Math.floor(diff / 86400) + ' hari lalu';
+}
+function totalBungkus(filter) {
+  return pengiriman
+    .filter(p => p.status === 'AKTIF' && (!filter || filter(p)))
+    .reduce((sum, p) => sum + (p.bungkus || 0), 0);
+}
+
+// ==================================================================
+// PETUGAS VIEW RENDER
+// ==================================================================
+function renderPetugasSwitcher() {
+  const el = document.getElementById('switchPetugas');
+  el.innerHTML = PETUGAS.map(p => {
+    const cluster = getCluster(p.cluster);
+    return `<button class="${p.id === currentPetugasId ? 'active' : ''}"
+                    onclick="switchPetugas('${p.id}')">
+              ${p.nama} (${cluster.nama})
+            </button>`;
+  }).join('');
+}
+function switchPetugas(id) {
+  currentPetugasId = id;
+  renderPetugasSwitcher();
+  renderPetugasView();
+}
+
+function renderPetugasView() {
+  const petugas = getCurrentPetugas();
+  const cluster = getCluster(petugas.cluster);
+  const myMuqorib = MUQORIB.filter(m => cluster.rts.includes(m.rt));
+  const myHistory = pengiriman
+    .filter(p => p.petugas === petugas.id)
+    .sort((a, b) => b.ts - a.ts);
+
+  document.getElementById('mobileContent').innerHTML = `
+    <div class="app-header">
+      <div class="app-header-greeting">Halo,</div>
+      <div class="app-header-name">${petugas.nama} 👋</div>
+      <div class="app-header-cluster">
+        ${cluster.nama} · ${cluster.rts.join(', ')} · ${myMuqorib.length} muqorib
+      </div>
+    </div>
+
+    <div class="app-body">
+
+      <div class="action-grid">
+        <button class="action-btn" onclick="openModal('rt')">
+          <div class="action-icon">📦</div>
+          <div>
+            <div class="action-text-main">Kirim ke RT</div>
+            <div class="action-text-sub">Bulk distribusi ke perwakilan</div>
+          </div>
+        </button>
+        <button class="action-btn" onclick="openModal('muqorib')">
+          <div class="action-icon">🏠</div>
+          <div>
+            <div class="action-text-main">Kirim ke Muqorib</div>
+            <div class="action-text-sub">${myMuqorib.length} muqorib di cluster</div>
+          </div>
+        </button>
+        <button class="action-btn" onclick="openModal('lainnya')">
+          <div class="action-icon">👥</div>
+          <div>
+            <div class="action-text-main">Kirim ke Lainnya</div>
+            <div class="action-text-sub">Tetangga, mustahik, lembaga</div>
+          </div>
+        </button>
+      </div>
+
+      <div class="history-section">
+        <div class="history-title">
+          <span>History saya hari ini</span>
+          <span>${myHistory.filter(h => h.status === 'AKTIF').length} entry</span>
+        </div>
+        ${myHistory.length === 0 ?
+          '<div class="history-empty">Belum ada pengiriman.<br>Tap salah satu tombol di atas untuk mulai.</div>'
+          : myHistory.map(renderHistoryCard).join('')}
+      </div>
+    </div>
+
+    <div id="modalSlot"></div>
+    <div id="toastSlot"></div>
+  `;
+}
+
+function renderHistoryCard(h) {
+  const isLatest = pengiriman
+    .filter(p => p.petugas === currentPetugasId && p.status === 'AKTIF')
+    .sort((a, b) => b.ts - a.ts)[0]?.id === h.id;
+  const ageSec = Math.floor((Date.now() - h.ts) / 1000);
+  const canUndo = isLatest && h.status === 'AKTIF' && ageSec < UNDO_WINDOW_SEC;
+  const undoLeft = UNDO_WINDOW_SEC - ageSec;
+
+  let detail = '';
+  if (h.tipe === 'RT') detail = h.target_nama + ' · ' + h.penerima;
+  else if (h.tipe === 'MUQORIB') {
+    const m = MUQORIB.find(m => m.kode === h.target_kode);
+    detail = (m ? m.rt + ' · ' : '') + h.penerima;
+  } else if (h.tipe === 'LAINNYA') {
+    detail = h.kategori + (h.rt ? ' · ' + h.rt : '');
+  }
+
+  return `
+    <div class="history-card ${h.status === 'VOID' ? 'void' : ''}">
+      <div class="history-card-row1">
+        <span class="history-card-tipe ${h.tipe}">${h.tipe}</span>
+        <span class="history-card-time">${formatRelative(h.ts)}</span>
+      </div>
+      <div class="history-card-target">${h.target_nama}</div>
+      <div class="history-card-detail">
+        <span>${detail}</span>
+        <span><strong>${h.bungkus}</strong> bungkus</span>
+      </div>
+      ${canUndo ? `<button class="undo-btn" onclick="undoEntry('${h.id}')">
+        ↩ Batalkan (${undoLeft}d tersisa)
+      </button>` : ''}
+    </div>
+  `;
+}
+
+// ==================================================================
+// MODAL & FORMS
+// ==================================================================
+let modalState = null;
+
+function openModal(tipe) {
+  modalState = { tipe, formData: {} };
+  renderModal();
+}
+
+function closeModal() {
+  modalState = null;
+  document.getElementById('modalSlot').innerHTML = '';
+}
+
+function renderModal() {
+  if (!modalState) return;
+  const petugas = getCurrentPetugas();
+  const cluster = getCluster(petugas.cluster);
+  const slot = document.getElementById('modalSlot');
+
+  let formHtml = '';
+  if (modalState.tipe === 'rt') {
+    const rtsAvailable = cluster.rts;
+    formHtml = `
+      <div class="form-group">
+        <label class="form-label">Pilih RT</label>
+        <select class="form-select" id="frmRt">
+          <option value="">-- Pilih RT --</option>
+          ${rtsAvailable.map(r => {
+            const rt = RT_LIST.find(x => x.kode === r);
+            return `<option value="${r}">${r} (Ketua: ${rt.ketua})</option>`;
+          }).join('')}
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Jumlah Bungkus</label>
+        <input type="number" class="form-input" id="frmBungkus"
+               placeholder="mis. 100" inputmode="numeric">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Nama Penerima (yang menerima fisik)</label>
+        <input type="text" class="form-input" id="frmPenerima"
+               placeholder="mis. Pak Mahmud">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Foto Bukti (opsional)</label>
+        <input type="file" class="form-input" id="frmFoto" accept="image/*">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Catatan (opsional)</label>
+        <input type="text" class="form-input" id="frmCatatan"
+               placeholder="mis. batch pertama">
+      </div>
+    `;
+  } else if (modalState.tipe === 'muqorib') {
+    formHtml = `
+      <div class="form-group">
+        <label class="form-label">Cari Muqorib (di ${cluster.rts.join(', ')})</label>
+        <input type="text" class="form-input" id="frmSearchMuqorib"
+               placeholder="Ketik nama..." oninput="filterMuqorib()">
+        <div class="muqorib-search-result" id="muqoribResults"></div>
+      </div>
+      <div id="muqoribFormFields" style="display:none;">
+        <div class="muqorib-special" id="muqoribSpecialInfo" style="display:none;"></div>
+        <div class="form-group">
+          <label class="form-label">Jumlah Bungkus</label>
+          <input type="number" class="form-input" id="frmBungkus" value="5" inputmode="numeric">
+          <div style="font-size:11px; color: var(--gray-500); margin-top:4px;">
+            Default: 5 bungkus per muqorib (bisa diubah)
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Nama Penerima</label>
+          <input type="text" class="form-input" id="frmPenerima"
+                 placeholder="mis. Sendiri / Istri / Anak">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Foto Bukti (opsional)</label>
+          <input type="file" class="form-input" id="frmFoto" accept="image/*">
+        </div>
+      </div>
+    `;
+  } else if (modalState.tipe === 'lainnya') {
+    formHtml = `
+      <div class="info-box">
+        Untuk penerima yang bukan muqorib terdaftar dan bukan RT formal.
+        Misal tetangga yang minta jatah, mustahik, lembaga, dll.
+      </div>
+      <div class="form-group">
+        <label class="form-label">Nama Penerima</label>
+        <input type="text" class="form-input" id="frmNama"
+               placeholder="mis. Bu Aminah">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Kategori</label>
+        <select class="form-select" id="frmKategori">
+          <option value="">-- Pilih kategori --</option>
+          ${KATEGORI_LAINNYA.map(k => `<option value="${k}">${k}</option>`).join('')}
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">RT terkait (opsional)</label>
+        <select class="form-select" id="frmRt">
+          <option value="">-- Tidak terkait RT spesifik --</option>
+          ${cluster.rts.map(r => `<option value="${r}">${r}</option>`).join('')}
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Jumlah Bungkus</label>
+        <input type="number" class="form-input" id="frmBungkus"
+               placeholder="mis. 2" inputmode="numeric">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Catatan (opsional)</label>
+        <input type="text" class="form-input" id="frmCatatan"
+               placeholder="mis. tetangga Pak Hopy">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Foto Bukti (opsional)</label>
+        <input type="file" class="form-input" id="frmFoto" accept="image/*">
+      </div>
+    `;
+  }
+
+  const titles = {
+    rt: 'Kirim ke RT',
+    muqorib: 'Kirim ke Muqorib',
+    lainnya: 'Kirim ke Lainnya'
+  };
+
+  slot.innerHTML = `
+    <div class="modal-overlay active" onclick="if(event.target===this) closeModal()">
+      <div class="modal">
+        <div class="modal-handle"></div>
+        <div class="modal-title">${titles[modalState.tipe]}</div>
+        ${formHtml}
+        <div class="modal-actions">
+          <button class="btn btn-secondary" onclick="closeModal()">Batal</button>
+          <button class="btn btn-primary" onclick="submitForm()">Catat Pengiriman</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function filterMuqorib() {
+  const q = document.getElementById('frmSearchMuqorib').value.toLowerCase().trim();
+  const cluster = getCluster(getCurrentPetugas().cluster);
+  const filtered = MUQORIB
+    .filter(m => cluster.rts.includes(m.rt))
+    .filter(m => !q || m.nama.toLowerCase().includes(q));
+
+  const el = document.getElementById('muqoribResults');
+  if (filtered.length === 0) {
+    el.innerHTML = '<div class="muqorib-result-item" style="color: var(--gray-500);">Tidak ditemukan</div>';
+    return;
+  }
+  el.innerHTML = filtered.slice(0, 10).map(m => `
+    <div class="muqorib-result-item" onclick="selectMuqorib('${m.kode}')">
+      <div class="muqorib-result-name">${m.nama}</div>
+      <div class="muqorib-result-meta">${m.kode} · ${m.rt}${m.bagian ? ' · 🏷️ ' + m.bagian : ''}</div>
+    </div>
+  `).join('');
+}
+
+function selectMuqorib(kode) {
+  const m = MUQORIB.find(x => x.kode === kode);
+  modalState.formData.muqorib = m;
+  document.getElementById('frmSearchMuqorib').value = m.nama;
+  document.getElementById('muqoribResults').innerHTML = '';
+  document.getElementById('muqoribFormFields').style.display = 'block';
+  if (m.bagian) {
+    const info = document.getElementById('muqoribSpecialInfo');
+    info.style.display = 'block';
+    info.innerHTML = `🏷️ <b>Permintaan khusus:</b> ${m.bagian} (sertakan dalam paket)`;
+  }
+}
+
+function submitForm() {
+  const petugas = getCurrentPetugas();
+  const cluster = getCluster(petugas.cluster);
+  let entry = {
+    id: 'K' + String(nextId++).padStart(4, '0'),
+    ts: Date.now(),
+    petugas: petugas.id,
+    cluster: petugas.cluster,
+    status: 'AKTIF'
+  };
+
+  if (modalState.tipe === 'rt') {
+    const rt = document.getElementById('frmRt').value;
+    const bungkus = parseInt(document.getElementById('frmBungkus').value);
+    const penerima = document.getElementById('frmPenerima').value.trim();
+    if (!rt || !bungkus || bungkus <= 0 || !penerima) {
+      showToast('warning', 'Lengkapi RT, jumlah bungkus, dan nama penerima');
+      nextId--;
+      return;
+    }
+    const rtData = RT_LIST.find(r => r.kode === rt);
+    Object.assign(entry, {
+      tipe: 'RT', target_kode: rt, target_nama: 'RT ' + rt.replace('RT', ''),
+      rt: rt, kategori: '', bungkus, penerima
+    });
+  } else if (modalState.tipe === 'muqorib') {
+    const m = modalState.formData.muqorib;
+    const bungkus = parseInt(document.getElementById('frmBungkus').value);
+    const penerima = document.getElementById('frmPenerima').value.trim();
+    if (!m || !bungkus || bungkus <= 0 || !penerima) {
+      showToast('warning', 'Pilih muqorib, isi bungkus & penerima');
+      nextId--;
+      return;
+    }
+    Object.assign(entry, {
+      tipe: 'MUQORIB', target_kode: m.kode, target_nama: m.nama,
+      rt: m.rt, kategori: '', bungkus, penerima
+    });
+  } else if (modalState.tipe === 'lainnya') {
+    const nama = document.getElementById('frmNama').value.trim();
+    const kategori = document.getElementById('frmKategori').value;
+    const rt = document.getElementById('frmRt').value;
+    const bungkus = parseInt(document.getElementById('frmBungkus').value);
+    if (!nama || !kategori || !bungkus || bungkus <= 0) {
+      showToast('warning', 'Lengkapi nama, kategori, dan bungkus');
+      nextId--;
+      return;
+    }
+    Object.assign(entry, {
+      tipe: 'LAINNYA', target_kode: '', target_nama: nama,
+      rt: rt, kategori, bungkus, penerima: nama
+    });
+  }
+
+  pengiriman.push(entry);
+  saveState();
+  closeModal();
+  showToast('success', '✓ Pengiriman tercatat');
+  renderAll();
+}
+
+function undoEntry(id) {
+  const entry = pengiriman.find(p => p.id === id);
+  if (!entry) return;
+  entry.status = 'VOID';
+  saveState();
+  showToast('success', 'Entry dibatalkan');
+  renderAll();
+}
+
+// ==================================================================
+// TOAST
+// ==================================================================
+function showToast(type, msg) {
+  const slot = document.getElementById('toastSlot') || document.body;
+  const toast = document.createElement('div');
+  toast.className = 'toast ' + type;
+  toast.textContent = msg;
+  slot.appendChild(toast);
+  setTimeout(() => toast.classList.add('show'), 10);
+  setTimeout(() => {
+    toast.classList.remove('show');
+    setTimeout(() => toast.remove(), 300);
+  }, 2200);
+}
+
+// ==================================================================
+// PIC DASHBOARD RENDER
+// ==================================================================
+function renderPic() {
+  const aktif = pengiriman.filter(p => p.status === 'AKTIF');
+  const totalBks = totalBungkus();
+  const byTipe = {
+    RT: totalBungkus(p => p.tipe === 'RT'),
+    MUQORIB: totalBungkus(p => p.tipe === 'MUQORIB'),
+    LAINNYA: totalBungkus(p => p.tipe === 'LAINNYA')
+  };
+
+  document.getElementById('picStats').innerHTML = `
+    <div class="stat-card success">
+      <div class="stat-label">Total Terdistribusi</div>
+      <div class="stat-value">${totalBks.toLocaleString('id-ID')}</div>
+      <div class="stat-meta">bungkus · ${aktif.length} pengiriman</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Ke RT (Bulk)</div>
+      <div class="stat-value">${byTipe.RT.toLocaleString('id-ID')}</div>
+      <div class="stat-meta">${aktif.filter(p => p.tipe === 'RT').length} drop</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Ke Muqorib</div>
+      <div class="stat-value">${byTipe.MUQORIB.toLocaleString('id-ID')}</div>
+      <div class="stat-meta">${aktif.filter(p => p.tipe === 'MUQORIB').length} muqorib</div>
+    </div>
+    <div class="stat-card warning">
+      <div class="stat-label">Ke Lainnya</div>
+      <div class="stat-value">${byTipe.LAINNYA.toLocaleString('id-ID')}</div>
+      <div class="stat-meta">${aktif.filter(p => p.tipe === 'LAINNYA').length} entry</div>
+    </div>
+  `;
+
+  // Live feed
+  const feed = aktif.sort((a, b) => b.ts - a.ts);
+  document.getElementById('feedCount').textContent = feed.length + ' records';
+  document.getElementById('liveFeed').innerHTML = feed.length === 0
+    ? '<div style="text-align:center; color: var(--gray-500); padding: 20px;">Belum ada pengiriman</div>'
+    : feed.slice(0, 30).map(p => {
+      const petugas = PETUGAS.find(x => x.id === p.petugas);
+      let detail = '';
+      if (p.tipe === 'RT') detail = `<strong>${petugas.nama}</strong>: ${p.bungkus} bks → <strong>${p.target_nama}</strong> (${p.penerima})`;
+      else if (p.tipe === 'MUQORIB') detail = `<strong>${petugas.nama}</strong>: ${p.bungkus} bks → <strong>${p.target_nama}</strong> (${p.rt})`;
+      else detail = `<strong>${petugas.nama}</strong>: ${p.bungkus} bks → ${p.target_nama} <em>[${p.kategori}]</em>${p.rt ? ' · ' + p.rt : ''}`;
+      return `
+        <div class="feed-item">
+          <span class="feed-time">${formatTime(p.ts)}</span>
+          <span class="feed-content">${detail}</span>
+          <span class="feed-badge ${p.tipe}">${p.tipe}</span>
+        </div>
+      `;
+    }).join('');
+
+  // Cluster breakdown
+  const clusterBreak = CLUSTERS.map(c => ({
+    cluster: c,
+    bungkus: totalBungkus(p => p.cluster === c.id),
+    count: aktif.filter(p => p.cluster === c.id).length
+  }));
+  document.getElementById('clusterBreakdown').innerHTML = clusterBreak.map(b => `
+    <div class="breakdown-row">
+      <div>
+        <div class="breakdown-label">${b.cluster.nama}</div>
+        <div style="font-size: 11px; color: var(--gray-500);">${b.cluster.rts.join(', ')} · ${b.count} drop</div>
+      </div>
+      <div class="breakdown-value">${b.bungkus.toLocaleString('id-ID')}</div>
+    </div>
+  `).join('');
+}
+
+// ==================================================================
+// KETUA SUMMARY RENDER
+// ==================================================================
+function renderKetua() {
+  const totalBks = totalBungkus();
+  const pct = Math.min(100, Math.round((totalBks / TARGET_TOTAL) * 100));
+  document.getElementById('ketuaTotal').textContent = totalBks.toLocaleString('id-ID');
+  document.getElementById('ketuaProgressFill').style.width = pct + '%';
+  document.getElementById('ketuaProgressPct').textContent = pct + '% dari target';
+
+  const byTipe = {
+    RT: totalBungkus(p => p.tipe === 'RT'),
+    MUQORIB: totalBungkus(p => p.tipe === 'MUQORIB'),
+    LAINNYA: totalBungkus(p => p.tipe === 'LAINNYA')
+  };
+  const lainnyaBreakdown = {};
+  pengiriman.filter(p => p.status === 'AKTIF' && p.tipe === 'LAINNYA').forEach(p => {
+    lainnyaBreakdown[p.kategori] = (lainnyaBreakdown[p.kategori] || 0) + p.bungkus;
+  });
+  const lainnyaDetail = Object.entries(lainnyaBreakdown)
+    .map(([k, v]) => `${k}: ${v}`)
+    .join(' · ') || '—';
+
+  const clusterStatus = CLUSTERS.map(c => ({
+    nama: c.nama,
+    bungkus: totalBungkus(p => p.cluster === c.id)
+  })).sort((a, b) => b.bungkus - a.bungkus);
+
+  document.getElementById('ketuaBlocks').innerHTML = `
+    <div class="ketua-block">
+      <div class="ketua-block-label">📦 Distribusi RT</div>
+      <div class="ketua-block-value">${byTipe.RT.toLocaleString('id-ID')}</div>
+      <div class="ketua-block-detail">Bulk ke ketua RT untuk dibagikan ke warga</div>
+    </div>
+    <div class="ketua-block">
+      <div class="ketua-block-label">🏠 Ke Muqorib</div>
+      <div class="ketua-block-value">${byTipe.MUQORIB.toLocaleString('id-ID')}</div>
+      <div class="ketua-block-detail">Antar langsung ke alamat muqorib</div>
+    </div>
+    <div class="ketua-block">
+      <div class="ketua-block-label">👥 Lainnya</div>
+      <div class="ketua-block-value">${byTipe.LAINNYA.toLocaleString('id-ID')}</div>
+      <div class="ketua-block-detail">${lainnyaDetail}</div>
+    </div>
+  `;
+
+  // WA preview
+  const now = new Date();
+  const waMsg = `*Update Distribusi Qurban 1447H*
+Per ${now.toLocaleTimeString('id-ID', {hour:'2-digit',minute:'2-digit'})}
+
+Total: *${totalBks.toLocaleString('id-ID')}* / ~${TARGET_TOTAL.toLocaleString('id-ID')} bungkus (${pct}%)
+
+📦 RT: ${byTipe.RT.toLocaleString('id-ID')}
+🏠 Muqorib: ${byTipe.MUQORIB.toLocaleString('id-ID')}
+👥 Lainnya: ${byTipe.LAINNYA.toLocaleString('id-ID')}
+
+${clusterStatus.slice(0, 4).map(c =>
+  `${c.nama}: ${c.bungkus.toLocaleString('id-ID')} bks`).join('\n')}
+
+Barakallahu fiikum 🌙`;
+  document.getElementById('waPreview').textContent = waMsg;
+}
+
+// ==================================================================
+// ROUTING
+// ==================================================================
+function switchView(name) {
+  currentView = name;
+  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.view === name));
+  document.querySelectorAll('.view').forEach(v => v.classList.toggle('active', v.id === 'view-' + name));
+  renderAll();
+}
+
+function renderAll() {
+  if (currentView === 'petugas') {
+    renderPetugasSwitcher();
+    renderPetugasView();
+  } else if (currentView === 'pic') {
+    renderPic();
+  } else if (currentView === 'ketua') {
+    renderKetua();
+  }
+}
+
+document.querySelectorAll('.tab').forEach(t => {
+  t.addEventListener('click', () => switchView(t.dataset.view));
+});
+
+// Re-render every 5 seconds for relative time updates & undo countdown
+// Skip if modal is open — re-rendering would wipe the modal content
+setInterval(() => {
+  if (currentView === 'petugas' && !modalState) renderPetugasView();
+}, 5000);
+
+// ==================================================================
+// INIT
+// ==================================================================
+loadState();
+renderAll();
+</script>
+
+</body>
+</html>

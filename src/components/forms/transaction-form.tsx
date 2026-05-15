@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { CurrencyInput } from '@/components/ui/currency-input';
 import { Card } from '@/components/ui/card';
 import { useToast } from '@/components/ui/toast';
 import { useKategori } from '@/hooks/use-kategori';
@@ -25,17 +26,21 @@ export function TransactionForm({ initialData, mode, koreksiDariId }: Transactio
   const [submitting, setSubmitting] = useState(false);
   const [voidOriginal, setVoidOriginal] = useState(false);
 
-  const formatRupiah = (value: string) => {
-    const digits = value.replace(/[^\d]/g, '');
-    return digits.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
-  };
-
-  const [form, setForm] = useState({
+  const [form, setForm] = useState<{
+    tanggal: string;
+    jenis: TransaksiJenis;
+    kategori_id: string;
+    deskripsi: string;
+    jumlah: number | null;
+    rekening_id: string;
+    dari_rekening_id: string;
+    ke_rekening_id: string;
+  }>({
     tanggal: initialData?.tanggal || todayISO(),
     jenis: initialData?.jenis || TransaksiJenis.MASUK,
     kategori_id: initialData?.kategori_id || '',
     deskripsi: initialData?.deskripsi || '',
-    jumlah: initialData?.jumlah ? formatRupiah(initialData.jumlah.toString()) : '',
+    jumlah: initialData?.jumlah ?? null,
     rekening_id: initialData?.rekening_id || '',
     dari_rekening_id: '',
     ke_rekening_id: '',
@@ -58,8 +63,8 @@ export function TransactionForm({ initialData, mode, koreksiDariId }: Transactio
     e.preventDefault();
     setSubmitting(true);
 
-    const jumlah = parseInt(form.jumlah.replace(/[^\d]/g, ''), 10);
-    if (!jumlah || jumlah <= 0) {
+    const jumlah = form.jumlah ?? 0;
+    if (jumlah <= 0) {
       toast('Jumlah harus lebih dari 0', 'error');
       setSubmitting(false);
       return;
@@ -136,9 +141,10 @@ export function TransactionForm({ initialData, mode, koreksiDariId }: Transactio
     }
   };
 
+  const hasJumlah = (form.jumlah ?? 0) > 0;
   const isValid = isMutasiCreate
-    ? !!(form.tanggal && form.deskripsi && form.jumlah && form.dari_rekening_id && form.ke_rekening_id && form.dari_rekening_id !== form.ke_rekening_id)
-    : !!(form.tanggal && form.kategori_id && form.deskripsi && form.jumlah && form.rekening_id);
+    ? !!(form.tanggal && form.deskripsi && hasJumlah && form.dari_rekening_id && form.ke_rekening_id && form.dari_rekening_id !== form.ke_rekening_id)
+    : !!(form.tanggal && form.kategori_id && form.deskripsi && hasJumlah && form.rekening_id);
 
   return (
     <Card>
@@ -236,12 +242,10 @@ export function TransactionForm({ initialData, mode, koreksiDariId }: Transactio
           placeholder="Contoh: Infaq Jumat minggu ke-3"
         />
 
-        <Input
+        <CurrencyInput
           label="Jumlah (Rp)"
-          type="text"
-          inputMode="numeric"
           value={form.jumlah}
-          onChange={(e) => setForm((f) => ({ ...f, jumlah: formatRupiah(e.target.value) }))}
+          onChange={(v) => setForm((f) => ({ ...f, jumlah: v }))}
           placeholder="Contoh: 1.500.000"
         />
 
