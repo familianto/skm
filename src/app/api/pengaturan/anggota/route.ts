@@ -218,7 +218,6 @@ export async function POST(request: NextRequest) {
       event_type: 'anggota.created',
       after: { nama, telepon, peran, email: email || '' },
       user_id: guard.session.user_id,
-      user_info: guard.session.peran,
       ip_address: ip,
     });
 

@@ -133,6 +133,37 @@ export async function countActiveSuperAdmins(excludeId?: string): Promise<number
 }
 
 /**
+ * Resolve the display name (`anggota.nama`) for a `user_id` snapshot.
+ *
+ * Special user_ids:
+ *  - 'SYSTEM'         → 'SYSTEM'
+ *  - 'SYSTEM_BOOTSTRAP' → 'SYSTEM_BOOTSTRAP'
+ *  - 'LEGACY'         → 'Legacy Admin'
+ *  - '' / '-' / null  → ''
+ *
+ * Used by `writeAuditLog()` to auto-fill the `user_info` column when the
+ * caller didn't provide one explicitly. Failure is swallowed (returns '')
+ * so audit log writes never block on this lookup.
+ *
+ * Per Hopy's Milestone C decision #13 (override): audit `user_info` =
+ * display name snapshot at mutation time. Nama may change later in the
+ * source row; the audit log retains the historical value, which is the
+ * desired behavior.
+ */
+export async function getNamaByUserId(userId: string): Promise<string> {
+  if (!userId || userId === '-') return '';
+  if (userId === 'SYSTEM') return 'SYSTEM';
+  if (userId === 'SYSTEM_BOOTSTRAP') return 'SYSTEM_BOOTSTRAP';
+  if (userId === 'LEGACY') return 'Legacy Admin';
+  try {
+    const rec = await findById(userId);
+    return rec?.anggota.nama || '';
+  } catch {
+    return '';
+  }
+}
+
+/**
  * Check whether a telepon is already taken by another *active* anggota.
  *
  * Per Tahap 3.E §3.2 business rules:

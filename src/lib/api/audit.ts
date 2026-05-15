@@ -1,6 +1,7 @@
 import { sheetsService } from '@/lib/google-sheets';
 import { SHEET_NAMES } from '@/lib/constants';
 import { generateId } from './id-gen';
+import { getNamaByUserId } from './anggota-repo';
 
 /**
  * Audit log writer per Tahap 3.E §2.9 + Tahap 4 §2.3 (Choice B Minimal Extension).
@@ -58,6 +59,15 @@ export async function writeAuditLog(params: AuditLogParams): Promise<void> {
     if (params.notes) detailObj.notes = params.notes;
     const detail = JSON.stringify(detailObj);
 
+    // user_info = display name snapshot. If caller provided it (e.g., login
+    // handler that already loaded the anggota row), use it directly. Else
+    // resolve via anggota-repo lookup — handles 'SYSTEM' / 'LEGACY' specials
+    // and silently degrades to '' on lookup failure (audit must not block).
+    const userInfo =
+      params.user_info !== undefined
+        ? params.user_info
+        : await getNamaByUserId(params.user_id);
+
     await sheetsService.appendRow(SHEET_NAMES.AUDIT_LOG, [
       id,
       timestamp,
@@ -65,7 +75,7 @@ export async function writeAuditLog(params: AuditLogParams): Promise<void> {
       params.entitas,
       params.entitas_id,
       detail,
-      params.user_info ?? '',
+      userInfo,
       params.user_id,
       params.ip_address ?? '',
     ]);

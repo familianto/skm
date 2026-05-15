@@ -185,7 +185,6 @@ export async function PATCH(
       before,
       after,
       user_id: guard.session.user_id,
-      user_info: guard.session.peran,
       ip_address: ip,
     });
 
@@ -198,7 +197,6 @@ export async function PATCH(
         before: { peran: before.peran },
         after: { peran: after.peran },
         user_id: guard.session.user_id,
-        user_info: guard.session.peran,
         ip_address: ip,
       });
     }

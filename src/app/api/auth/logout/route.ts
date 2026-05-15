@@ -8,14 +8,15 @@ import {
 } from '@/lib/api/auth';
 import { writeAuditLog } from '@/lib/api/audit';
 import { getClientIp } from '@/lib/api/rate-limit';
-import { findById } from '@/lib/api/anggota-repo';
 import { AuditAksi } from '@/types';
 
 /**
  * A2 — POST /api/auth/logout
  *
  * Idempotent: returns 200 whether or not a session exists.
- * Always clears the cookie. Audits `auth.logout` when a session was present.
+ * Always clears the cookie. Audits `auth.logout` when a session was present;
+ * the `user_info` display name is resolved inside `writeAuditLog()` from
+ * `session.user_id` (handles 'LEGACY' → 'Legacy Admin' specially).
  */
 export async function POST(request: NextRequest) {
   const ip = getClientIp(request.headers);
@@ -25,21 +26,12 @@ export async function POST(request: NextRequest) {
     await clearSessionCookie();
 
     if (session) {
-      let userInfo = session.user_id;
-      if (session.user_id !== 'LEGACY') {
-        const rec = await findById(session.user_id).catch(() => null);
-        if (rec) userInfo = rec.anggota.nama;
-      } else {
-        userInfo = 'Legacy Admin';
-      }
-
       await writeAuditLog({
         aksi: AuditAksi.LOGOUT,
         entitas: 'auth',
         entitas_id: session.user_id,
         event_type: 'auth.logout',
         user_id: session.user_id,
-        user_info: userInfo,
         ip_address: ip,
       });
     }

@@ -84,7 +84,6 @@ export async function POST(
       event_type: 'auth.pin_reset_by_admin',
       notes: `reset by ${guard.session.user_id}`,
       user_id: guard.session.user_id,
-      user_info: guard.session.peran,
       ip_address: ip,
     });
 

@@ -64,7 +64,6 @@ export async function POST(
       before: { is_active: false },
       after: { is_active: true },
       user_id: guard.session.user_id,
-      user_info: guard.session.peran,
       ip_address: ip,
     });
 

@@ -60,7 +60,6 @@ export async function POST(
           ? 'cleared counter (was not locked)'
           : 'idempotent (no state change)',
       user_id: guard.session.user_id,
-      user_info: guard.session.peran,
       ip_address: ip,
     });
 

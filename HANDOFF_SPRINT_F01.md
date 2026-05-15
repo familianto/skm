@@ -1,0 +1,266 @@
+# HANDOFF Sprint F01 — Auth Multi-User + Anggota CRUD
+
+**Branch:** `qurban/f01-auth-multi-user`
+**Status:** in-progress (Milestone A, B, C done; D in progress)
+**Estimated effort:** 6-8 hari
+**Spec source:** `PROMPT_F01_AuthMultiUser.md`, `docs/HANDOFF_TAHAP_*.md`
+
+---
+
+## Milestone Progress
+
+| ID | Title | Status | Commit |
+|---|---|---|---|
+| A | Foundation helpers (`/lib/api/`) | ✅ done | `eaeabe1` |
+| B | Auth endpoints A1-A4 | ✅ done | `2b9e164` |
+| C | Anggota CRUD U1-U9 | ✅ done | `8bde499` |
+| D | Middleware defense-in-depth | 🔄 in progress | — |
+| E | UI pages (/login refactor, /pengaturan/anggota/*) | ⏳ pending | — |
+| F | Testing + docs + PR | ⏳ pending | — |
+
+---
+
+## Decision Log
+
+Decisions made while implementing F1 (in chronological order). Some override
+the spec where Hopy explicitly approved an alternative; others record
+non-obvious choices that future maintainers will want to know about.
+
+### #1 — Cookie payload superset
+
+JWT payload is `{ user_id, peran, role: peran, masjidName }` instead of the
+spec's `{ user_id, peran }`.
+
+**Why:** existing `@/lib/auth` callsites (10 files) read `session.role` and
+expect a string like `'BENDAHARA'`. Removing those fields would force a
+sweeping refactor of pre-F01 routes. The superset is backwards-compatible:
+old `getSession()` returns valid `{role, masjidName}`; new `verifySessionToken`
+returns `{user_id, peran, ...}`.
+
+**Cost:** ~50 bytes per JWT.
+
+### #2 — Shared session secret with fallback
+
+`getSessionSecret()` prefers `SESSION_SECRET` and falls back to `AUTH_SECRET`.
+Both `/lib/auth.ts` and `/lib/api/auth.ts` use this resolver.
+
+**Why:** old sessions are signed with `AUTH_SECRET`. New code uses
+`SESSION_SECRET`. Sharing the resolver lets old and new cookies interop during
+the parallel-login window.
+
+**Trade:** at deploy, all outstanding sessions get re-signed with whichever
+secret is set in env. If Hopy added `SESSION_SECRET` (a new value) without
+also pointing `AUTH_SECRET` at it, all old sessions invalidate → users
+re-login. Acceptable for the F1 deploy boundary.
+
+### #3 — Audit log writer is non-blocking
+
+`writeAuditLog()` catches all errors and logs to `console.error`. It NEVER
+throws. Same convention as the legacy `logAudit()` in `@/lib/audit`.
+
+**Why:** an audit failure must not roll back the user-facing operation. A
+missing audit row is recoverable (review console); a failed user op is not.
+
+### #4 — ID generator uses WIB; existing utility stays UTC
+
+New helper `lib/api/id-gen.ts:generateId()` formats IDs with the Asia/Jakarta
+(UTC+7) date. The existing `sheetsService.getNextId()` keeps using UTC date
+for backward compat with IDs already generated pre-F01.
+
+**Why:** Tahap 3.E §2.4 mandates WIB for new IDs. Migrating
+`sheetsService.getNextId()` would change historical ID generation behavior at
+the day boundary (17:00–24:00 UTC = "next day" in WIB). Two coexisting
+generators — F1+ uses WIB, legacy uses UTC. F2+ may migrate legacy callers.
+
+**Side effect:** audit log IDs and anggota IDs created post-F01 may appear
+to "skip ahead" by one date when generated late-evening UTC. Cosmetic.
+
+### #5 — Distinct rate-limit modules
+
+`@/lib/api/rate-limit.ts` (new) is a generic per-key sliding-window limiter.
+`@/lib/rate-limit.ts` (existing) is the IP-based brute-force lockout for the
+old single-PIN login.
+
+**Why:** different semantics. The new one limits requests-per-window; the
+old one tracks failed attempts with sticky lockout. Both coexist; existing
+callers stay on the old one.
+
+### #6 — `pin_hash` empty falls through to legacy fallback
+
+Migration created the new SUPER_ADMIN (Hopy) but left existing 2 anggota
+rows with `pin_hash=''`. The login route detects empty `pin_hash` and
+**doesn't** count this as a failed PIN — it falls through to the legacy
+master.pin_hash fallback when `QURBAN_LEGACY_LOGIN_ENABLED=true`.
+
+**Why:** lets Hopy log in as ANG-…0003 normally; lets the two pre-migration
+rows still authenticate via legacy until SUPER_ADMIN resets their PIN via
+U5. Once Hopy resets their PINs, multi-user login works for them too.
+
+### #7 — Telepon mismatch returns AUTH_INVALID, not NOT_FOUND
+
+The login route never returns `404` for "telepon not in anggota". It always
+returns `401 AUTH_INVALID` with a generic message.
+
+**Why:** no enumeration oracle. The error matches what the user sees for a
+wrong PIN, so attackers can't probe for valid telepon numbers.
+
+### #8 — PENDAFTARAN / DISTRIBUSI creation in F1 = ALLOW
+
+U2 accepts all five `peran` values, including PENDAFTARAN and DISTRIBUSI,
+even though their target routes (`/qurban/**`) don't exist yet.
+
+**Why:** Hopy may want to pre-provision panitia accounts before F2 ships.
+The accounts will authenticate fine in F1 and land at `/` (because
+`getLandingUrl()` returns `'/'` for everyone in F1). When F2 deploys and
+flips the landing URL switch, those users will automatically land on
+`/qurban` on next login.
+
+**Documented in:** `route.ts` U2 docblock and `permissions.ts:getLandingUrl()`.
+
+### #9 — `anggota.peran_changed` is additional, not replacing
+
+When U4 PATCH changes the `peran` field, the route emits TWO audit entries:
+`anggota.updated` (with full before/after diff) AND `anggota.peran_changed`
+(with only `{peran: X}` in before/after).
+
+**Why:** simplifies reporting in F8 Laporan. A query for "all peran changes"
+can filter `event_type = 'anggota.peran_changed'` without parsing JSON
+detail of generic update events.
+
+### #10 — U6 unlock is idempotent with descriptive notes
+
+POST /unlock always returns 200 and always writes an audit row. The audit
+`notes` field distinguishes the three cases:
+- `"unlocked"` — was actually locked
+- `"cleared counter (was not locked)"` — counter was non-zero but no lockout
+- `"idempotent (no state change)"` — already clean
+
+**Why:** explicit audit trail of unlock attempts. Hides nothing.
+
+### #11 — U4 idempotent when nothing changes
+
+If U4 PATCH body sets fields to their existing values, no audit log entry
+is written and no sheet update happens. Returns 200 with the unchanged
+record.
+
+**Why:** prevents audit-log noise from automated tools that PATCH the
+whole record on every save.
+
+### #12 — U8 reactivate re-checks telepon uniqueness
+
+Reactivation may collide with another anggota that took the telepon during
+the inactive period. U8 re-runs `isTeleponTakenByActive()` and returns
+`409 DUPLICATE_TELEPON` with guidance to change the telepon first.
+
+### #13 — `user_info` = nama actor snapshot (auto-resolved via helper) ✅ OVERRIDDEN
+
+**Original (before override):** record `user_info` as `session.peran`
+(label like "SUPER_ADMIN"). Rationale: peran is stable, names can change.
+
+**OVERRIDE per Hopy at end of Milestone C:** `user_info` is the *nama*
+display name snapshot at mutation time.
+
+**Implementation:** `writeAuditLog()` calls `getNamaByUserId(user_id)`
+when the caller doesn't pass `user_info`. The helper handles special
+user_ids:
+- `'SYSTEM'` → `'SYSTEM'`
+- `'LEGACY'` → `'Legacy Admin'`
+- `'-'`, `''`, null → `''`
+- otherwise → `anggota.nama` looked up from the anggota sheet
+
+Helper returns `''` on any error so audit writes never block on this
+lookup.
+
+**Rationale (Hopy):**
+- Consistency with Milestone B where login/logout/change-pin already pass
+  `anggota.nama` as `user_info`.
+- Human-review audit trail is more informative with names than role labels.
+- "nama bisa berubah" is not a problem — audit log is a snapshot, and the
+  nama-at-mutation-time is exactly what we want to record.
+- Reporters in F8 get a uniform shape (always a name) across all event
+  types.
+
+**Cost:** +1 Sheet read per audit write for Milestone C handlers (which
+don't already have the anggota loaded). Milestone B handlers pass
+`user_info` explicitly when nama is already in memory — saves the lookup.
+
+### #14 — BUSINESS_LAST_SUPER_ADMIN U7 is defense-in-depth
+
+With only one active SUPER_ADMIN, U7 can never reach the
+`BUSINESS_LAST_SUPER_ADMIN` branch — `BUSINESS_CANNOT_DEACTIVATE_SELF`
+fires first (the only SA trying to deactivate themselves). The check
+matters once there are 2+ SAs.
+
+**Why guard anyway:** defense-in-depth. Future routes (or manual sheet
+edits) could create a state where SA-A deactivates SA-B leaving zero
+SAs. The U7 guard catches that.
+
+---
+
+## TODOs Carry-Over to Later Milestones
+
+### Milestone E (UI) carry-overs
+
+- **Change-pin success UI message must not say "silakan login kembali".**
+  Per spec §3.5, the session is preserved after PIN change (the legacy
+  /change-pin used to call `deleteSession()` — that's gone in the refactor).
+  UI should show a non-destructive success toast and stay on the current
+  page.
+- **Login form refactor**: replace PIN-only form with telepon + PIN. Handle
+  423 AUTH_LOCKED (show estimated unlock time) and 429 RATE_LIMITED
+  (show Retry-After countdown).
+- **Anggota CRUD pages**: mobile-first per Hopy's primary device.
+
+### Milestone F (PR) carry-overs
+
+- Run the full smoke-test checklist per `PROMPT_F01 §8`.
+- Update `PROJECT_BRIEF.md` and `API_REFERENCE.md` with the 13 new
+  endpoints and PIN policy.
+- Open PR `[F01] Auth Multi-User + Anggota CRUD` (squash + merge).
+- Post-deploy, monitor for 1-2 days then set
+  `QURBAN_LEGACY_LOGIN_ENABLED=false` and
+  `QURBAN_BOOTSTRAP_ENABLED=false`.
+
+### F2+ carry-overs
+
+- Flip `getLandingUrl()` so ADMIN_QURBAN / PENDAFTARAN / DISTRIBUSI land
+  on `/qurban` once those routes exist.
+- Extend `STRICT_PATH_RULES` in `lib/api/path-rules.ts` to cover Qurban
+  routes per Tahap 3 §3.7.
+- Migrate remaining audit-log callers from `logAudit()` (7 cols) to
+  `writeAuditLog()` (9 cols).
+
+---
+
+## Schema Sync Notes
+
+`SHEET_HEADERS` in `lib/constants.ts` was updated to reflect the migrated
+production schema:
+
+- `anggota`: 7 → **13 cols** (adds `pin_hash, created_by, updated_at,
+  last_login_at, failed_attempts, locked_until`)
+- `audit_log`: 7 → **9 cols** (adds `user_id, ip_address`)
+
+Old code that `appendRow()`s with 7 cells still works — trailing cells in
+the sheet stay empty. `updateRow()` uses `SHEET_HEADERS.length` to size
+the range; the sync ensures we write all 13/9 cells.
+
+---
+
+## Test Coverage Summary
+
+Unit tests (`npm run test:lib-api` — `node:test` via tsx):
+- `pin-policy.test.ts`: 12 cases — format, all-same, sequential, blocklist,
+  strong PINs
+- `phone.test.ts`: 13 cases — normalize variants, validate boundaries,
+  round-trip
+
+Integration tests: deferred to Hopy's manual smoke-test on Vercel preview
+after Milestone D and F. Curl examples and audit log expectations are
+captured in the milestone summaries (visible in commit messages on this
+branch).
+
+---
+
+_This file evolves through F1. Each milestone appends to the decision log
+and TODO list._
