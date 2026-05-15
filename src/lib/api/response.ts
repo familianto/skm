@@ -32,22 +32,27 @@ export type ApiError = {
 
 export type ApiResponse<T> = ApiSuccess<T> | ApiError;
 
-export function success<T>(data: T, meta?: ApiSuccess<T>['meta']): Response {
+export function success<T>(
+  data: T,
+  meta?: ApiSuccess<T>['meta'],
+  init?: ResponseInit
+): Response {
   const body: ApiSuccess<T> =
     meta !== undefined ? { ok: true, data, meta } : { ok: true, data };
-  return Response.json(body);
+  return Response.json(body, init);
 }
 
 export function error(
   code: string,
   message: string,
   status: number,
-  details?: Record<string, unknown>
+  details?: Record<string, unknown>,
+  init?: Omit<ResponseInit, 'status'>
 ): Response {
   const body: ApiError = {
     ok: false,
     error:
       details !== undefined ? { code, message, details } : { code, message },
   };
-  return Response.json(body, { status });
+  return Response.json(body, { ...init, status });
 }

@@ -25,6 +25,9 @@ export interface SessionPayload {
   // Backwards-compat fields read by existing /lib/auth.ts callsites
   role: string;               // mirror of peran for old code
   masjidName: string;         // best-effort snapshot, '' if unknown
+  // Standard JWT claims surfaced after verification (read-only for callers)
+  exp?: number;               // epoch seconds; set by jose at sign time
+  iat?: number;               // epoch seconds; set by jose at sign time
 }
 
 export const SESSION_COOKIE_NAME = COOKIE_NAME;
@@ -57,6 +60,8 @@ export async function verifySessionToken(token: string): Promise<SessionPayload 
       peran,
       role: (payload.role as string | undefined) || peran,
       masjidName: (payload.masjidName as string | undefined) || '',
+      exp: typeof payload.exp === 'number' ? payload.exp : undefined,
+      iat: typeof payload.iat === 'number' ? payload.iat : undefined,
     };
   } catch {
     return null;
