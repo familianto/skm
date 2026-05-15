@@ -131,3 +131,25 @@ export async function countActiveSuperAdmins(excludeId?: string): Promise<number
       anggota.id !== excludeId
   ).length;
 }
+
+/**
+ * Check whether a telepon is already taken by another *active* anggota.
+ *
+ * Per Tahap 3.E §3.2 business rules:
+ *   "Telepon uniqueness: hanya is_active=TRUE. Inactive user tidak block reuse."
+ *
+ * Used by U2 (create), U4 (update if telepon changed), U8 (reactivate — newly
+ * active telepon may collide with an already-active row).
+ */
+export async function isTeleponTakenByActive(
+  telepon: string,
+  excludeId?: string
+): Promise<boolean> {
+  const all = await listAll();
+  return all.some(
+    ({ anggota }) =>
+      anggota.is_active &&
+      anggota.telepon === telepon &&
+      anggota.id !== excludeId
+  );
+}

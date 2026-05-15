@@ -21,16 +21,16 @@ export const PERAN = {
 
 export type Peran = (typeof PERAN)[keyof typeof PERAN];
 
-export const VALID_PERAN: Peran[] = [
+export const VALID_PERAN = [
   PERAN.SUPER_ADMIN,
   PERAN.BENDAHARA,
   PERAN.ADMIN_QURBAN,
   PERAN.PENDAFTARAN,
   PERAN.DISTRIBUSI,
-];
+] as const;
 
 export function isValidPeran(peran: string): peran is Peran {
-  return (VALID_PERAN as string[]).includes(peran);
+  return (VALID_PERAN as readonly string[]).includes(peran);
 }
 
 /**
