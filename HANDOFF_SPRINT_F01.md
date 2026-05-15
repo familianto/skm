@@ -195,6 +195,45 @@ matters once there are 2+ SAs.
 edits) could create a state where SA-A deactivates SA-B leaving zero
 SAs. The U7 guard catches that.
 
+### #15 — Keep `middleware.ts` filename (defer rename to `proxy.ts`)
+
+Next 16 renamed the middleware concept to "Proxy" and emits a deprecation
+warning when the file is named `middleware.ts`. Behavior is identical;
+only the preferred filename changed.
+
+**F1 keeps `middleware.ts`** because it's the existing project convention
+and renaming is out of scope per "no refactor beyond task". Rename to
+`proxy.ts` can be a one-line chore in a future cleanup PR or F2.
+
+### #16 — Cookie `SameSite=lax` lowercase is correct
+
+The Vercel preview emits `Set-Cookie: ...; SameSite=lax` (lowercase L).
+Initial test script flagged this as a failure with a case-sensitive bash
+glob `*SameSite=Lax*`.
+
+**Investigation:**
+- Next.js cookies API (`cookieStore.set` and friends) typed
+  `sameSite: 'lax' | 'strict' | 'none'` — lowercase only.
+- The compiled `@edge-runtime/cookies` serializer literally interpolates
+  the value (`SameSite=${c.sameSite}`), so emitted value mirrors the
+  TypeScript-allowed lowercase form.
+- Local probe (`Set-Cookie: skm_session=test-token; ...; Secure;
+  HttpOnly; SameSite=lax`) confirms it on this branch's Next 16 build.
+- Per **RFC 6265bis** and current browser behavior, cookie attribute
+  names AND the `SameSite` value are case-insensitive. `lax`, `Lax`,
+  `LAX` are functionally identical — browsers parse all three the same.
+
+**Decision:** keep the Next.js cookies API as-is in `setSessionCookie()`;
+fix the test assertion to be case-insensitive (lowercase compare via
+`tr '[:upper:]' '[:lower:]'`). Same treatment applied to the HttpOnly,
+Secure, and Max-Age assertions for consistency — defensive against
+future serializer case changes by Next or upstream.
+
+**Why not force uppercase server-side:** would mean bypassing Next.js
+cookies API (manual `response.headers.append('Set-Cookie', '...')`) for
+purely cosmetic gain. Loses type safety + auto-encoding for no behavior
+change. Not worth it.
+
 ---
 
 ## TODOs Carry-Over to Later Milestones

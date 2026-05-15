@@ -163,13 +163,20 @@ echo ""
 # Test #10 — cookie attributes (use #2 response headers)
 # ============================================================================
 echo "[#10] Cookie attributes — HttpOnly, Secure, SameSite=Lax, Max-Age"
-# Pull just the skm_session Set-Cookie line for attribute inspection
+# Pull just the skm_session Set-Cookie line for attribute inspection.
+# Per RFC 6265bis, cookie attribute names AND SameSite values are
+# case-insensitive. Next.js cookies API emits `SameSite=lax` (lowercase)
+# because its TypeScript types accept only 'lax'|'strict'|'none' lowercase.
+# Browsers handle any case identically — we normalize to lowercase before
+# checking. Apply same convention to HttpOnly / Secure / Max-Age for
+# consistency (Decision #16 in HANDOFF_SPRINT_F01.md).
 set_cookie_line="$(printf '%s' "$headers" | grep -i '^set-cookie:.*skm_session' | head -1 || true)"
 if [[ -n "$set_cookie_line" ]]; then
-  [[ "$set_cookie_line" == *HttpOnly* ]]     && pass "#10 HttpOnly"     || fail "#10 HttpOnly missing"
-  [[ "$set_cookie_line" == *Secure* ]]       && pass "#10 Secure"       || fail "#10 Secure missing (prod requires Secure)"
-  [[ "$set_cookie_line" == *SameSite=Lax* ]] && pass "#10 SameSite=Lax" || fail "#10 SameSite=Lax missing"
-  [[ "$set_cookie_line" == *Max-Age=43200* ]] && pass "#10 Max-Age=43200 (12h)" || fail "#10 Max-Age=43200 missing"
+  sc_lower="$(printf '%s' "$set_cookie_line" | tr '[:upper:]' '[:lower:]')"
+  [[ "$sc_lower" == *httponly* ]]      && pass "#10 HttpOnly"        || fail "#10 HttpOnly missing"
+  [[ "$sc_lower" == *secure* ]]        && pass "#10 Secure"          || fail "#10 Secure missing (prod requires Secure)"
+  [[ "$sc_lower" == *samesite=lax* ]]  && pass "#10 SameSite=Lax"    || fail "#10 SameSite=Lax missing"
+  [[ "$sc_lower" == *max-age=43200* ]] && pass "#10 Max-Age=43200 (12h)" || fail "#10 Max-Age=43200 missing"
 else
   fail "#10 no Set-Cookie: skm_session header in login response"
 fi
