@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { formatRupiah } from '@/lib/utils';
 import { generateQurbanWAText } from '@/lib/qurban-wa-text';
+import { LABEL_BAWA_SENDIRI } from '@/lib/qurban-display';
 import type { QurbanPublikResponse, QurbanHewanItem } from '@/types/qurban';
 
 type TabType = 'semua' | 'sapi' | 'kambing' | 'penitipan';
@@ -33,7 +34,7 @@ function HewanCard({ hewan, searchQuery }: { hewan: QurbanHewanItem; searchQuery
           <div className="flex items-center gap-1.5 flex-wrap mb-0.5">
             <span className="text-sm font-bold text-gray-900">{hewan.id_hewan}</span>
             {isPenitipan && (
-              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 tracking-wide">PENITIPAN</span>
+              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 tracking-wide">{LABEL_BAWA_SENDIRI.toUpperCase()}</span>
             )}
           </div>
           <div className="text-[11px] text-gray-500 leading-relaxed">
@@ -239,7 +240,7 @@ export default function QurbanPage() {
     { key: 'semua', label: 'Semua' },
     { key: 'sapi', label: '\u{1F404} Sapi' },
     { key: 'kambing', label: '\u{1F410} Kambing' },
-    { key: 'penitipan', label: '\u{1F3F7}\uFE0F Penitipan' },
+    { key: 'penitipan', label: `\u{1F3F7}\uFE0F ${LABEL_BAWA_SENDIRI}` },
   ];
 
   return (

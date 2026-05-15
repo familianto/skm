@@ -1,5 +1,6 @@
 import type { QurbanPublikResponse } from '@/types/qurban';
 import { formatRupiah } from '@/lib/utils';
+import { LABEL_BAWA_SENDIRI } from '@/lib/qurban-display';
 
 export function generateQurbanWAText(data: QurbanPublikResponse, pageUrl: string): string {
   const { summary, hewan, payment } = data;
@@ -21,7 +22,7 @@ export function generateQurbanWAText(data: QurbanPublikResponse, pageUrl: string
     t += `   \u2022 Kelas ${tipe}: ${count} ekor\n`;
   }
   if (summary.sapi_penitipan > 0) {
-    t += `   \u2022 Penitipan: ${summary.sapi_penitipan} ekor\n`;
+    t += `   \u2022 ${LABEL_BAWA_SENDIRI}: ${summary.sapi_penitipan} ekor\n`;
   }
   t += '\n';
 
@@ -30,7 +31,7 @@ export function generateQurbanWAText(data: QurbanPublikResponse, pageUrl: string
     t += `   \u2022 Kelas ${tipe}: ${count} ekor\n`;
   }
   if (summary.kambing_penitipan > 0) {
-    t += `   \u2022 Penitipan: ${summary.kambing_penitipan} ekor\n`;
+    t += `   \u2022 ${LABEL_BAWA_SENDIRI}: ${summary.kambing_penitipan} ekor\n`;
   }
   t += '\n';
 
@@ -47,7 +48,7 @@ export function generateQurbanWAText(data: QurbanPublikResponse, pageUrl: string
   for (const h of sapiAll) {
     if (h.terisi === 0) continue;
     if (h.is_penitipan) {
-      t += `*${h.id_hewan}* _(Kelas ${h.tipe} \u00b7 Penitipan \u00b7 BOP ${formatRupiah(h.bop_per_ekor)}/ekor)_\n`;
+      t += `*${h.id_hewan}* _(Kelas ${h.tipe} \u00b7 ${LABEL_BAWA_SENDIRI} \u00b7 BOP ${formatRupiah(h.bop_per_ekor)}/ekor)_\n`;
     } else {
       t += `*${h.id_hewan}* _(Kelas ${h.tipe} \u00b7 ${formatRupiah(h.harga_per_orang)}/slot)_\n`;
     }
@@ -68,7 +69,7 @@ export function generateQurbanWAText(data: QurbanPublikResponse, pageUrl: string
   for (const h of kambingAll) {
     if (h.terisi === 0) continue;
     if (h.is_penitipan) {
-      t += `*${h.id_hewan}* _(Kelas ${h.tipe} \u00b7 Penitipan \u00b7 BOP ${formatRupiah(h.bop_per_ekor)}/ekor)_\n`;
+      t += `*${h.id_hewan}* _(Kelas ${h.tipe} \u00b7 ${LABEL_BAWA_SENDIRI} \u00b7 BOP ${formatRupiah(h.bop_per_ekor)}/ekor)_\n`;
     } else {
       t += `*${h.id_hewan}* _(Kelas ${h.tipe} \u00b7 ${formatRupiah(h.harga_per_orang)}/ekor)_\n`;
     }

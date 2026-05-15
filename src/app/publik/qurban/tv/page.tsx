@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { formatRupiah } from '@/lib/utils';
+import { LABEL_BAWA_SENDIRI } from '@/lib/qurban-display';
 import type { QurbanPublikResponse, QurbanHewanItem } from '@/types/qurban';
 
 const SLIDE_DURATION = 10_000;
