@@ -182,6 +182,12 @@ function LoginForm() {
     [telepon, pin, isLocked, loading, redirectTarget, router]
   );
 
+  // Explicit text + placeholder colors are REQUIRED on raw <input> elements
+  // here. globals.css has a `@media (prefers-color-scheme: dark)` block that
+  // flips body `--foreground` to near-white. The shared <Input> component
+  // (used elsewhere in SKM) hardcodes `text-gray-900`; our custom-styled
+  // inputs need to do the same or text becomes invisible on the white card
+  // when the user's system is in dark mode (e.g. Hopy's iPad Safari).
   const teleponBorder =
     errorField === 'telepon'
       ? 'border-red-400 focus:ring-red-500 focus:border-red-500'
@@ -239,7 +245,7 @@ function LoginForm() {
                 }}
                 placeholder="08xx... atau 628xx..."
                 disabled={isLocked || loading}
-                className={`block w-full rounded-lg border px-4 py-3 text-base focus:outline-none focus:ring-2 transition-colors ${teleponBorder} ${
+                className={`block w-full rounded-lg border px-4 py-3 text-base text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 transition-colors ${teleponBorder} ${
                   isLocked ? 'bg-gray-100 cursor-not-allowed' : ''
                 }`}
                 autoFocus
@@ -267,7 +273,7 @@ function LoginForm() {
                 }}
                 placeholder="4-6 digit angka"
                 disabled={isLocked || loading}
-                className={`block w-full rounded-lg border px-4 py-3 text-center text-2xl tracking-[0.5em] focus:outline-none focus:ring-2 transition-colors ${pinBorder} ${
+                className={`block w-full rounded-lg border px-4 py-3 text-center text-2xl tracking-[0.5em] text-gray-900 placeholder:text-gray-400 placeholder:text-base placeholder:tracking-normal focus:outline-none focus:ring-2 transition-colors ${pinBorder} ${
                   isLocked ? 'bg-gray-100 cursor-not-allowed' : ''
                 }`}
               />

@@ -288,6 +288,37 @@ is intentional — preview should never mutate production data.
      `user_id=ANG-20260515-0003` (NOT LEGACY).
   2. After 1-2 day soak, set `QURBAN_LEGACY_LOGIN_ENABLED=false`.
 
+### #18 — `globals.css` dark-mode fallback is dead boilerplate
+
+The create-next-app template left a `@media (prefers-color-scheme: dark)`
+block in `globals.css` that flips `--background` to `#0a0a0a` and
+`--foreground` to `#ededed`. Nothing in SKM actually opts into dark
+theming — zero `dark:` Tailwind variants, zero components consume the
+foreground/background CSS variables. The block is effectively dead.
+
+**The trap it creates:** any custom `<input>` that does NOT explicitly
+set `text-gray-900` inherits the body color. On a user device with the
+system in dark mode, that's near-white. SKM's pages wrap content in
+`bg-white` cards, so the card stays light but the input text becomes
+near-invisible — discovered when Hopy tested E1 on his iPad in dark
+mode.
+
+The shared `<Input>` component at `src/components/ui/input.tsx`
+hardcodes `text-gray-900 placeholder:text-gray-400`, which is why
+existing pages don't surface this bug.
+
+**Decision for F1:** apply explicit `text-gray-900
+placeholder:text-gray-400` to the two raw `<input>` elements in
+`/login` (custom-styled, can't easily use shared `<Input>` because of
+the PIN's centered 2xl + letter-spacing). Document the gotcha for
+E2-E5 — any new custom input must do the same OR use the shared
+`<Input>` component.
+
+**Not in F1 scope (parked):** remove the dark @media block from
+`globals.css` entirely. That would close the bug class globally and is
+a one-line change, but touching shared CSS is broader than the E1
+visibility fix Hopy requested. Surface as a chore in a future PR.
+
 ---
 
 ## TODOs Carry-Over to Later Milestones
