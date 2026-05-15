@@ -1,156 +1,216 @@
 'use client';
 
-import { useState, useEffect, useCallback, FormEvent } from 'react';
-import { useRouter } from 'next/navigation';
+import { Suspense, useCallback, useEffect, useState, FormEvent } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 
-const MAX_ATTEMPTS = 5;
-const LOCKOUT_DURATION_MS = 5 * 60 * 1000; // 5 minutes
-const WARNING_THRESHOLD = 3;
-const LS_KEY = 'skm_login_lockout';
+/**
+ * /login — F1 multi-user login per Tahap 3.E §3.1 A1 + PROMPT_F01 §6.1.
+ *
+ * UI:
+ *   - Telepon + PIN inputs (replaces the old PIN-only form).
+ *   - Mobile-first; emerald primary; large touch targets for iPad.
+ *
+ * Error handling (response envelope { ok:false, error:{ code, message, details? }}):
+ *   - 400 VALIDATION_FAILED / VALIDATION_FORMAT → inline message, focus offending field
+ *   - 401 AUTH_INVALID                          → inline "Telepon/PIN salah" + remaining_attempts hint
+ *   - 423 AUTH_LOCKED                           → countdown to details.locked_until
+ *   - 429 RATE_LIMITED                          → countdown to details.retry_after_sec
+ *
+ * No localStorage — the server's `failed_attempts` + `locked_until` columns on
+ * the anggota row are the source of truth. (Decision: drop the pre-F01
+ * client-side lockout state which duplicated server state and could drift.)
+ *
+ * No Gmail SSO button — the legacy NextAuth path is not surfaced in F1 UI.
+ */
 
-interface LockoutState {
-  attemptCount: number;
-  lockoutUntil: number | null;
-}
-
-function getLockoutState(): LockoutState {
-  if (typeof window === 'undefined') return { attemptCount: 0, lockoutUntil: null };
-  try {
-    const raw = localStorage.getItem(LS_KEY);
-    if (!raw) return { attemptCount: 0, lockoutUntil: null };
-    const state = JSON.parse(raw) as LockoutState;
-    // Clear expired lockout
-    if (state.lockoutUntil && state.lockoutUntil <= Date.now()) {
-      localStorage.removeItem(LS_KEY);
-      return { attemptCount: 0, lockoutUntil: null };
-    }
-    return state;
-  } catch {
-    return { attemptCount: 0, lockoutUntil: null };
-  }
-}
-
-function saveLockoutState(state: LockoutState) {
-  localStorage.setItem(LS_KEY, JSON.stringify(state));
-}
-
-function clearLockoutState() {
-  localStorage.removeItem(LS_KEY);
+interface ErrorDetails {
+  locked_until?: string;
+  retry_after_sec?: number;
+  remaining_attempts?: number;
+  field?: string;
 }
 
 function formatCountdown(ms: number): string {
-  const totalSeconds = Math.max(0, Math.ceil(ms / 1000));
-  const minutes = Math.floor(totalSeconds / 60);
-  const seconds = totalSeconds % 60;
-  return `${minutes} menit ${seconds} detik`;
+  const total = Math.max(0, Math.ceil(ms / 1000));
+  const m = Math.floor(total / 60);
+  const s = total % 60;
+  if (m > 0) return `${m} menit ${s} detik`;
+  return `${s} detik`;
 }
 
 export default function LoginPage() {
+  // Next 16 requires useSearchParams() callers to be wrapped in Suspense so
+  // the page can statically pre-render the shell.
+  return (
+    <Suspense fallback={<LoginShell />}>
+      <LoginForm />
+    </Suspense>
+  );
+}
+
+function LoginShell() {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4 py-8">
+      <div className="w-full max-w-sm">
+        <div className="bg-white rounded-xl shadow-lg p-6 sm:p-8 h-[420px]" />
+      </div>
+    </div>
+  );
+}
+
+function LoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const redirectTarget = searchParams.get('redirect') || null;
+
+  const [telepon, setTelepon] = useState('');
   const [pin, setPin] = useState('');
-  const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [attemptCount, setAttemptCount] = useState(0);
+
+  // Error state
+  const [errorMessage, setErrorMessage] = useState('');
+  const [errorField, setErrorField] = useState<'telepon' | 'pin' | null>(null);
+  const [remainingAttempts, setRemainingAttempts] = useState<number | null>(null);
+
+  // Lockout state (server-driven via 423 details.locked_until OR 429 retry_after_sec)
   const [lockoutUntil, setLockoutUntil] = useState<number | null>(null);
+  const [lockoutReason, setLockoutReason] = useState<'account' | 'rate' | null>(null);
   const [countdown, setCountdown] = useState('');
-  const [fadeIn, setFadeIn] = useState(false);
 
   const isLocked = lockoutUntil !== null && lockoutUntil > Date.now();
-  const remainingAttempts = MAX_ATTEMPTS - attemptCount;
-  const showWarning = attemptCount >= WARNING_THRESHOLD && !isLocked;
 
-  // Initialize from localStorage on mount
-  useEffect(() => {
-    const state = getLockoutState();
-    setAttemptCount(state.attemptCount);
-    setLockoutUntil(state.lockoutUntil);
-  }, []);
-
-  // Countdown timer
+  // Countdown tick
   useEffect(() => {
     if (!lockoutUntil) {
       setCountdown('');
       return;
     }
-
     const tick = () => {
       const remaining = lockoutUntil - Date.now();
       if (remaining <= 0) {
-        // Lockout expired
         setLockoutUntil(null);
-        setAttemptCount(0);
+        setLockoutReason(null);
         setCountdown('');
-        setError('');
-        clearLockoutState();
-        setFadeIn(true);
-        setTimeout(() => setFadeIn(false), 500);
+        setErrorMessage('');
         return;
       }
       setCountdown(formatCountdown(remaining));
     };
-
     tick();
-    const interval = setInterval(tick, 1000);
-    return () => clearInterval(interval);
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
   }, [lockoutUntil]);
 
-  const handleSubmit = useCallback(async (e: FormEvent) => {
-    e.preventDefault();
-    if (isLocked || loading) return;
+  const resetErrors = () => {
+    setErrorMessage('');
+    setErrorField(null);
+    setRemainingAttempts(null);
+  };
 
-    setError('');
-    setLoading(true);
+  const handleSubmit = useCallback(
+    async (e: FormEvent) => {
+      e.preventDefault();
+      if (isLocked || loading) return;
 
-    try {
-      const res = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pin }),
-      });
+      resetErrors();
+      setLoading(true);
 
-      const data = await res.json();
+      try {
+        const res = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ telepon, pin }),
+        });
+        const json = await res.json().catch(() => ({}));
 
-      if (data.success) {
-        clearLockoutState();
-        router.push('/');
-        return;
-      }
+        // Success
+        if (res.ok && json?.ok) {
+          const landing = redirectTarget || json.data?.landing_url || '/';
+          router.push(landing);
+          router.refresh();
+          return;
+        }
 
-      // Handle rate limiting response
-      const responseData = data.data;
-      if (responseData?.locked) {
-        const until = responseData.lockoutUntil || Date.now() + LOCKOUT_DURATION_MS;
-        setAttemptCount(MAX_ATTEMPTS);
-        setLockoutUntil(until);
-        saveLockoutState({ attemptCount: MAX_ATTEMPTS, lockoutUntil: until });
-        setError('');
+        // Error envelope: { ok:false, error:{ code, message, details? }}
+        const code = json?.error?.code || 'INTERNAL_ERROR';
+        const msg = json?.error?.message || 'Terjadi kesalahan. Coba lagi.';
+        const details: ErrorDetails = json?.error?.details || {};
+
+        if (code === 'AUTH_LOCKED' && details.locked_until) {
+          const until = new Date(details.locked_until).getTime();
+          if (!isNaN(until) && until > Date.now()) {
+            setLockoutUntil(until);
+            setLockoutReason('account');
+            setErrorMessage(msg);
+            setPin('');
+            return;
+          }
+        }
+
+        if (code === 'RATE_LIMITED' && details.retry_after_sec) {
+          setLockoutUntil(Date.now() + details.retry_after_sec * 1000);
+          setLockoutReason('rate');
+          setErrorMessage(msg);
+          return;
+        }
+
+        if (code === 'VALIDATION_FORMAT' && details.field === 'telepon') {
+          setErrorField('telepon');
+          setErrorMessage(msg);
+          return;
+        }
+
+        if (code === 'VALIDATION_FAILED') {
+          if (details.field === 'telepon') setErrorField('telepon');
+          else if (details.field === 'pin') setErrorField('pin');
+          setErrorMessage(msg);
+          return;
+        }
+
+        // AUTH_INVALID + others
+        setErrorMessage(msg);
+        if (typeof details.remaining_attempts === 'number') {
+          setRemainingAttempts(details.remaining_attempts);
+        }
         setPin('');
-      } else {
-        const newCount = responseData?.attemptCount || attemptCount + 1;
-        setAttemptCount(newCount);
-        saveLockoutState({ attemptCount: newCount, lockoutUntil: null });
-        setError(data.error || 'Login gagal.');
+      } catch {
+        setErrorMessage('Tidak dapat terhubung ke server. Coba lagi.');
+      } finally {
+        setLoading(false);
       }
-    } catch {
-      setError('Terjadi kesalahan. Coba lagi.');
-    } finally {
-      setLoading(false);
-    }
-  }, [pin, isLocked, loading, attemptCount, router]);
+    },
+    [telepon, pin, isLocked, loading, redirectTarget, router]
+  );
 
-  const inputBorderClass = showWarning
-    ? 'border-red-400 focus:ring-red-500 focus:border-red-500'
-    : 'border-gray-300 focus:ring-emerald-500 focus:border-emerald-500';
+  const teleponBorder =
+    errorField === 'telepon'
+      ? 'border-red-400 focus:ring-red-500 focus:border-red-500'
+      : 'border-gray-300 focus:ring-emerald-500 focus:border-emerald-500';
+
+  const pinBorder =
+    errorField === 'pin' || (remainingAttempts !== null && remainingAttempts <= 2)
+      ? 'border-red-400 focus:ring-red-500 focus:border-red-500'
+      : 'border-gray-300 focus:ring-emerald-500 focus:border-emerald-500';
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4 py-8">
       <div className="w-full max-w-sm">
-        <div className="bg-white rounded-xl shadow-lg p-8">
+        <div className="bg-white rounded-xl shadow-lg p-6 sm:p-8">
           {/* Header */}
-          <div className="text-center mb-8">
+          <div className="text-center mb-7">
             <div className="w-16 h-16 bg-emerald-600 rounded-full flex items-center justify-center mx-auto mb-4">
-              <svg className="w-8 h-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+              <svg
+                className="w-8 h-8 text-white"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
+                />
               </svg>
             </div>
             <h1 className="text-2xl font-bold text-gray-900">SKM</h1>
@@ -158,67 +218,115 @@ export default function LoginPage() {
           </div>
 
           {/* Form */}
-          <form onSubmit={handleSubmit}>
-            <div className="mb-4">
-              <label htmlFor="pin" className="block text-sm font-medium text-gray-700 mb-1">
-                Masukkan PIN
+          <form onSubmit={handleSubmit} className="space-y-4">
+            {/* Telepon */}
+            <div>
+              <label
+                htmlFor="telepon"
+                className="block text-sm font-medium text-gray-700 mb-1"
+              >
+                Nomor Telepon
+              </label>
+              <input
+                id="telepon"
+                type="tel"
+                inputMode="tel"
+                autoComplete="username"
+                value={telepon}
+                onChange={(e) => {
+                  setTelepon(e.target.value);
+                  if (errorField === 'telepon') setErrorField(null);
+                }}
+                placeholder="08xx... atau 628xx..."
+                disabled={isLocked || loading}
+                className={`block w-full rounded-lg border px-4 py-3 text-base focus:outline-none focus:ring-2 transition-colors ${teleponBorder} ${
+                  isLocked ? 'bg-gray-100 cursor-not-allowed' : ''
+                }`}
+                autoFocus
+              />
+            </div>
+
+            {/* PIN */}
+            <div>
+              <label
+                htmlFor="pin"
+                className="block text-sm font-medium text-gray-700 mb-1"
+              >
+                PIN
               </label>
               <input
                 id="pin"
                 type="password"
                 inputMode="numeric"
+                autoComplete="current-password"
                 maxLength={6}
                 value={pin}
-                onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))}
-                placeholder="PIN 4-6 digit"
-                disabled={isLocked}
-                className={`block w-full rounded-lg border px-4 py-3 text-center text-2xl tracking-[0.5em] focus:outline-none focus:ring-2 transition-colors duration-300 ${inputBorderClass} ${isLocked ? 'bg-gray-100 cursor-not-allowed' : ''} ${fadeIn ? 'animate-pulse' : ''}`}
-                autoFocus
+                onChange={(e) => {
+                  setPin(e.target.value.replace(/\D/g, ''));
+                  if (errorField === 'pin') setErrorField(null);
+                }}
+                placeholder="4-6 digit angka"
+                disabled={isLocked || loading}
+                className={`block w-full rounded-lg border px-4 py-3 text-center text-2xl tracking-[0.5em] focus:outline-none focus:ring-2 transition-colors ${pinBorder} ${
+                  isLocked ? 'bg-gray-100 cursor-not-allowed' : ''
+                }`}
               />
             </div>
 
-            {/* Error message */}
-            {error && !isLocked && (
-              <p className="text-red-600 text-sm text-center mb-4 transition-opacity duration-300">
-                {error}
+            {/* Error / Warning */}
+            {errorMessage && !isLocked && (
+              <p className="text-red-600 text-sm" role="alert">
+                {errorMessage}
               </p>
             )}
 
-            {/* Warning: remaining attempts */}
-            {showWarning && !isLocked && (
-              <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-4 transition-opacity duration-300">
-                <p className="text-amber-700 text-sm text-center font-medium">
-                  ⚠ Sisa {remainingAttempts} percobaan sebelum akun di-lock.
+            {remainingAttempts !== null && remainingAttempts > 0 && !isLocked && (
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+                <p className="text-amber-700 text-sm">
+                  Sisa <span className="font-semibold">{remainingAttempts}</span>{' '}
+                  percobaan sebelum akun dikunci.
                 </p>
               </div>
             )}
 
-            {/* Lockout countdown */}
+            {/* Lockout banner */}
             {isLocked && countdown && (
-              <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4 transition-opacity duration-300">
-                <div className="flex items-center justify-center gap-2 mb-1">
-                  <svg className="w-5 h-5 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                <div className="flex items-center gap-2 mb-1">
+                  <svg
+                    className="w-5 h-5 text-red-500"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+                    />
                   </svg>
-                  <p className="text-red-700 text-sm font-semibold">Akun terkunci</p>
+                  <p className="text-red-700 text-sm font-semibold">
+                    {lockoutReason === 'rate' ? 'Terlalu banyak permintaan' : 'Akun dikunci'}
+                  </p>
                 </div>
-                <p className="text-red-600 text-sm text-center">
-                  Terlalu banyak percobaan login. Silakan coba lagi dalam{' '}
-                  <span className="font-bold">{countdown}</span>.
+                <p className="text-red-600 text-sm">
+                  Coba lagi dalam <span className="font-bold">{countdown}</span>.
                 </p>
               </div>
             )}
 
+            {/* Submit */}
             <button
               type="submit"
-              disabled={loading || pin.length < 4 || isLocked}
-              className={`w-full py-3 rounded-lg font-medium transition-colors duration-300 ${
+              disabled={loading || isLocked || telepon.trim().length < 8 || pin.length < 4}
+              className={`w-full py-3 rounded-lg font-medium text-base transition-colors ${
                 isLocked
                   ? 'bg-gray-400 text-gray-200 cursor-not-allowed'
                   : 'bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed'
               }`}
             >
-              {loading ? 'Memverifikasi...' : isLocked ? 'Masuk' : 'Masuk'}
+              {loading ? 'Memverifikasi...' : 'Masuk'}
             </button>
           </form>
         </div>

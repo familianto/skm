@@ -1,13 +1,13 @@
 'use client';
 
 import { useState, useEffect, useCallback, FormEvent } from 'react';
-import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { PageTitle } from '@/components/layout/page-title';
 import { Card, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Loading } from '@/components/ui/loading';
+import { useToast } from '@/components/ui/toast';
 import { cn } from '@/lib/utils';
 import type { Master, Anggota, ApiResponse } from '@/types';
 
@@ -300,36 +300,61 @@ function ProfilTab() {
 // ==============================
 // Tab: Keamanan (Ganti PIN)
 // ==============================
+//
+// F01 update per Decision in HANDOFF_SPRINT_F01.md:
+//   - Endpoint payload {old_pin, new_pin} matches Tahap 3.E §3.1 A4.
+//   - Session is preserved after PIN change (no auto-logout, no redirect).
+//   - Success surfaces a toast, form clears, the user stays on /pengaturan.
+//   - PIN policy errors (VALIDATION_PIN_POLICY) show the server's
+//     `constraint` string so the user sees WHY the PIN was rejected
+//     (sequential / weak / all-same).
+//
 function KeamananTab() {
-  const router = useRouter();
+  const { toast } = useToast();
   const [pinLama, setPinLama] = useState('');
   const [pinBaru, setPinBaru] = useState('');
   const [konfirmasiPin, setKonfirmasiPin] = useState('');
   const [saving, setSaving] = useState(false);
-  const [message, setMessage] = useState('');
   const [error, setError] = useState('');
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    setSaving(true);
-    setMessage('');
     setError('');
 
+    // Client-side: confirm PIN match before hitting server.
+    if (pinBaru !== konfirmasiPin) {
+      setError('PIN baru dan konfirmasi tidak cocok.');
+      return;
+    }
+
+    setSaving(true);
     try {
       const res = await fetch('/api/auth/change-pin', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pinLama, pinBaru, konfirmasiPin }),
+        body: JSON.stringify({ old_pin: pinLama, new_pin: pinBaru }),
       });
-      const json = await res.json();
-      if (json.success) {
-        setMessage('PIN berhasil diubah. Anda akan dialihkan ke halaman login...');
-        setTimeout(() => router.push('/login'), 2000);
+      const json = await res.json().catch(() => ({}));
+
+      if (res.ok && json?.ok) {
+        toast('PIN berhasil diubah.', 'success');
+        setPinLama('');
+        setPinBaru('');
+        setKonfirmasiPin('');
+        return;
+      }
+
+      const code = json?.error?.code || 'INTERNAL_ERROR';
+      const message = json?.error?.message || 'Gagal mengubah PIN.';
+      const constraint = json?.error?.details?.constraint;
+
+      if (code === 'VALIDATION_PIN_POLICY' && constraint) {
+        setError(`PIN baru tidak memenuhi kebijakan: ${constraint}.`);
       } else {
-        setError(json.error || 'Gagal mengubah PIN.');
+        setError(message);
       }
     } catch {
-      setError('Terjadi kesalahan.');
+      setError('Tidak dapat terhubung ke server.');
     } finally {
       setSaving(false);
     }
@@ -371,21 +396,20 @@ function KeamananTab() {
             required
           />
 
-          {message && <p className="text-emerald-600 text-sm">{message}</p>}
           {error && <p className="text-red-600 text-sm">{error}</p>}
 
           <Button
             type="submit"
-            disabled={saving || pinBaru.length < 4 || konfirmasiPin.length < 4}
+            disabled={saving || pinBaru.length < 4 || konfirmasiPin.length < 4 || pinLama.length < 4}
           >
             {saving ? 'Menyimpan...' : 'Ubah PIN'}
           </Button>
         </form>
       </Card>
 
-      <div className="mt-4 p-4 bg-amber-50 border border-amber-200 rounded-lg">
-        <p className="text-sm text-amber-800">
-          <strong>Perhatian:</strong> Setelah mengubah PIN, Anda akan otomatis logout dan harus login kembali dengan PIN baru.
+      <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+        <p className="text-sm text-blue-800">
+          Sesi Anda tetap aktif setelah PIN diubah. Gunakan PIN baru untuk login berikutnya.
         </p>
       </div>
     </div>
