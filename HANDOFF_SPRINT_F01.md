@@ -234,6 +234,60 @@ cookies API (manual `response.headers.append('Set-Cookie', '...')`) for
 purely cosmetic gain. Loses type safety + auto-encoding for no behavior
 change. Not worth it.
 
+### #17 — Preview deployment writes to STAGING sheet
+
+The Vercel preview for this branch resolves `GOOGLE_SHEETS_ID` to the
+staging spreadsheet (`1AeyUU0rM3XmcvqU5rSZYTrqLqBXOaTr7S50aSDOGsh4`),
+not production (`1i3xwOKVBMq72DjjIr8zznGl5LQbLFT2PHjBxYllnnIE`). This
+is intentional — preview should never mutate production data.
+
+**State of the staging sheet (verified by Hopy from F1 preview test):**
+- Pre-F01 schema: peran enum still uses `PENGURUS`, telepon
+  un-normalized, anggota has 7 cols not 13.
+- The F01 Apps Script migration (`migrate_F01()`) was run only on
+  **production**. Staging has not been migrated.
+- Consequence: ANG-20260515-0003 (Hopy SUPER_ADMIN bootstrap row) does
+  not exist in staging.
+
+**What the preview test actually exercised:**
+
+| Test | Path in code | Why |
+|---|---|---|
+| #2 SA login | LEGACY FALLBACK (`master.pin_hash`) | `QURBAN_LEGACY_LOGIN_ENABLED=true` + Hopy's telepon not in staging anggota → bcrypt vs master.pin_hash → session `{user_id:'LEGACY', peran:'SUPER_ADMIN'}` |
+| #4 create BENDAHARA | multi-user path, U2 endpoint | Hopy's LEGACY session has SUPER_ADMIN role, U2 guard passes |
+| #5 BENDAHARA login | MULTI-USER path (`anggota.pin_hash`) | Fresh row created in #4, fully populated post-F01 columns |
+| #6 BENDAHARA → 403 | API guard `requireSuperAdmin` | Multi-user session with peran=BENDAHARA proven gateable |
+
+**Net evidence collected:**
+1. Audit log entries match Decision #13 — `user_info='Legacy Admin'`
+   for the LEGACY session, `user_info='Test BENDAHARA 17...'` (full
+   nama, not the peran label "BENDAHARA") for the multi-user creation.
+2. user_id, ip_address columns populated.
+3. event_type + before/after JSON structured per spec.
+4. End-to-end multi-user flow (#4-#9) exercises the same code paths
+   Hopy will use post-merge — just rotated through a freshly-created
+   BENDAHARA instead of Hopy's own SUPER_ADMIN row.
+
+**What is NOT yet exercised in preview:**
+- Hopy SA logging in via multi-user path against anggota row (cannot
+  test against staging because the row doesn't exist there).
+
+**Why this is acceptable for F1 sign-off:**
+- The branch in BENDAHARA dummy IS the same code path Hopy will hit
+  post-merge. Only the row identity differs.
+- Production sheet IS F01-migrated and has ANG-20260515-0003.
+- Decision #6 (`pin_hash` empty fallback) ensures the row is reachable
+  via legacy fallback as a safety net even if anggota lookup somehow
+  fails after merge.
+
+**Follow-ups (parked, NOT F1 blockers):**
+- Run `migrate_F01()` against staging pre-F2 so the next sprint can
+  exercise SA-against-anggota end-to-end on preview.
+- Post-merge production smoke test:
+  1. Hopy logs in with telepon + PIN → confirm 200 + JWT
+     `user_id=ANG-20260515-0003` (NOT LEGACY).
+  2. After 1-2 day soak, set `QURBAN_LEGACY_LOGIN_ENABLED=false`.
+
 ---
 
 ## TODOs Carry-Over to Later Milestones
