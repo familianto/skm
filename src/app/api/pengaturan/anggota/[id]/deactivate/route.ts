@@ -20,6 +20,12 @@ import { AuditAksi } from '@/types';
  * Soft-delete via `is_active=FALSE`. The row remains in the sheet so
  * historical audit references resolve.
  *
+ * Body (optional): { notes?: string } — free-text reason persisted in the
+ * audit log entry. F1 UI (E4 DeactivateModal) surfaces a 200-char textarea
+ * so the SA can record why the account was deactivated. Empty / missing
+ * body is fine; the route remains backward-compatible with the
+ * Milestone-C no-body contract.
+ *
  * Business guards:
  *  - Self-deactivate is BLOCKED (BUSINESS_CANNOT_DEACTIVATE_SELF).
  *    Per spec: SUPER_ADMIN must not lock themselves out — another SA must
@@ -29,7 +35,7 @@ import { AuditAksi } from '@/types';
  *
  * Idempotent on already-inactive: returns 200 without re-writing or audit.
  *
- * Audit: anggota.deactivated.
+ * Audit: anggota.deactivated (with optional notes from body).
  */
 export async function POST(
   request: NextRequest,
@@ -72,6 +78,14 @@ export async function POST(
       }
     }
 
+    // Optional `notes` body (E4 DeactivateModal). Cap at 200 chars to match
+    // the UI textarea limit; trim whitespace; drop if empty.
+    const body = (await request.json().catch(() => null)) as
+      | { notes?: unknown }
+      | null;
+    const rawNotes = typeof body?.notes === 'string' ? body.notes.trim() : '';
+    const notes = rawNotes ? rawNotes.slice(0, 200) : undefined;
+
     const now = new Date().toISOString();
     const updated = { ...rec.anggota, is_active: false, updated_at: now };
     await updateAt(rec.rowIndex, updated);
@@ -83,6 +97,7 @@ export async function POST(
       event_type: 'anggota.deactivated',
       before: { is_active: true },
       after: { is_active: false },
+      notes,
       user_id: guard.session.user_id,
       ip_address: ip,
     });

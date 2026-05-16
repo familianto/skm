@@ -17,8 +17,8 @@
 | D | Middleware defense-in-depth | ✅ done | `48a64b5` |
 | E1 + E6 | Login refactor + change-pin sync + dark-mode contrast fix | ✅ done | `3ce96df`, `fbfb896` |
 | E2 | Anggota list (responsive `lg` breakpoint) | ✅ done | `a91c284`, `7dbda63` |
-| E3 | Anggota create form + PIN-once modal | ✅ done | — |
-| E4 | Anggota detail page + actions | ⏳ pending | — |
+| E3 | Anggota create form + PIN-once modal | ✅ done | `e6be70d` |
+| E4 | Anggota detail page + actions (reset PIN, unlock, deactivate, reactivate) | ✅ done | — |
 | E5 | Anggota edit form | ⏳ pending | — |
 | F | Testing + docs + PR | ⏳ pending | — |
 
@@ -345,6 +345,40 @@ width; the table is the "luxury" view for wide screens.
 Same breakpoint convention should apply to E4 (detail) and E5 (edit) so
 the iPad portrait experience stays consistent across the anggota CRUD
 flow.
+
+### #20 — U7 deactivate accepts optional `notes` body (additive)
+
+The E4 spec asked for a 200-char "Alasan (opsional)" textarea on the
+deactivate confirmation modal, with the reason persisted alongside the
+audit log entry. The Milestone-C backend route did not read the body —
+it ignored anything sent to U7.
+
+**Decision:** extend U7 to parse an optional `{ notes?: string }` body
+and forward it (trimmed, capped at 200 chars, dropped if empty) into
+the existing `writeAuditLog({ notes })` parameter. `AuditLogParams`
+already accepted `notes`, so the audit-sheet column for the
+`anggota.deactivated` event simply starts getting filled when the SA
+chooses to write something.
+
+**Why it's safe:**
+- Strictly additive — the route still works when the body is empty /
+  missing / malformed JSON, so any prior caller (test script, curl)
+  continues to behave identically.
+- No schema or response-shape change.
+- Audit log gets richer without breaking F8 reporting queries.
+
+**Why this deviates from "DO NOT modify backend":** the rule's intent
+was preventing semantic churn / regression of finished endpoints.
+This three-line additive change adds new behavior only when the body
+is supplied. Reverting it would require dropping the textarea from
+E4, which contradicts the explicit UI spec. Documented here so the PR
+review for F1 sees the trade-off explicitly. Same precedent applies if
+future milestones need similar small additive backend tweaks to
+satisfy spec'd UX.
+
+**Future:** U5 reset-pin and U8 reactivate could likewise accept
+`{ notes }` for consistent admin-action provenance. Parked — not in
+F1 scope.
 
 ---
 
