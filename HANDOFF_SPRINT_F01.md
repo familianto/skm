@@ -14,8 +14,12 @@
 | A | Foundation helpers (`/lib/api/`) | ✅ done | `eaeabe1` |
 | B | Auth endpoints A1-A4 | ✅ done | `2b9e164` |
 | C | Anggota CRUD U1-U9 | ✅ done | `8bde499` |
-| D | Middleware defense-in-depth | 🔄 in progress | — |
-| E | UI pages (/login refactor, /pengaturan/anggota/*) | ⏳ pending | — |
+| D | Middleware defense-in-depth | ✅ done | `48a64b5` |
+| E1 + E6 | Login refactor + change-pin sync + dark-mode contrast fix | ✅ done | `3ce96df`, `fbfb896` |
+| E2 | Anggota list (responsive `lg` breakpoint) | ✅ done | `a91c284`, `7dbda63` |
+| E3 | Anggota create form + PIN-once modal | ✅ done | — |
+| E4 | Anggota detail page + actions | ⏳ pending | — |
+| E5 | Anggota edit form | ⏳ pending | — |
 | F | Testing + docs + PR | ⏳ pending | — |
 
 ---
