@@ -319,6 +319,29 @@ E2-E5 — any new custom input must do the same OR use the shared
 a one-line change, but touching shared CSS is broader than the E1
 visibility fix Hopy requested. Surface as a chore in a future PR.
 
+### #19 — Anggota list: card vs. table breakpoint at `lg` (1024px)
+
+The `/pengaturan/anggota` list switches between table (desktop) and card
+(mobile) layouts. Initially set at Tailwind's `md` breakpoint (768px) —
+which left iPad portrait (768–1023px) on the table layout, with cramped
+columns and small tap targets.
+
+**Decision:** bump the boundary to `lg` (1024px):
+- `lg+` → table (5 columns, hover row, click → detail)
+- `<lg` → vertical card stack (peran + status badge cluster right-aligned)
+
+This covers iPhone, iPad portrait, AND iPad landscape under ~10.5" — all
+get the card layout. Only true desktop laptops and 12.9" iPad Pro
+landscape stay on the table.
+
+**Trade-off:** a small laptop window in portrait orientation (rare)
+also gets the card stack. Acceptable — card list is functional at any
+width; the table is the "luxury" view for wide screens.
+
+Same breakpoint convention should apply to E4 (detail) and E5 (edit) so
+the iPad portrait experience stays consistent across the anggota CRUD
+flow.
+
 ---
 
 ## TODOs Carry-Over to Later Milestones

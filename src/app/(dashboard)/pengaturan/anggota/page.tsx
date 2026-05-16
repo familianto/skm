@@ -30,8 +30,9 @@ import {
  * second layer).
  *
  * Responsive:
- *   - md+   → table view (5 cols: nama, telepon, peran, status, login terakhir)
- *   - <md   → vertical card stack
+ *   - lg+   → table view (5 cols: nama, telepon, peran, status, login terakhir)
+ *   - <lg   → vertical card stack (covers iPad portrait per Decision #19;
+ *             card layout is more ergonomic for touch tap-targets)
  *
  * Filters:
  *   - search       — debounced 300ms, sent as `?search=` to U1
@@ -241,8 +242,8 @@ export default function AnggotaListPage() {
       {/* Results */}
       {!loading && !error && items.length > 0 && (
         <>
-          {/* Desktop table */}
-          <div className="hidden md:block">
+          {/* Desktop table (lg+; iPad portrait + smaller use cards below) */}
+          <div className="hidden lg:block">
             <Card>
               <div className="overflow-x-auto">
                 <table className="min-w-full">
@@ -304,8 +305,8 @@ export default function AnggotaListPage() {
             </Card>
           </div>
 
-          {/* Mobile cards */}
-          <div className="md:hidden space-y-3">
+          {/* Card stack for everything below lg (covers iPad portrait + phones) */}
+          <div className="lg:hidden space-y-3">
             {items.map((a) => {
               const st = anggotaStatus(a);
               return (
