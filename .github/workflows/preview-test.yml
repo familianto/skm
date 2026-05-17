@@ -1,0 +1,70 @@
+name: Preview Integration Test
+
+# Manual trigger only — DO NOT auto-run on push/PR. This keeps secrets out
+# of fork PR contexts and avoids noisy reruns while authors iterate.
+#
+# Why this workflow exists (F01 Decision F-polish-7):
+#   The Claude Code container (and most non-Enterprise dev environments)
+#   blocks outbound traffic to *.vercel.app via an egress proxy
+#   (`x-deny-reason: host_not_allowed`). We can't run preview integration
+#   tests directly from `bash` in those environments. Running them as a
+#   GitHub Actions job uses the runner's open network, with secrets
+#   injected from repo settings instead of a local .env file.
+#
+# Reusable across sprints — the F02-F10 test scripts can be invoked from the
+# same workflow with `test_script` overridden, e.g. `scripts/test-f02-...sh`.
+
+on:
+  workflow_dispatch:
+    inputs:
+      preview_url:
+        description: 'Vercel preview URL (no trailing slash)'
+        required: true
+        default: 'https://skm-git-qurban-f01-auth-multi-user-familiantos-projects.vercel.app'
+      test_script:
+        description: 'Test script path (relative to repo root)'
+        required: true
+        default: 'scripts/test-f01-preview.sh'
+
+jobs:
+  run-preview-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      # Note: the test script uses pure bash + curl + sed/awk — no jq, no
+      # node. Ubuntu runners have all of those pre-installed, so no install
+      # step is needed. If a future test script needs jq, add:
+      #   - run: sudo apt-get update -qq && sudo apt-get install -y -qq jq
+
+      - name: Write env file from secrets
+        env:
+          # `inputs.*` come from the manual-dispatch form. `secrets.*` come
+          # from repo Settings → Secrets and variables → Actions. GitHub
+          # automatically masks secret values in run logs.
+          PREVIEW_URL: ${{ inputs.preview_url }}
+          VERCEL_BYPASS_TOKEN: ${{ secrets.VERCEL_BYPASS_TOKEN }}
+          HOPY_PHONE: ${{ secrets.HOPY_PHONE }}
+          HOPY_PIN: ${{ secrets.HOPY_PIN }}
+        run: |
+          mkdir -p scripts
+          # Write each line individually so we never spawn a subshell that
+          # might echo a secret. Do NOT `cat` the file afterwards.
+          {
+            echo "PREVIEW_URL=${PREVIEW_URL}"
+            echo "VERCEL_BYPASS_TOKEN=${VERCEL_BYPASS_TOKEN}"
+            echo "HOPY_PHONE=${HOPY_PHONE}"
+            echo "HOPY_PIN=${HOPY_PIN}"
+          } > scripts/.env.test.local
+          chmod 600 scripts/.env.test.local
+          echo "Env file written (${#PREVIEW_URL} char URL, 3 secrets)."
+
+      - name: Run preview test
+        # The script reads scripts/.env.test.local, runs its 26 assertions,
+        # prints PASS/FAIL marker per assertion, and exits 0/1. GitHub
+        # Actions' default `bash` is `bash -e`, so a non-zero exit here
+        # fails the job — propagating the script's verdict.
+        run: |
+          chmod +x "${{ inputs.test_script }}"
+          bash "${{ inputs.test_script }}"
