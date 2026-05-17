@@ -13,7 +13,7 @@
 #
 # Exit code: 0 if all tests pass, 1 if any fail.
 #
-# Test matrix (per Milestone D acceptance):
+# Test matrix (per Milestone D acceptance + Milestone F polish #4):
 #   #1  legacy fallback     (bogus telepon + master.pin_hash PIN)
 #   #2  multi-user login    (Hopy telepon + PIN)
 #   #3  SA can list anggota
@@ -24,6 +24,8 @@
 #   #8  /api/nonexistent → 404 (middleware passes, handler missing)
 #   #9  logout + re-login as SA
 #   #10 cookie attributes (HttpOnly, Secure, SameSite=Lax, Max-Age=43200)
+#   #11 U7 deactivate accepts optional { notes } body (Decision #20)
+#       — also serves as cleanup for the dummy BENDAHARA created in #4
 #
 
 set -uo pipefail
@@ -303,17 +305,18 @@ assert_body_contains 'SUPER_ADMIN' "#9b SA peran restored"
 echo ""
 
 # ============================================================================
-# Cleanup — deactivate the dummy created in #4 (best-effort)
+# Test #11 — Decision #20: U7 accepts optional { notes } body
 # ============================================================================
-if [[ -n "${DUMMY_ID:-}" ]]; then
-  echo "[cleanup] Deactivate dummy $DUMMY_ID"
-  do_request POST "/api/pengaturan/anggota/$DUMMY_ID/deactivate" -b "$SA_COOKIES"
-  if [[ "$status" == "200" ]]; then
-    echo "  ✓ dummy deactivated"
-  else
-    echo "  ⚠ cleanup did not return 200 (status $status). Manual deactivate may be needed:"
-    echo "     $DUMMY_ID"
-  fi
+# This call also serves as cleanup for the dummy created in #4.
+echo "[#11] Decision #20 — POST /api/pengaturan/anggota/[id]/deactivate with notes"
+if [[ -z "${DUMMY_ID:-}" ]]; then
+  fail "#11 skipped: no DUMMY_ID from #4 (cleanup also skipped)"
+else
+  do_request POST "/api/pengaturan/anggota/$DUMMY_ID/deactivate" \
+    -H "Content-Type: application/json" \
+    -b "$SA_COOKIES" \
+    --data-raw '{"notes":"Test catatan — Decision #20 verification"}'
+  assert_status 200 "#11 deactivate accepts { notes } body"
 fi
 echo ""
 

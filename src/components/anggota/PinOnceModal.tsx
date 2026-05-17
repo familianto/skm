@@ -31,10 +31,23 @@ interface Props {
   pin: string;
   telepon: string;
   peran: string;
+  /** Heading text. Defaults to the E3 (create) copy. */
+  title?: string;
+  /** Label rendered above the large PIN display. Defaults to "PIN Awal". */
+  pinLabel?: string;
   onAcknowledge: () => void;
 }
 
-export function PinOnceModal({ open, nama, pin, telepon, peran, onAcknowledge }: Props) {
+export function PinOnceModal({
+  open,
+  nama,
+  pin,
+  telepon,
+  peran,
+  title = 'PIN Awal Berhasil Dibuat',
+  pinLabel = 'PIN Awal',
+  onAcknowledge,
+}: Props) {
   const [copied, setCopied] = useState(false);
 
   if (!open) return null;
@@ -85,7 +98,7 @@ export function PinOnceModal({ open, nama, pin, telepon, peran, onAcknowledge }:
                   id="pin-once-title"
                   className="text-lg font-semibold text-gray-900"
                 >
-                  PIN Awal Berhasil Dibuat
+                  {title}
                 </h2>
                 <p className="text-sm text-gray-500 mt-0.5">
                   Catat atau salin PIN ini sekarang.
@@ -118,7 +131,7 @@ export function PinOnceModal({ open, nama, pin, telepon, peran, onAcknowledge }:
           <div className="px-6 py-3">
             <div className="border-2 border-emerald-200 rounded-lg p-5 bg-emerald-50/40 text-center">
               <p className="text-xs uppercase tracking-wider text-gray-500 mb-2">
-                PIN Awal
+                {pinLabel}
               </p>
               <p
                 className="font-mono text-3xl sm:text-4xl font-bold text-gray-900 tracking-[0.35em]"

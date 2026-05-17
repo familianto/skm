@@ -182,12 +182,12 @@ function LoginForm() {
     [telepon, pin, isLocked, loading, redirectTarget, router]
   );
 
-  // Explicit text + placeholder colors are REQUIRED on raw <input> elements
-  // here. globals.css has a `@media (prefers-color-scheme: dark)` block that
-  // flips body `--foreground` to near-white. The shared <Input> component
-  // (used elsewhere in SKM) hardcodes `text-gray-900`; our custom-styled
-  // inputs need to do the same or text becomes invisible on the white card
-  // when the user's system is in dark mode (e.g. Hopy's iPad Safari).
+  // Explicit text + placeholder colors on raw <input> elements:
+  // the original cause (a stray `@media (prefers-color-scheme: dark)` block in
+  // globals.css that flipped --foreground to near-white) was removed in the
+  // Milestone F polish batch. Keeping the explicit classes here as defensive
+  // hardening — matches what the shared <Input> component does and protects
+  // against any future global color regression.
   const teleponBorder =
     errorField === 'telepon'
       ? 'border-red-400 focus:ring-red-500 focus:border-red-500'

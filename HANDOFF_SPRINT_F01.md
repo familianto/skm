@@ -387,38 +387,48 @@ F1 scope.
 Items to address (or explicitly defer with rationale) during Milestone F
 before opening the PR. Listed roughly in priority order.
 
-### F-polish-1 — Verify E4 self-deactivate UI gate
+### F-polish-1 — Verify E4 self-deactivate UI gate ✅ DONE
 
 E4 disables the "Nonaktifkan" button when `me.user.id === anggota.id`
-and renders a helper line below the action group. Confirm during
-Hopy's pre-PR walkthrough that the disabled state actually fires for
-his own row in production (preview test was indirect because the
-staging row is `LEGACY` rather than a real anggota id).
+and renders a helper line below the action group.
 
-### F-polish-2 — PinOnceModal title configurability
+**Verified during E5 review**: opening Hopy's own profile shows the
+Nonaktifkan button rendered in its disabled state, with the helper
+line "Anda tidak dapat menonaktifkan akun Anda sendiri. Minta Super
+Admin lain bila perlu." visible directly below the action cluster.
 
-Reset PIN flow currently surfaces a PinOnceModal whose copy is keyed
-to the E3 create scenario ("PIN Awal Berhasil Dibuat" / "PIN Awal").
-For reset PIN it'd read more naturally as "PIN Baru Berhasil Dibuat"
-/ "PIN BARU". Plan: add two optional props (`title`, `pinLabel`) with
-the current strings as defaults; pass overrides from E4 detail page.
+### F-polish-2 — PinOnceModal title configurability ✅ DONE
 
-### F-polish-3 — `globals.css` dark-mode @media cleanup
+PinOnceModal accepts two optional props with backward-compatible
+defaults:
+- `title?: string`     default `"PIN Awal Berhasil Dibuat"` (E3 copy)
+- `pinLabel?: string`  default `"PIN Awal"`
 
-Carry-over from Decision #18. The `@media (prefers-color-scheme:
-dark)` block in `globals.css` is dead boilerplate that creates a
-class of "invisible text in custom inputs" bugs (E1 hit this). The
-one-line removal closes the gap globally. Out of scope for individual
-fixes; do this as a single sweep at PR time.
+The E4 detail page passes `title="PIN Baru Berhasil Dibuat"` and
+`pinLabel="PIN BARU"` when surfacing the modal after a Reset PIN
+success. E3 caller is unchanged — relies on defaults.
 
-### F-polish-4 — Extend `test-f01-preview.sh` for Decision #20
+### F-polish-3 — `globals.css` dark-mode @media cleanup ✅ DONE
 
-The integration script doesn't currently verify that U7
-`{ notes }` body is persisted in `audit_log.notes`. Add an assertion
-that posts the deactivate call with a sentinel string and reads it
-back from the audit_log sheet (or just from the writeAuditLog call
-trace if the API surfaces it). Keep the existing 25 assertions
-unchanged.
+The `@media (prefers-color-scheme: dark)` block in `globals.css` has
+been removed (replaced with a short comment explaining why; pointer to
+Decision #18). `grep prefers-color-scheme src/` returns only the
+explanatory comment in `globals.css` and a defensive note in
+`/login/page.tsx` — no live consumers.
+
+### F-polish-4 — Extend `test-f01-preview.sh` for Decision #20 ✅ DONE
+
+Script now runs an explicit Test #11 in addition to the existing 25
+assertions: POST `/api/pengaturan/anggota/[id]/deactivate` with body
+`{"notes":"Test catatan — Decision #20 verification"}` and asserts
+HTTP 200. The same call also serves as cleanup for the dummy BENDAHARA
+created by Test #4 (no separate cleanup block). Header `Test matrix`
+list updated with #11. Total expected pass: **26/26**.
+
+Audit-sheet read-back of the persisted notes value is not yet
+automated — verifying that requires a separate Sheets API
+read-through which is not in F1 scope. Manual spot-check during
+Hopy's pre-PR walkthrough is sufficient.
 
 ### F-polish-5 — Staging sheet full migrate_F01()
 

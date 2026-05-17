@@ -457,10 +457,13 @@ export default function AnggotaDetailPage() {
           pin={pinOnceData.pin}
           telepon={pinOnceData.telepon}
           peran={pinOnceData.peran}
+          title="PIN Baru Berhasil Dibuat"
+          pinLabel="PIN BARU"
           onAcknowledge={() => {
             setPinOnceData(null);
             fetchDetail();
-            // Avoid stale stale-router-back; refresh data inline.
+            // Refresh page data so locked_until / failed_attempts reset
+            // values reflected from U5 are visible immediately.
             router.refresh();
           }}
         />
