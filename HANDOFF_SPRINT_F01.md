@@ -430,6 +430,39 @@ automated — verifying that requires a separate Sheets API
 read-through which is not in F1 scope. Manual spot-check during
 Hopy's pre-PR walkthrough is sufficient.
 
+### F-polish-7 — Sustainable preview test runner via GitHub Actions ✅ DONE
+
+The Claude Code container (and a-Shell on iPad, and most non-Enterprise
+dev environments) blocks outbound `*.vercel.app` traffic with
+`x-deny-reason: host_not_allowed` from the egress proxy. We can't run
+`scripts/test-f01-preview.sh` directly from those shells.
+
+**Decision:** wire the test as a GitHub Actions workflow with manual
+`workflow_dispatch` trigger so anyone with repo write can run it from
+the GitHub iOS app or web UI.
+
+**Files:**
+- `.github/workflows/preview-test.yml`
+
+**Inputs (form fields at run time):**
+- `preview_url` — defaults to the F01 branch preview URL
+- `test_script` — defaults to `scripts/test-f01-preview.sh`
+
+**Required repo secrets** (Settings → Secrets and variables → Actions):
+- `VERCEL_BYPASS_TOKEN`
+- `HOPY_PHONE`
+- `HOPY_PIN`
+
+**Hygiene:** the workflow writes `scripts/.env.test.local` from secrets
+inside a single step (no `cat` afterwards). GitHub auto-masks secret
+values in run logs. File permission tightened to `600`. The script
+runs via `bash`, and `bash -e` propagates the script's exit code so
+the workflow run goes red on any FAIL.
+
+**Reusability:** identical pattern for F02–F10 — just point
+`test_script` at the new sprint's script (e.g. `scripts/test-f02-...sh`)
+and `preview_url` at the new branch's preview. No workflow change.
+
 ### F-polish-5 — Staging sheet full migrate_F01()
 
 Decision #17 follow-up. Staging is still pre-F01 (anggota = 7 cols,
