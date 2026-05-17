@@ -18,8 +18,8 @@
 | E1 + E6 | Login refactor + change-pin sync + dark-mode contrast fix | ✅ done | `3ce96df`, `fbfb896` |
 | E2 | Anggota list (responsive `lg` breakpoint) | ✅ done | `a91c284`, `7dbda63` |
 | E3 | Anggota create form + PIN-once modal | ✅ done | `e6be70d` |
-| E4 | Anggota detail page + actions (reset PIN, unlock, deactivate, reactivate) | ✅ done | — |
-| E5 | Anggota edit form | ⏳ pending | — |
+| E4 | Anggota detail page + actions (reset PIN, unlock, deactivate, reactivate) | ✅ done | `c6e7889` |
+| E5 | Anggota edit form (nama, telepon, peran) | ✅ done | — |
 | F | Testing + docs + PR | ⏳ pending | — |
 
 ---
@@ -379,6 +379,64 @@ satisfy spec'd UX.
 **Future:** U5 reset-pin and U8 reactivate could likewise accept
 `{ notes }` for consistent admin-action provenance. Parked — not in
 F1 scope.
+
+---
+
+## Milestone F Polish Backlog
+
+Items to address (or explicitly defer with rationale) during Milestone F
+before opening the PR. Listed roughly in priority order.
+
+### F-polish-1 — Verify E4 self-deactivate UI gate
+
+E4 disables the "Nonaktifkan" button when `me.user.id === anggota.id`
+and renders a helper line below the action group. Confirm during
+Hopy's pre-PR walkthrough that the disabled state actually fires for
+his own row in production (preview test was indirect because the
+staging row is `LEGACY` rather than a real anggota id).
+
+### F-polish-2 — PinOnceModal title configurability
+
+Reset PIN flow currently surfaces a PinOnceModal whose copy is keyed
+to the E3 create scenario ("PIN Awal Berhasil Dibuat" / "PIN Awal").
+For reset PIN it'd read more naturally as "PIN Baru Berhasil Dibuat"
+/ "PIN BARU". Plan: add two optional props (`title`, `pinLabel`) with
+the current strings as defaults; pass overrides from E4 detail page.
+
+### F-polish-3 — `globals.css` dark-mode @media cleanup
+
+Carry-over from Decision #18. The `@media (prefers-color-scheme:
+dark)` block in `globals.css` is dead boilerplate that creates a
+class of "invisible text in custom inputs" bugs (E1 hit this). The
+one-line removal closes the gap globally. Out of scope for individual
+fixes; do this as a single sweep at PR time.
+
+### F-polish-4 — Extend `test-f01-preview.sh` for Decision #20
+
+The integration script doesn't currently verify that U7
+`{ notes }` body is persisted in `audit_log.notes`. Add an assertion
+that posts the deactivate call with a sentinel string and reads it
+back from the audit_log sheet (or just from the writeAuditLog call
+trace if the API surfaces it). Keep the existing 25 assertions
+unchanged.
+
+### F-polish-5 — Staging sheet full migrate_F01()
+
+Decision #17 follow-up. Staging is still pre-F01 (anggota = 7 cols,
+PENGURUS legacy, telepon un-normalized). Running `migrate_F01()` on
+staging will let future sprints exercise SA-against-anggota end-to-end
+on preview without the LEGACY fallback short-circuit. Pure data
+operation, no code change.
+
+### F-polish-6 — Post-merge production smoke + legacy flag flip
+
+Carry-over from Decision #17. After F1 merges:
+1. Hopy logs in with telepon + PIN; confirm 200 with
+   `user_id=ANG-20260515-0003` (NOT `LEGACY`).
+2. After a 1–2 day soak, set `QURBAN_LEGACY_LOGIN_ENABLED=false`
+   in Vercel; redeploy.
+3. Set `QURBAN_BOOTSTRAP_ENABLED=false` to make the bootstrap path
+   inert.
 
 ---
 
