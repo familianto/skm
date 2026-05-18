@@ -7,6 +7,17 @@
 
 ---
 
+## Sprint F01 — Verification Status
+
+- **Implementation:** Complete (A1–A4 auth + U1–U9 anggota CRUD + middleware + UI)
+- **Integration tests:** **26/26 PASS** via GitHub Actions workflow run #1
+- **Verification commit:** `fa58c20` on branch `qurban/f01-auth-multi-user`
+- **Test date:** 18 May 2026
+- **Polish backlog:** **6 of 8 items DONE** (F-polish-5 staging data ops + F-polish-6 production smoke + F-polish-8 Node 20 deprecation = all deferred post-merge / next sprint)
+- **Status:** **READY FOR PR MERGE TO MAIN**
+
+---
+
 ## Milestone Progress
 
 | ID | Title | Status | Commit |
@@ -462,6 +473,26 @@ the workflow run goes red on any FAIL.
 **Reusability:** identical pattern for F02–F10 — just point
 `test_script` at the new sprint's script (e.g. `scripts/test-f02-...sh`)
 and `preview_url` at the new branch's preview. No workflow change.
+
+**Verified** via GitHub Actions workflow run #1 (`Preview Integration
+Test`, 18 May 2026, target commit `fa58c20`): **26/26 assertions PASS**.
+Workflow file registered on `main` via the standalone PR `chore(ci):
+bootstrap preview-test workflow on main` (commit `38783e7`) because
+`workflow_dispatch` triggers only surface from the default branch.
+
+### F-polish-8 — Node 20 → 24 migration in workflow runtime (TODO)
+
+GitHub Actions deprecation surfaced on workflow run #1: the
+`actions/checkout@v4` action still runs on Node 20. Default runtime is
+switching to Node 24 starting **2 June 2026**, with Node 20 removed by
+**16 September 2026**.
+
+**Action:** at the start of Sprint F02 (or any maintenance window
+before Sept 16), bump to `actions/checkout@v5` OR set
+`FORCE_JAVASCRIPT_ACTIONS_TO_NODE24=true` in the workflow `env:`
+block. Re-run preview-test workflow to confirm green under Node 24.
+
+**Not blocking F01.** Pure CI runtime — no app or schema impact.
 
 ### F-polish-5 — Staging sheet full migrate_F01()
 

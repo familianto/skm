@@ -235,13 +235,73 @@ Lihat detail lengkap di `DATABASE_SCHEMA.md`.
 - Jika tidak ada transaksi: dialog konfirmasi hapus dengan tombol destructive (merah)
 - Toast notification untuk semua aksi (edit, hapus) kategori dan rekening
 
+### 5.14 Auth Multi-User & Anggota CRUD (Sprint F01)
+
+Refactor login single-PIN menjadi sistem multi-user dengan 5 peran dan
+CRUD pengurus penuh oleh Super Admin. Fondasi untuk modul Qurban
+(Sprint F02+) yang butuh role-based access.
+
+- **Login telepon + PIN** per pengurus (sebelumnya: single PIN pakai
+  bareng). Telepon di-normalize ke format `628xxx` server-side.
+- **5 peran**: SUPER_ADMIN, BENDAHARA, ADMIN_QURBAN, PENDAFTARAN,
+  DISTRIBUSI. Setiap peran punya allow-list path access per Tahap 3 §3.7;
+  F01 enforce strict gate hanya untuk `/pengaturan/anggota/**` (SA only),
+  Qurban routes enforce di F02+.
+- **Anggota CRUD** di `/pengaturan/anggota/*` (SA only):
+  - List dengan search nama/telepon, filter peran + is_active, pagination
+  - Create dengan PIN awal yang ditampilkan **sekali** via modal
+    force-acknowledge (tidak bisa di-dismiss kecuali tombol konfirmasi)
+  - Detail + aksi: Edit, Reset PIN, Unlock (kalau locked), Nonaktifkan
+    (dengan optional catatan), Aktifkan Kembali
+  - Edit nama / telepon / peran (PIN dan is_active via aksi terpisah)
+- **PIN policy**: 4–6 digit numerik, tidak boleh berurutan/repeat/dalam
+  blocklist umum. Server validasi via `validatePin()`, UI surface
+  constraint message Bahasa.
+- **Account lockout**: 5× gagal login berturut → akun terkunci 15 menit
+  via field `failed_attempts` + `locked_until` di sheet anggota (per-
+  user, persistent). SUPER_ADMIN dapat unlock manual via U6.
+- **Self-protection**: SUPER_ADMIN tidak dapat menonaktifkan akun
+  sendiri (UI gate + server `BUSINESS_CANNOT_DEACTIVATE_SELF`); ubah
+  peran SA terakhir ke non-SA juga di-block (`BUSINESS_LAST_SUPER_ADMIN`).
+- **Audit trail**: setiap aksi sensitif (login_success/failed/locked,
+  pin_changed, pin_reset_by_admin, unlocked_manual, anggota.created/
+  updated/peran_changed/deactivated/reactivated) tercatat di sheet
+  `audit_log` dengan kolom baru `user_id` + `ip_address` (Choice B
+  minimal extension). Deactivate event optionally menyimpan `notes`
+  dari SA input (Decision #20).
+- **Session**: JWT HS256 di cookie `skm_session` (HttpOnly, Secure,
+  SameSite=Lax, Max-Age 12 jam). Payload superset
+  `{user_id, peran, role, masjidName}` — `role` + `masjidName` di-mirror
+  untuk backwards-compat dengan 10 callsite legacy yang baca
+  `session.role`.
+- **Parallel legacy login** (Opsi B): selama window 1–2 hari post-deploy,
+  env `QURBAN_LEGACY_LOGIN_ENABLED=true` membolehkan fallback ke
+  `master.pin_hash` lama saat anggota lookup gagal. Setelah confirm
+  multi-user works, flag flipped ke `false`.
+
+**Out of Scope F01** (planned for F02+):
+- Tidak ada self-service PIN recovery — SUPER_ADMIN wajib reset via U5
+- Tidak ada audit log viewer UI — review masih manual via sheet
+- Tidak ada multi-mosque support — masih single-mosque per deployment
+- Strict role enforcement untuk Qurban routes belum di-apply di F1
+  (existing SKM routes pakai session-only auth); akan di-tighten di F2
+  bersamaan dengan `/qurban/**` rollout
+
 ## 6. Target Pengguna
 
-| Peran | Akses | Deskripsi |
+Daftar pengurus + peran setelah Sprint F01:
+
+| Peran | Akses Utama | Deskripsi |
 |---|---|---|
-| **Bendahara** | Full access | Catat transaksi, kelola data, lihat laporan |
-| **Pengurus** | Read + limited write | Lihat laporan, approve transaksi besar |
-| **Viewer** | Read only | Lihat dashboard publik |
+| **Super Admin** | Full access termasuk manajemen anggota | Pengelola sistem, kelola akun pengurus lain |
+| **Bendahara** | Full keuangan SKM, read-only Qurban Laporan | Catat transaksi, kelola data, lihat laporan |
+| **Admin Qurban** | Full Qurban (F2+), read SKM Laporan | Ketua panitia Qurban per edisi |
+| **Pendaftaran** | Qurban: muqorib, pemetaan, pembayaran (F2+) | Panitia pendaftaran |
+| **Distribusi** | Qurban: cetak label, tracking pengiriman (F2+) | Panitia distribusi |
+
+Pre-F01 roles `BENDAHARA` / `PENGURUS` / `VIEWER` masih ada di enum
+untuk backwards-compat — `PENGURUS` di-migrate ke `ADMIN_QURBAN` saat
+F01 schema migration berjalan.
 
 ## 7. Batasan & Asumsi
 
@@ -268,6 +328,7 @@ Lihat detail di `SPRINT_PLAN.md` dan file individual di `sprints/`.
 | 7 | UI/UX Polish | 1 minggu | ✅ Done |
 | 8 | Mutasi Internal | 1 minggu | ✅ Done |
 | 9 | Bulk Edit & Proteksi Hapus | 1 minggu | ✅ Done |
+| F01 | Auth Multi-User & Anggota CRUD | 6-8 hari | ✅ Done |
 
 ## 9. Saran Fitur Masa Depan (Backlog)
 
@@ -322,6 +383,51 @@ Fitur-fitur berikut **tidak termasuk** dalam scope v2.1, tapi bisa ditambahkan d
 ---
 
 ## Changelog
+
+### v2.5 (18 Mei 2026) — Sprint F01 — Auth Multi-User + Anggota CRUD
+
+- **Fitur baru: Login multi-user telepon + PIN** — refactor dari single
+  PIN. 5 peran (SUPER_ADMIN, BENDAHARA, ADMIN_QURBAN, PENDAFTARAN,
+  DISTRIBUSI) sebagai fondasi untuk modul Qurban (F02+).
+- **Anggota CRUD di `/pengaturan/anggota/*`** (SUPER_ADMIN only):
+  List + search + filter, Create dengan PIN-once modal force-acknowledge,
+  Detail page dengan aksi (Edit, Reset PIN, Unlock, Nonaktifkan,
+  Aktifkan Kembali), Edit form (nama/telepon/peran).
+- **Endpoint baru** (Sprint F01 envelope `{ok, data, error: {code, message, details}}`):
+  - Auth A1-A4: `/api/auth/{login, logout, me, change-pin}` (login + logout
+    refactored, me + change-pin baru)
+  - Anggota U1-U9: `/api/pengaturan/anggota` (list + create) + `/[id]`
+    (detail + patch) + 4 action endpoints + `/roles` dropdown helper
+- **Schema delta**:
+  - Sheet `anggota` extend +6 kolom: `pin_hash, created_by, updated_at,
+    last_login_at, failed_attempts, locked_until` (total 13 kolom)
+  - Sheet `audit_log` extend +2 kolom: `user_id, ip_address` (total 9
+    kolom, Choice B Minimal Extension)
+- **Middleware defense-in-depth** (root `src/middleware.ts`): session
+  check + strict role gate untuk `/pengaturan/anggota/**`. Existing SKM
+  routes pakai session-only auth (strict allow-list per Tahap 3 §3.7
+  diapply incremental di F02 saat `/qurban/*` routes ship).
+- **PIN policy** (4-6 digit, no sequential/repeat/blocklist) + account
+  lockout (5× gagal → 15 menit) + IP rate limit (10/menit per IP untuk
+  login). PIN reset oleh SA membersihkan lockout state.
+- **Parallel legacy login** (Opsi B per Tahap 4 §3.3): env
+  `QURBAN_LEGACY_LOGIN_ENABLED=true` membolehkan fallback ke
+  `master.pin_hash` saat anggota lookup gagal. Window 1-2 hari
+  post-deploy lalu flag flipped ke `false`.
+- **Audit log richness**: 12 event types canonical
+  (`auth.login_*`, `auth.locked`, `auth.unlocked_manual`, `auth.logout`,
+  `auth.pin_changed`, `auth.pin_reset_by_admin`, `anggota.created`,
+  `anggota.updated`, `anggota.peran_changed`, `anggota.deactivated`,
+  `anggota.reactivated`). Deactivate optional `notes` body (Decision #20).
+- **Helpers reusable** di `src/lib/api/` (foundation untuk F02-F10):
+  response envelope, error codes catalog, ID generator (WIB), JWT auth,
+  PIN policy, phone normalize, rate-limit, audit writer, anggota
+  repository, role-based path rules.
+- **UI/UX**: Mobile-first untuk iPad primary device. Login refactor +
+  PinOnceModal (force-acknowledge) + Anggota list (cards di <lg, table
+  di lg+ per Decision #19) + Detail dengan action set + Edit form.
+- **Verification**: 31 unit tests pass + 26/26 GitHub Actions integration
+  tests pass terhadap Vercel preview deployment.
 
 ### v2.4.2 (5 Mei 2026) — CurrencyInput Rollout
 - Standardisasi `<CurrencyInput>` ke seluruh form nominal di SKM
