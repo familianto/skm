@@ -1,7 +1,7 @@
 # HANDOFF Sprint F01 — Auth Multi-User + Anggota CRUD
 
 **Branch:** `qurban/f01-auth-multi-user`
-**Status:** in-progress (Milestone A, B, C done; D in progress)
+**Status:** Done — F01 implementation complete (A1-A4 + U1-U9). Lihat "Sprint F01 — Verification Status" di bawah.
 **Estimated effort:** 6-8 hari
 **Spec source:** `PROMPT_F01_AuthMultiUser.md`, `docs/HANDOFF_TAHAP_*.md`
 
