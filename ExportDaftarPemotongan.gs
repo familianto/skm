@@ -226,183 +226,179 @@ function buildMuqoribMap_(ss) {
 }
 
 // ============================================================
-// BUILD LAYOUT
+// HELPER: Build card layout di temp Sheets
+// A4 Portrait, 3×3 grid (9 cards) per halaman
 // ============================================================
 function buildPemotonganLayout_(ws, cardsData) {
-  var CFG = EXPORT_PEMOTONGAN_CONFIG;
+  var cfg = EXPORT_PEMOTONGAN_CONFIG;
 
-  // ---------- Column widths ----------
-  // 6 kolom: [sidebar1, main1, sidebar2, main2, sidebar3, main3]
-  for (var c = 1; c <= 6; c++) {
-    var w = (c % 2 === 1) ? CFG.COL_W_SIDEBAR : CFG.COL_W_MAIN;
-    ws.setColumnWidth(c, w);
-  }
+  // ============================================================
+  // DIMENSIONS — A4 portrait, presisi 1pt = 1/72 inch
+  // ============================================================
+  var COL_WIDTH_SB = 52;     // sidebar column
+  var COL_WIDTH_MAIN = 127;  // main column (3 × (52+127) = 537pt = A4 usable width)
 
-  // ---------- Page header (rows 1-3) ----------
-  ws.setRowHeight(1, CFG.ROW_H_LOGO);
-  ws.setRowHeight(2, CFG.ROW_H_TITLE);
-  ws.setRowHeight(3, CFG.ROW_H_GOLD_BAR);
+  var ROW_HEIGHT_HEADER_LOGO = 30;
+  var ROW_HEIGHT_HEADER_SUB = 22;
+  var ROW_HEIGHT_HEADER_GOLD = 4;   // gold thin bar
+  var ROW_HEIGHT_CARD_HEADER = 28;  // "SAPI – SP-XX"
+  var ROW_HEIGHT_CARD_NAME = 26;    // tiap nama muqorib
+  var ROW_HEIGHT_SPACER = 8;        // gap antar card rows
 
-  // Logo box: merge A1:A2 (kolom sidebar pertama saja, lebar ~50px) — height 70px
-  var logoRange = ws.getRange('A1:A2');
-  logoRange.merge()
-    .setValue(CFG.LOGO_TEXT)
-    .setBackground(CFG.PRIMARY_GREEN)
-    .setFontColor(CFG.WHITE)
+  // 6 columns: A=sb1, B=main1, C=sb2, D=main2, E=sb3, F=main3
+  ws.setColumnWidth(1, COL_WIDTH_SB);
+  ws.setColumnWidth(2, COL_WIDTH_MAIN);
+  ws.setColumnWidth(3, COL_WIDTH_SB);
+  ws.setColumnWidth(4, COL_WIDTH_MAIN);
+  ws.setColumnWidth(5, COL_WIDTH_SB);
+  ws.setColumnWidth(6, COL_WIDTH_MAIN);
+
+  // ============================================================
+  // HEADER BAND (rows 1-3) — frozen, repeats di setiap halaman
+  // ============================================================
+
+  ws.setRowHeight(1, ROW_HEIGHT_HEADER_LOGO);
+  ws.setRowHeight(2, ROW_HEIGHT_HEADER_SUB);
+  ws.setRowHeight(3, ROW_HEIGHT_HEADER_GOLD);
+
+  // Logo box A1:A2
+  var logoRange = ws.getRange(1, 1, 2, 1);
+  logoRange.merge();
+  logoRange.setValue('MAJ')
+    .setBackground(cfg.PRIMARY_GREEN)
+    .setFontColor('#ffffff')
+    .setFontWeight('bold')
+    .setFontSize(16)
     .setHorizontalAlignment('center')
     .setVerticalAlignment('middle')
-    .setFontWeight('bold')
-    .setFontSize(16);
+    .setFontFamily('Arial');
 
-  // Title line 1 (B1:F1)
-  ws.getRange('B1:F1').merge()
-    .setValue(CFG.TITLE_LINE_1)
+  // Title line 1 (row 1, B1:F1 merged)
+  var titleRange = ws.getRange(1, 2, 1, 5);
+  titleRange.merge();
+  titleRange.setValue(cfg.TITLE_LINE_1)
+    .setFontColor(cfg.BLACK_TEXT)
     .setFontWeight('bold')
     .setFontSize(11)
-    .setFontColor(CFG.BLACK_TEXT)
     .setHorizontalAlignment('left')
     .setVerticalAlignment('bottom')
-    .setBackground(CFG.WHITE);
+    .setFontFamily('Arial');
 
-  // Title line 2 (B2:F2) — subtitle gold
-  ws.getRange('B2:F2').merge()
-    .setValue(CFG.TITLE_LINE_2)
+  // Subtitle (row 2, B2:F2 merged)
+  var subtitleRange = ws.getRange(2, 2, 1, 5);
+  subtitleRange.merge();
+  subtitleRange.setValue(cfg.TITLE_LINE_2)
+    .setFontColor(cfg.GOLD_ACCENT)
     .setFontWeight('bold')
-    .setFontSize(9)
-    .setFontColor(CFG.GOLD_ACCENT)
+    .setFontSize(10)
     .setHorizontalAlignment('left')
     .setVerticalAlignment('top')
-    .setBackground(CFG.WHITE);
+    .setFontFamily('Arial');
 
-  // Gold bar row 3 — bottom border thick gold
-  ws.getRange('A3:F3').merge()
-    .setBackground(CFG.WHITE)
-    .setBorder(null, null, true, null, null, null,
-      CFG.GOLD_ACCENT, SpreadsheetApp.BorderStyle.SOLID_THICK);
+  // Row 3: gold thin underline bar (A3:F3 merged)
+  var goldBarRange = ws.getRange(3, 1, 1, 6);
+  goldBarRange.merge();
+  goldBarRange.setBackground(cfg.GOLD_ACCENT);
 
-  // Freeze first 3 rows agar header repeat di tiap halaman PDF
+  // Freeze first 3 rows — repeats di setiap halaman PDF via fzr=true
   ws.setFrozenRows(3);
 
-  // ---------- Cards ----------
-  var totalCards = cardsData.length;
-  var totalRowGroups = Math.ceil(totalCards / CFG.CARDS_PER_ROW);
+  // ============================================================
+  // CARD GRID (rows 4 dst)
+  // ============================================================
+  // Layout per card row (3 cards horizontal):
+  //   8 sheets-rows untuk content + 1 spacer row
+  //   Per card: sidebar (merged 8 rows) + main area
+  //     Main row 1: "SAPI – SP-XX" header
+  //     Main rows 2-8: 7 nama muqorib
 
-  // Top spacer (row 4)
-  ws.setRowHeight(4, CFG.ROW_H_TOP_SPACER);
-  var startRow = 5;  // first card top row
+  var currentRow = 4;
 
-  var rowsPerCard = 1 + CFG.SLOTS_PER_CARD;  // 1 header + 7 names = 8
+  for (var i = 0; i < cardsData.length; i++) {
+    var card = cardsData[i];
+    var pos = i % 3;                  // posisi dalam card row (0, 1, 2)
+    var sbCol = pos * 2 + 1;          // 1, 3, 5
+    var mainCol = sbCol + 1;          // 2, 4, 6
 
-  for (var idx = 0; idx < totalCards; idx++) {
-    var card = cardsData[idx];
-    var posInRow = idx % CFG.CARDS_PER_ROW;        // 0,1,2
-    var rowGroup = Math.floor(idx / CFG.CARDS_PER_ROW);
-    var cardTopRow = startRow + rowGroup * (rowsPerCard + 1);  // +1 spacer row
-    var cardLeftCol = posInRow * 2 + 1;            // 1, 3, 5
+    // Sidebar: merge 8 rows × 1 col, isi "URUT" + big number via rich text
+    var sbRange = ws.getRange(currentRow, sbCol, 8, 1);
+    sbRange.merge();
+    sbRange.setBackground(cfg.PRIMARY_GREEN)
+      .setHorizontalAlignment('center')
+      .setVerticalAlignment('middle')
+      .setFontFamily('Arial');
 
-    // Set row heights pertama kali per row group (saat posInRow == 0)
-    if (posInRow === 0) {
-      ws.setRowHeight(cardTopRow, CFG.ROW_H_CARD_HEADER);
-      for (var rr = 1; rr <= CFG.SLOTS_PER_CARD; rr++) {
-        ws.setRowHeight(cardTopRow + rr, CFG.ROW_H_CARD_NAME);
-      }
-      // Spacer setelah card row group
-      var spacerRow = cardTopRow + rowsPerCard;
-      var isPageEndGroup = ((rowGroup + 1) % 3 === 0)
-        && (rowGroup + 1 < totalRowGroups);
-      ws.setRowHeight(spacerRow,
-        isPageEndGroup ? CFG.ROW_H_PAGE_BREAK_PAD : CFG.ROW_H_INTER_CARD_SPACER);
-    }
+    // Rich text: "URUT" kecil, number besar
+    var noUrutStr = String(card.hewan.no_urut);
+    var sbText = 'URUT\n' + noUrutStr;
+    var richText = SpreadsheetApp.newRichTextValue()
+      .setText(sbText)
+      .setTextStyle(0, 4, SpreadsheetApp.newTextStyle()
+        .setFontSize(9).setBold(true).setForegroundColor('#ffffff').build())
+      .setTextStyle(5, 5 + noUrutStr.length, SpreadsheetApp.newTextStyle()
+        .setFontSize(28).setBold(true).setForegroundColor('#ffffff').build())
+      .build();
+    sbRange.setRichTextValue(richText);
 
-    drawSingleCard_(ws, cardTopRow, cardLeftCol, card);
-  }
-}
-
-// ============================================================
-// DRAW: satu card
-// ============================================================
-function drawSingleCard_(ws, topRow, leftCol, card) {
-  var CFG = EXPORT_PEMOTONGAN_CONFIG;
-  var hewan = card.hewan;
-  var nama = card.nama;
-
-  var sidebarCol = leftCol;
-  var mainCol = leftCol + 1;
-  var rowsPerCard = 1 + CFG.SLOTS_PER_CARD;  // 8
-
-  // ---------- Sidebar (merged vertical, kolom sidebar) ----------
-  var sidebarRange = ws.getRange(topRow, sidebarCol, rowsPerCard, 1);
-  sidebarRange.merge()
-    .setBackground(CFG.PRIMARY_GREEN)
-    .setHorizontalAlignment('center')
-    .setVerticalAlignment('middle')
-    .setWrap(true);
-
-  // RichText: "URUT" kecil + nomor besar
-  var urutText = CFG.URUT_LABEL;             // "URUT" length=4
-  var numStr = String(hewan.no_urut);
-  var fullText = urutText + '\n' + numStr;
-
-  var styleSmall = SpreadsheetApp.newTextStyle()
-    .setForegroundColor(CFG.WHITE)
-    .setFontSize(9)
-    .setBold(true)
-    .build();
-  var styleBig = SpreadsheetApp.newTextStyle()
-    .setForegroundColor(CFG.WHITE)
-    .setFontSize(24)
-    .setBold(true)
-    .build();
-
-  var rich = SpreadsheetApp.newRichTextValue()
-    .setText(fullText)
-    .setTextStyle(0, urutText.length, styleSmall)
-    .setTextStyle(urutText.length + 1, fullText.length, styleBig)
-    .build();
-  sidebarRange.setRichTextValue(rich);
-
-  // ---------- Main: header (top row, kolom main) ----------
-  var headerLabel = (hewan.jenis || '').toUpperCase() + ' – ' + hewan.id_hewan;
-  var headerCell = ws.getRange(topRow, mainCol);
-  headerCell.setValue(headerLabel)
-    .setFontWeight('bold')
-    .setFontColor(CFG.PRIMARY_GREEN)
-    .setFontSize(11)
-    .setHorizontalAlignment('left')
-    .setVerticalAlignment('middle')
-    .setBackground(CFG.WHITE);
-
-  // Bottom border tipis hijau di bawah header label
-  headerCell.setBorder(null, null, true, null, null, null,
-    CFG.PRIMARY_GREEN, SpreadsheetApp.BorderStyle.SOLID);
-
-  // ---------- Main: 7 baris nama muqorib ----------
-  for (var i = 0; i < CFG.SLOTS_PER_CARD; i++) {
-    var name = nama[i] != null ? nama[i] : CFG.SLOT_KOSONG_TEXT;
-    var isKosong = (name === CFG.SLOT_KOSONG_TEXT);
-    var cell = ws.getRange(topRow + 1 + i, mainCol);
-    cell.setValue((i + 1) + '. ' + name)
-      .setFontSize(10)
+    // Main row 1: Card header "SAPI – SP-XX"
+    ws.getRange(currentRow, mainCol)
+      .setValue('SAPI – ' + card.hewan.id_hewan)
+      .setBackground(cfg.WHITE)
+      .setFontColor(cfg.PRIMARY_GREEN)
+      .setFontWeight('bold')
+      .setFontSize(11)
       .setHorizontalAlignment('left')
       .setVerticalAlignment('middle')
-      .setBackground(CFG.WHITE);
+      .setFontFamily('Arial');
 
-    if (isKosong) {
-      cell.setFontColor(CFG.SLOT_KOSONG_COLOR)
-        .setFontStyle('italic')
-        .setFontWeight('normal');
-    } else {
-      cell.setFontColor(CFG.BLACK_TEXT)
-        .setFontStyle('normal')
-        .setFontWeight('normal');
+    // Header underline (1pt green bottom border on header cell)
+    ws.getRange(currentRow, mainCol).setBorder(
+      null, null, true, null, null, null,
+      cfg.PRIMARY_GREEN,
+      SpreadsheetApp.BorderStyle.SOLID
+    );
+
+    // Main rows 2-8: 7 nama muqorib
+    for (var n = 0; n < 7; n++) {
+      var nameRow = currentRow + 1 + n;
+      var nama = card.nama[n] || cfg.SLOT_KOSONG_TEXT;
+      var isEmpty = (nama === cfg.SLOT_KOSONG_TEXT);
+
+      ws.getRange(nameRow, mainCol)
+        .setValue((n + 1) + '. ' + nama)
+        .setBackground(cfg.WHITE)
+        .setFontColor(isEmpty ? cfg.SLOT_KOSONG_COLOR : cfg.BLACK_TEXT)
+        .setFontWeight('normal')
+        .setFontStyle(isEmpty ? 'italic' : 'normal')
+        .setFontSize(9.5)
+        .setHorizontalAlignment('left')
+        .setVerticalAlignment('middle')
+        .setFontFamily('Arial');
+    }
+
+    // Outer card border: thick green around sidebar + main (8 rows × 2 cols)
+    var cardOuterRange = ws.getRange(currentRow, sbCol, 8, 2);
+    cardOuterRange.setBorder(
+      true, true, true, true,
+      false, false,
+      cfg.PRIMARY_GREEN,
+      SpreadsheetApp.BorderStyle.SOLID_THICK
+    );
+
+    // Set row heights (only set once per card row, at the first card of row)
+    if (pos === 0) {
+      ws.setRowHeight(currentRow, ROW_HEIGHT_CARD_HEADER);
+      for (var rh = 0; rh < 7; rh++) {
+        ws.setRowHeight(currentRow + 1 + rh, ROW_HEIGHT_CARD_NAME);
+      }
+      ws.setRowHeight(currentRow + 8, ROW_HEIGHT_SPACER);
+    }
+
+    // Advance currentRow after last card di row
+    if (pos === 2 || i === cardsData.length - 1) {
+      currentRow += 9;  // 8 card rows + 1 spacer
     }
   }
-
-  // ---------- Outer border thick hijau (seluruh card 2 cols × 8 rows) ----------
-  ws.getRange(topRow, sidebarCol, rowsPerCard, 2).setBorder(
-    true, true, true, true, false, false,
-    CFG.PRIMARY_GREEN, SpreadsheetApp.BorderStyle.SOLID_MEDIUM
-  );
 }
 
 // ============================================================
@@ -411,11 +407,13 @@ function drawSingleCard_(ws, topRow, leftCol, card) {
 function exportTempAs_(spreadsheetId, format) {
   var params = 'format=' + format;
   if (format === 'pdf') {
-    params += '&size=A4&portrait=true&fitw=true' +
+    params += '&size=A4&portrait=true' +
               '&gridlines=false&printtitle=false&pagenumbers=false' +
               '&sheetnames=false&fzr=true' +
               '&top_margin=0.4&bottom_margin=0.4' +
-              '&left_margin=0.4&right_margin=0.4';
+              '&left_margin=0.4&right_margin=0.4' +
+              '&horizontal_alignment=CENTER' +
+              '&vertical_alignment=TOP';
   }
   var url = 'https://docs.google.com/spreadsheets/d/' + spreadsheetId +
             '/export?' + params;
