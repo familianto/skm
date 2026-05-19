@@ -9,7 +9,8 @@
     "start": "next start",
     "lint": "eslint",
     "type-check": "tsc --noEmit",
-    "seed": "npx tsx scripts/seed.ts"
+    "seed": "npx tsx scripts/seed.ts",
+    "test:lib-api": "npx tsx --test src/lib/api/__tests__/*.test.ts"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",

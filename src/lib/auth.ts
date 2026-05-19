@@ -8,8 +8,11 @@ const COOKIE_NAME = 'skm_session';
 const SESSION_DURATION = 24 * 60 * 60; // 24 hours in seconds
 
 function getSecret(): Uint8Array {
-  const secret = process.env.AUTH_SECRET;
-  if (!secret) throw new Error('AUTH_SECRET is not set');
+  // F01: prefer SESSION_SECRET (multi-user spec) and fall back to AUTH_SECRET
+  // (legacy single-PIN). Sharing the secret lets old + new sessions interop
+  // during the parallel-login window — see HANDOFF_SPRINT_F01.md.
+  const secret = process.env.SESSION_SECRET || process.env.AUTH_SECRET;
+  if (!secret) throw new Error('SESSION_SECRET (or AUTH_SECRET) is not set');
   return new TextEncoder().encode(secret);
 }
 

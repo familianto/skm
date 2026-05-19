@@ -14,9 +14,15 @@ export enum TransaksiStatus {
 }
 
 export enum UserPeran {
+  // Legacy roles (pre-F01) — kept for backwards compat
   BENDAHARA = 'BENDAHARA',
   PENGURUS = 'PENGURUS',
   VIEWER = 'VIEWER',
+  // F01 multi-user roles (PENGURUS → ADMIN_QURBAN via migration)
+  SUPER_ADMIN = 'SUPER_ADMIN',
+  ADMIN_QURBAN = 'ADMIN_QURBAN',
+  PENDAFTARAN = 'PENDAFTARAN',
+  DISTRIBUSI = 'DISTRIBUSI',
 }
 
 export enum AuditAksi {
@@ -137,6 +143,13 @@ export interface Anggota {
   peran: UserPeran;
   is_active: boolean;
   created_at: string;
+  // F01 additions per HANDOFF Tahap 2 §4.1
+  pin_hash?: string;
+  created_by?: string;
+  updated_at?: string;
+  last_login_at?: string;
+  failed_attempts?: number;
+  locked_until?: string;
 }
 
 export interface Rekonsiliasi {

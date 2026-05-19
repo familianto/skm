@@ -7,148 +7,540 @@
 
 ## Response Format
 
-Semua API mengembalikan format JSON yang konsisten:
+Semua API mengembalikan format JSON yang konsisten. **Dua format berdampingan
+selama Sprint F01 transition:**
+
+**Pre-F01 envelope (Sprint 0–9)** — masih dipakai semua endpoint legacy
+(transaksi, kategori, rekening, dst.):
 
 ```typescript
-// Success response
-{
-  "success": true,
-  "data": T,
-  "meta": {                    // Opsional, untuk list endpoints
-    "total": number,
-    "page": number,
-    "limit": number
-  }
-}
+// Success
+{ "success": true, "data": T, "meta"?: { ... } }
 
-// Error response
-{
-  "success": false,
-  "error": "Pesan error",
-  "details": [...]             // Opsional, untuk validation errors
-}
+// Error
+{ "success": false, "error": "Pesan", "details"?: [...] }
 ```
+
+**Sprint F01 envelope** — untuk endpoint baru (auth A1–A4, anggota U1–U9):
+
+```typescript
+// Success
+{ "ok": true, "data": T, "meta"?: { ... } }
+
+// Error — error.code adalah enum yang stable; error.message Bahasa untuk display.
+{ "ok": false, "error": { "code": "AUTH_INVALID", "message": "...", "details"?: { ... } } }
+```
+
+F02+ endpoints juga akan pakai envelope F01. Migrasi endpoint legacy ke envelope
+F01 di-defer (out of F01 scope) untuk hindari breaking pages yang masih konsumsi
+shape lama.
 
 ## Authentication
 
-Semua endpoint kecuali `/api/auth/login` memerlukan session cookie yang valid.
+Semua endpoint kecuali public allow-list (`/api/auth/login`, `/api/auth/logout`,
+`/api/health`, `/api/publik/*`, `/mockup`) memerlukan session cookie `skm_session`
+yang valid. Middleware `src/middleware.ts` enforces session check di request entry
+ditambah role gate untuk path `/pengaturan/anggota/**` dan `/api/pengaturan/
+anggota/**` (SUPER_ADMIN only) sebagai defense-in-depth.
+
+**Session cookie** (di-set saat login, di-clear saat logout):
+
+| Attribute | Value |
+|---|---|
+| Name | `skm_session` |
+| HttpOnly | ✅ |
+| Secure | ✅ (production) |
+| SameSite | `Lax` |
+| Max-Age | 43200 (12 jam) |
+| Payload | JWT HS256 `{ user_id, peran, role, masjidName }` |
+
+`role` + `masjidName` adalah backwards-compat fields untuk callsite legacy
+yang baca `session.role`. Code baru pakai `user_id` + `peran` (5 nilai:
+SUPER_ADMIN, BENDAHARA, ADMIN_QURBAN, PENDAFTARAN, DISTRIBUSI).
+
+**PIN policy** (diterapkan di A4 change-pin, U2 create, U5 reset-pin):
+
+- 4–6 digit numerik
+- Tidak boleh semua digit sama (`0000`, `1111`)
+- Tidak boleh berurutan ascending/descending (`1234`, `4321`)
+- Tidak boleh dalam blocklist umum (`8686`, `2580`, `1234`, `12345`, `123456`, `0000`, `1111`, `9999`)
+
+Pelanggaran → `400 VALIDATION_PIN_POLICY` dengan `error.details.violation` =
+`format` | `all_same` | `sequential` | `weak`.
 
 ---
 
-## Auth Endpoints (Sprint 1)
+## Auth Endpoints (Sprint F01 — refactored from Sprint 1)
 
 ### `POST /api/auth/login`
 
-Login dengan PIN.
+Login multi-user dengan telepon + PIN. Refactored di Sprint F01; legacy
+single-PIN form dipindah ke fallback path saat env
+`QURBAN_LEGACY_LOGIN_ENABLED=true`.
+
+**Auth:** Public (no session required).
 
 **Request Body:**
+
 ```json
 {
-  "pin": "1234"
+  "telepon": "08123456789",
+  "pin": "5839"
 }
 ```
+
+- `telepon` — string, di-normalize server-side ke `628xxx` (accepts `08xxx`, `8xxx`, `+628xxx`)
+- `pin` — string, regex `^\d{4,6}$`
 
 **Response (200):**
+
 ```json
 {
-  "success": true,
+  "ok": true,
   "data": {
-    "message": "Login berhasil"
+    "user": {
+      "id": "ANG-20260515-0003",
+      "nama": "Hopy Familianto",
+      "telepon": "628111882151",
+      "peran": "SUPER_ADMIN",
+      "is_active": true,
+      "last_login_at": "2026-05-18T10:23:45.123Z",
+      "created_at": "2026-05-15T...",
+      "created_by": "SYSTEM_BOOTSTRAP",
+      "updated_at": "2026-05-18T10:23:45.123Z",
+      "failed_attempts": 0,
+      "locked_until": ""
+    },
+    "landing_url": "/",
+    "edisi_aktif": null,
+    "warnings": []
   }
 }
 ```
 
-**Response (401):**
-```json
-{
-  "success": false,
-  "error": "PIN salah"
-}
-```
+Sets `skm_session` cookie (see Authentication overview above).
 
-**Side Effects:**
-- Set HTTP-only session cookie
-- Tulis audit log (`LOGIN`)
+**Error Responses:**
 
-#### Rate Limiting
+| Status | Code | Cause |
+|---|---|---|
+| 400 | `VALIDATION_FAILED` | telepon/pin missing or wrong format |
+| 401 | `AUTH_INVALID` | wrong PIN, or telepon not found (generic — no oracle) |
+| 423 | `AUTH_LOCKED` | 5+ failed attempts; `error.details.locked_until` ISO 8601 |
+| 429 | `RATE_LIMITED` | 10+ login attempts/minute per IP; `error.details.retry_after_sec` |
+| 500 | `INTERNAL_ERROR` | upstream failure |
 
-Endpoint ini dilindungi oleh mekanisme rate limiting untuk mencegah brute force attack.
+**Lockout behavior:**
 
-| Parameter | Nilai |
-|---|---|
-| Maksimum percobaan | 5x berturut-turut |
-| Durasi lockout | 5 menit |
-| Warning threshold | Setelah gagal ke-3 |
-| Tracking | Server-side (in-memory per IP) + Client-side (localStorage) |
+- Failed attempts increment `anggota.failed_attempts` (per-account, persistent in sheet)
+- 5× failed → `anggota.locked_until = now + 15 min`, audit `auth.locked`
+- Successful login resets `failed_attempts=0`, `locked_until=''`
+- Distinct from IP-level rate limit (10/min) which protects pre-auth surface
 
-**Response saat locked (429):**
-```json
-{
-  "success": false,
-  "error": "Terlalu banyak percobaan login. Silakan coba lagi nanti.",
-  "data": {
-    "locked": true,
-    "lockoutUntil": 1711234567890,
-    "remainingAttempts": 0
-  }
-}
-```
+**Parallel legacy login** (Opsi B per Tahap 4 §3.3): when
+`QURBAN_LEGACY_LOGIN_ENABLED=true`, mismatched telepon + bcrypt match against
+`master.pin_hash` returns 200 with synthetic LEGACY session
+(`user_id='LEGACY'`, `peran='SUPER_ADMIN'`). Window planned 1–2 day post-deploy,
+then `QURBAN_LEGACY_LOGIN_ENABLED=false`.
 
-**Response saat warning (401, setelah gagal ke-3):**
-```json
-{
-  "success": false,
-  "error": "PIN salah. Sisa 2 percobaan sebelum akun di-lock.",
-  "data": {
-    "locked": false,
-    "remainingAttempts": 2,
-    "attemptCount": 3
-  }
-}
-```
-
-**Behavior:**
-- Setelah 5x gagal berturut-turut → HTTP 429, locked selama 5 menit
-- Setelah gagal ke-3 → pesan warning dengan sisa percobaan
-- Login berhasil → reset counter ke 0
-- Lockout expired → counter otomatis reset
-- Client-side: countdown timer real-time, persist via localStorage
+**Audit events:** `auth.login_success`, `auth.login_failed`, `auth.locked`.
 
 ---
 
 ### `POST /api/auth/logout`
 
-Logout dan hapus session.
+Idempotent logout — clears `skm_session` cookie. Returns 200 whether or not a
+valid session was present.
+
+**Auth:** Public (so users with expired/invalid cookies can still clear them).
+
+**Request:** no body.
 
 **Response (200):**
+
 ```json
-{
-  "success": true,
-  "data": {
-    "message": "Logout berhasil"
-  }
-}
+{ "ok": true, "data": { "logged_out": true } }
 ```
 
-**Side Effects:**
-- Hapus session cookie
-- Tulis audit log (`LOGOUT`)
+**Audit events:** `auth.logout` (only when a valid session was present).
 
 ---
 
-### `GET /api/auth/session`
+### `GET /api/auth/me`
 
-Cek apakah session masih valid.
+Returns the current authenticated user with computed permissions and landing
+URL. Replaces the pre-F01 `/api/auth/session` for richer UI gating
+(`/api/auth/session` left untouched for backwards compat).
+
+**Auth:** Required (any valid session).
 
 **Response (200):**
+
 ```json
 {
-  "success": true,
+  "ok": true,
   "data": {
-    "authenticated": true
+    "user": {
+      "id": "ANG-20260515-0003",
+      "nama": "Hopy Familianto",
+      "telepon": "628111882151",
+      "email": "",
+      "peran": "SUPER_ADMIN",
+      "is_active": true,
+      "last_login_at": "2026-05-18T10:23:45.123Z",
+      "created_at": "2026-05-15T...",
+      "created_by": "SYSTEM_BOOTSTRAP",
+      "updated_at": "...",
+      "failed_attempts": 0,
+      "locked_until": ""
+    },
+    "permissions": {
+      "can_access": ["**"],
+      "qurban_edisi_locked_to_aktif": false,
+      "can_manage_anggota": true
+    },
+    "current_edisi": null,
+    "landing_url": "/",
+    "session": { "expires_at": "2026-05-18T22:23:45.000Z" }
   }
 }
 ```
+
+- `permissions.can_access` — array of path patterns (glob-ish) per peran
+  (per Tahap 3 §3.7). UI uses for menu visibility. F1 enforces strict gate
+  only on `/pengaturan/anggota/**`; F2 extends to `/qurban/**`.
+- `permissions.qurban_edisi_locked_to_aktif` — `true` for PENDAFTARAN /
+  DISTRIBUSI (can only see active edisi).
+- `permissions.can_manage_anggota` — `true` for SUPER_ADMIN only.
+- `current_edisi` — `null` in F1; populated in F2+.
+- `landing_url` — `'/'` for all roles in F1. F2 flips Qurban roles → `/qurban`.
+
+**Error Responses:**
+
+| Status | Code | Cause |
+|---|---|---|
+| 401 | `AUTH_REQUIRED` | no session cookie |
+| 401 | `AUTH_INVALID` | anggota row not found (deleted post-login) |
+| 401 | `AUTH_INACTIVE` | anggota `is_active=FALSE` |
+
+---
+
+### `POST /api/auth/change-pin`
+
+Self-change PIN for the authenticated anggota. Session is preserved (no
+auto-logout) per Tahap 3.E §3.5.
+
+**Auth:** Required (any valid session). LEGACY sessions (parallel-login
+fallback) cannot use this endpoint — they have no anggota row to update.
+
+**Request Body:**
+
+```json
+{
+  "old_pin": "5839",
+  "new_pin": "7351"
+}
+```
+
+**Response (200):**
+
+```json
+{ "ok": true, "data": { "pin_changed": true } }
+```
+
+**Error Responses:**
+
+| Status | Code | Cause |
+|---|---|---|
+| 400 | `VALIDATION_FAILED` | missing field, regex mismatch, or `new_pin === old_pin` |
+| 400 | `VALIDATION_PIN_POLICY` | new_pin violates PIN policy; `error.details.violation` |
+| 401 | `AUTH_REQUIRED` | no session |
+| 401 | `AUTH_INVALID` | wrong `old_pin` (does NOT increment `failed_attempts` — that counter is login-only) |
+| 401 | `AUTH_INACTIVE` | account deactivated |
+| 422 | `VALIDATION_FAILED` | LEGACY session attempted change-pin |
+
+**Audit events:** `auth.pin_changed` (with `notes: "self-change via /api/auth/change-pin"`).
+
+---
+
+### `GET /api/auth/session` (legacy — Sprint 1)
+
+Pre-F01 session check. **Kept untouched** for backwards-compat with pages that
+still consume `{success, data: {role, masjidName}}` shape. New code should use
+`GET /api/auth/me` instead.
+
+**Response (200):**
+
+```json
+{ "success": true, "data": { "role": "SUPER_ADMIN", "masjidName": "..." } }
+```
+
+---
+
+## Anggota Management Endpoints (Sprint F01)
+
+SUPER_ADMIN-only CRUD untuk multi-user accounts. All endpoints gated by
+middleware (`STRICT_PATH_RULES` allow only `SUPER_ADMIN`) plus per-endpoint
+`requireSuperAdmin()` guard as defense-in-depth.
+
+**Common error responses across this group:**
+
+| Status | Code | Cause |
+|---|---|---|
+| 401 | `AUTH_REQUIRED` | no session |
+| 403 | `FORBIDDEN_ROLE` | session present but peran ≠ SUPER_ADMIN |
+| 404 | `NOT_FOUND` | `[id]` doesn't match any anggota |
+| 500 | `INTERNAL_ERROR` | upstream failure |
+
+### `GET /api/pengaturan/anggota`
+
+List anggota with pagination + filter + search + sort.
+
+**Query parameters:**
+
+| Param | Default | Notes |
+|---|---|---|
+| `page` | `1` | 1-based |
+| `page_size` | `50` | Max `200` |
+| `search` | — | Substring match on `nama` OR `telepon` |
+| `peran` | — | Exact match enum filter |
+| `is_active` | — | `'true'` or `'false'` |
+| `sort` | `nama:asc` | Whitelist: `nama` \| `created_at` \| `last_login_at` \| `peran`; `:asc` or `:desc` |
+
+**Response (200):**
+
+```json
+{
+  "ok": true,
+  "data": [
+    {
+      "id": "ANG-20260515-0003",
+      "nama": "Hopy Familianto",
+      "telepon": "628111882151",
+      "email": "",
+      "peran": "SUPER_ADMIN",
+      "is_active": true,
+      "created_at": "...",
+      "created_by": "SYSTEM_BOOTSTRAP",
+      "updated_at": "...",
+      "last_login_at": "...",
+      "failed_attempts": 0,
+      "locked_until": ""
+    }
+  ],
+  "meta": {
+    "total": 3,
+    "page": 1,
+    "page_size": 50,
+    "has_more": false,
+    "filters_applied": { "search": "hopy" }
+  }
+}
+```
+
+`pin_hash` is stripped from every list item (via `publicAnggota()` helper).
+
+---
+
+### `POST /api/pengaturan/anggota`
+
+Create a new anggota with an initial PIN.
+
+**Request Body:**
+
+```json
+{
+  "nama": "Bendahara Baru",
+  "telepon": "08123456789",
+  "email": "optional@example.com",
+  "peran": "BENDAHARA",
+  "initial_pin": "5839"
+}
+```
+
+- `nama` — 1–100 chars
+- `telepon` — normalized to `628xxx`, must match `^628\d{8,12}$` post-normalize
+- `email` — optional, 0–255 chars
+- `peran` — one of `SUPER_ADMIN | BENDAHARA | ADMIN_QURBAN | PENDAFTARAN | DISTRIBUSI`
+- `initial_pin` — 4–6 digit, must satisfy PIN policy
+
+**Response (200):** newly created anggota (same shape as U3 detail, `pin_hash` stripped).
+
+**Error Responses (in addition to common):**
+
+| Status | Code | Cause |
+|---|---|---|
+| 400 | `VALIDATION_FAILED` | missing required, regex mismatch |
+| 400 | `VALIDATION_FORMAT` | telepon doesn't match `^628\d{8,12}$` after normalize |
+| 400 | `VALIDATION_PIN_POLICY` | `initial_pin` violates PIN policy |
+| 409 | `DUPLICATE_TELEPON` | telepon already used by another **active** anggota |
+
+**Audit events:** `anggota.created` with `after: {nama, telepon, peran, email}`.
+
+---
+
+### `GET /api/pengaturan/anggota/[id]`
+
+Detail of a single anggota by id.
+
+**Response (200):** same shape as a single item in U1 list.
+
+---
+
+### `PATCH /api/pengaturan/anggota/[id]`
+
+Partial update — any combination of `nama`, `telepon`, `email`, `peran`.
+
+**Note:** PIN changes go through U5 reset-pin (admin) or A4 change-pin (self).
+`is_active` changes go through U7 deactivate / U8 reactivate. No-op update
+(all fields equal current values) returns 200 without writing or auditing.
+
+**Request Body (at least one field required):**
+
+```json
+{
+  "nama": "...",
+  "telepon": "...",
+  "email": "...",
+  "peran": "BENDAHARA"
+}
+```
+
+**Response (200):** updated anggota.
+
+**Error Responses (in addition to common):**
+
+| Status | Code | Cause |
+|---|---|---|
+| 400 | `VALIDATION_FAILED` | empty body or invalid field |
+| 400 | `VALIDATION_FORMAT` | telepon regex mismatch |
+| 409 | `DUPLICATE_TELEPON` | new telepon taken by another active anggota |
+| 422 | `BUSINESS_LAST_SUPER_ADMIN` | peran change away from SUPER_ADMIN would leave zero active SAs |
+
+**Audit events:** `anggota.updated` (with before/after diff of changed fields).
+Additionally `anggota.peran_changed` is emitted when `peran` changes
+(easier filter for F8 reporting; Decision #9).
+
+---
+
+### `POST /api/pengaturan/anggota/[id]/reset-pin`
+
+SUPER_ADMIN-initiated PIN reset for another user. Side-effect: clears
+`failed_attempts=0` and `locked_until=''` so the user can log in immediately.
+
+**Request Body:**
+
+```json
+{ "new_pin": "5839" }
+```
+
+**Response (200):**
+
+```json
+{ "ok": true, "data": { "pin_reset": true } }
+```
+
+**Error Responses (in addition to common):**
+
+| Status | Code | Cause |
+|---|---|---|
+| 400 | `VALIDATION_PIN_POLICY` | new_pin violates policy |
+
+**Audit events:** `auth.pin_reset_by_admin` (notes include the actor's user_id).
+
+---
+
+### `POST /api/pengaturan/anggota/[id]/unlock`
+
+Idempotent — always clears `failed_attempts=0` and `locked_until=''`. Returns
+200 whether or not the account was locked.
+
+**Request:** no body.
+
+**Response (200):**
+
+```json
+{ "ok": true, "data": { "unlocked": true, "was_locked": true } }
+```
+
+**Audit events:** `auth.unlocked_manual` with `notes` distinguishing
+`"unlocked"` (was locked), `"cleared counter (was not locked)"`, or
+`"idempotent (no state change)"`.
+
+---
+
+### `POST /api/pengaturan/anggota/[id]/deactivate`
+
+Soft-delete via `is_active=FALSE`. The row remains in the sheet so historical
+references resolve.
+
+**Request Body (optional, per Decision #20):**
+
+```json
+{ "notes": "Mis. tidak aktif di kepengurusan, pensiun" }
+```
+
+`notes` cap 200 chars (server trims + slices), persisted in `audit_log.notes`
+column for the `anggota.deactivated` event. Missing / empty body is OK — the
+route remains backward-compatible with the Milestone-C no-body contract.
+
+**Response (200):** updated anggota with `is_active: false`.
+
+**Error Responses (in addition to common):**
+
+| Status | Code | Cause |
+|---|---|---|
+| 422 | `BUSINESS_CANNOT_DEACTIVATE_SELF` | target id === session.user_id |
+| 422 | `BUSINESS_LAST_SUPER_ADMIN` | target is SUPER_ADMIN and removing leaves zero active SAs |
+
+Idempotent on already-inactive: returns 200 without re-writing or auditing.
+
+**Audit events:** `anggota.deactivated` (with optional `notes` from body).
+
+---
+
+### `POST /api/pengaturan/anggota/[id]/reactivate`
+
+Toggle `is_active=TRUE`. Re-checks telepon uniqueness in case another active
+anggota grabbed the telepon during inactivity.
+
+**Request:** no body.
+
+**Response (200):** updated anggota with `is_active: true`.
+
+**Error Responses (in addition to common):**
+
+| Status | Code | Cause |
+|---|---|---|
+| 409 | `DUPLICATE_TELEPON` | telepon now owned by another active anggota; user must change telepon (via U4) before reactivation |
+
+Idempotent on already-active.
+
+**Audit events:** `anggota.reactivated`.
+
+---
+
+### `GET /api/pengaturan/anggota/roles`
+
+Returns the valid peran enum with display labels for dropdown rendering.
+
+**Response (200):**
+
+```json
+{
+  "ok": true,
+  "data": [
+    { "value": "SUPER_ADMIN", "label": "Super Admin", "description": "Akses penuh termasuk manajemen anggota." },
+    { "value": "BENDAHARA", "label": "Bendahara", "description": "Pengelola penuh keuangan SKM. Akses Qurban read-only." },
+    { "value": "ADMIN_QURBAN", "label": "Admin Qurban", "description": "Ketua panitia Qurban. Akses penuh modul Qurban." },
+    { "value": "PENDAFTARAN", "label": "Pendaftaran", "description": "Panitia pendaftaran muqorib, pemetaan, dan pembayaran." },
+    { "value": "DISTRIBUSI", "label": "Distribusi", "description": "Panitia distribusi: cetak label, tracking pengiriman." }
+  ]
+}
+```
+
+Used by E3 create form and E5 edit form. Silent fallback to hardcoded list
+on failure.
 
 ---
 
