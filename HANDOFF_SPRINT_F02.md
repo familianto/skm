@@ -1,8 +1,8 @@
 # HANDOFF Sprint F02 — Qurban Edisi Management
 
-**Branch:** `claude/qurban-edisi-setup-XghmL`
-**Status (Milestone A):** Implementation complete. Awaiting Hopy's preview verification.
-**Spec source:** prompt `Sprint F02 · Milestone A: Infrastructure` (delivered via session).
+**Branch:** `claude/qurban-edisi-setup-XghmL` (PR #83)
+**Status:** Milestone A ✅ done. Milestone B ✅ done — awaiting preview verification.
+**Spec source:** session prompts `Sprint F02 · Milestone A` and `Sprint F02 · Milestone B`.
 
 ---
 
@@ -18,10 +18,10 @@ peserta, hewan, pembayaran, and distribusi state. Edisi is request state
 
 | ID | Title | Status | Commit |
 |---|---|---|---|
-| A  | Infrastructure (libs + middleware activation + skeleton dashboard) | ✅ done | _this commit_ |
-| B  | Edisi CRUD endpoints (E1–E6) + edisi UI | ⏳ pending | — |
-| C  | Konfigurasi edisi + panitia management | ⏳ pending | — |
-| D  | Operational surfaces (peserta / hewan / pembayaran / distribusi entry points) | ⏳ pending | — |
+| A  | Infrastructure (libs + middleware activation + skeleton dashboard) | ✅ done | `310dd0e` |
+| B  | Edisi CRUD endpoints (E1–E6) + edisi UI + sidebar | ✅ done | _this commit_ |
+| C  | Konfigurasi edisi (K1–K2) + tab Konfigurasi UI | ⏳ pending | — |
+| D  | Panitia management (P1–P3) + tab Panitia UI | ⏳ pending | — |
 | E  | Acceptance tests + handoff polish | ⏳ pending | — |
 
 ---
@@ -179,13 +179,191 @@ become testable in Milestone B once the E1–E6 endpoints + the
 
 ---
 
+## Milestone B — What Shipped
+
+Edisi CRUD endpoints E1–E6, four UI pages, sidebar QURBAN section, plus a
+fail-open restoration of the `QURBAN_MODULE_ENABLED` kill switch.
+
+### New endpoints
+
+All under `src/app/api/qurban/edisi/`. Auth via F01 `requireRole`; response
+envelope `{ ok, data, meta? }`; audit via `writeAuditLog`. See
+`docs/API_REFERENCE.md` → "Qurban Edisi Endpoints" for full request/response
+contracts.
+
+| # | Method | Path | Notes |
+|---|---|---|---|
+| E1 | GET | `/api/qurban/edisi` | List + `?status=` filter. PD/DS auto-filtered to AKTIF. Sorted by `tahun_masehi` desc. |
+| E2 | POST | `/api/qurban/edisi` | Create + optional clone (`konfigurasi` default ON, `panitia` default OFF, master_hewan NOT offered — F3 scope). |
+| E3 | GET | `/api/qurban/edisi/[id]` | Detail. PD/DS on non-AKTIF → `403 FORBIDDEN_EDISI`. |
+| E4 | PATCH | `/api/qurban/edisi/[id]` | Field-level lock per status (DRAFT=all, AKTIF=3 tanggal, SELESAI=none). |
+| E5 | POST | `/api/qurban/edisi/[id]/activate` | Pre-flight: status DRAFT + konfigurasi present + ≥1 active panitia + single-AKTIF (with `force_close_existing_aktif`). |
+| E6 | POST | `/api/qurban/edisi/[id]/close` | Pre-flight: status AKTIF only. |
+
+Pre-flight TODOs intentionally deferred and marked in code:
+- E5: `master_hewan` aktif (F3), `hewan` AKTIF (F4).
+- E6: blok bila peserta TERDAFTAR belum lunas (F4+).
+
+### New repo helpers (used by Milestone B + C/D)
+
+- `src/lib/qurban/edisi-repo.ts` — added `edisiToRow`, `findEdisiRecordById`,
+  `isTahunHijriahTaken`, `createEdisi`, `updateEdisiAt`,
+  `sortEdisiByTahunDesc`.
+- `src/lib/qurban/konfigurasi-repo.ts` (NEW) — minimal repo
+  (`findKonfigurasiByEdisiId`, `hasKonfigurasi`, `createKonfigurasi`). Used
+  by E2 clone + E5 pre-flight. Full K1/K2 lands in Milestone C.
+- `src/lib/qurban/panitia-repo.ts` (NEW) — minimal repo
+  (`listPanitiaByEdisi`, `listActivePanitiaByEdisi`,
+  `countActivePanitiaByEdisi`, `createPanitia`). Used by E2 clone + E5
+  pre-flight. Full P1–P3 lands in Milestone D.
+
+### New UI pages (`/qurban/edisi/**`)
+
+- `page.tsx` — list with status-filter chips (Semua / Draft / Aktif /
+  Selesai); "+ Edisi Baru" only for SA/AQ.
+- `baru/page.tsx` — create form with optional "Salin dari edisi sebelumnya"
+  (konfigurasi default ✓, panitia default ✗). Hides clone section when no
+  edisi exists yet.
+- `[id]/page.tsx` — detail with 3 tabs (Detail | Konfigurasi | Panitia),
+  deep-linkable via `?tab=`. Konfigurasi & Panitia tabs are placeholders.
+  Action buttons gated by status + peran (write actions hidden for
+  BD/PD/DS):
+  - DRAFT: `Edit` + `Aktifkan`
+  - AKTIF: `Edit Tanggal` + `Tutup Edisi`
+  - SELESAI: none
+- `[id]/edit/page.tsx` — edit form. Disables locked fields per status
+  (`AKTIF` → only the 3 tanggal fields enabled; `SELESAI` shows a blocking
+  card and points back to detail).
+- `src/components/qurban/EdisiForm.tsx` — shared form component (create +
+  edit). Honors `editableFields` prop for field-level lock UX.
+
+### Activation flow UX
+
+The detail page's `Aktifkan` button confirms once with a primary dialog,
+then calls `POST /activate`. If the server replies
+`BUSINESS_PREFLIGHT_FAILED` with `details.check = "single_aktif"`, the
+client swaps in a second confirmation modal (`danger` variant) that names
+the existing AKTIF edisi and offers a single retry with
+`force_close_existing_aktif: true`. Other pre-flight failures (missing
+konfigurasi / no active panitia) surface as toast messages — the user
+sees a clear reason why activation can't proceed.
+
+### Sidebar — QURBAN section
+
+`src/components/layout/sidebar.tsx` now consumes `useMe()` and supports
+three peran-aware flags per item:
+- `visibleRoles` — hide entirely when peran is not in the list.
+- `readOnlyRoles` — show an eye glyph (👁 equivalent) hinting view-only.
+- `disabledRoles` — render as non-clickable `<span>` with a lock glyph
+  (🔒 equivalent).
+
+Section QURBAN contains two items only (the only Qurban pages that exist
+today):
+- `Dashboard` → `/qurban` (visible to all 5 roles).
+- `Edisi` → `/qurban/edisi`. Visible to all 5 roles. `BENDAHARA` +
+  `PENDAFTARAN` get the read-only indicator. `DISTRIBUSI` sees it grayed
+  with the lock glyph (their middleware path-rule denies the page anyway —
+  the lock is just a UX honesty signal).
+
+Additional Qurban nav items (Peserta, Hewan, Pembayaran, Muqorib,
+Distribusi, Konfigurasi, Panitia, Laporan) are intentionally NOT added —
+their pages don't exist yet and shipping dead links would worsen the
+nav. They'll land alongside the corresponding Milestone C/D/F sprints.
+
+### Restored `QURBAN_MODULE_ENABLED` — fail-open
+
+Milestone A removed the F1 kill switch because the deny-by-default
+behavior conflicted with the goal of activating the module. Milestone B
+restores it as a **fail-open** guard per `PROMPT_F02 §9.2` Level 2:
+
+- `process.env.QURBAN_MODULE_ENABLED === 'false'` → all `/qurban/**` and
+  `/api/qurban/**` requests respond `404` (page route: empty 404, API
+  route: `{ ok: false, error: { code: 'NOT_FOUND' } }`).
+- Unset / `'true'` / any other value → module is on.
+
+Pure env read, edge-safe, no I/O. Acts as a rollback lever without
+breaking deploy verification (the preview deploy has the env unset and
+therefore runs with the module active).
+
+### Files added / modified
+
+**New endpoints:**
+- `src/app/api/qurban/edisi/route.ts` — E1, E2
+- `src/app/api/qurban/edisi/[id]/route.ts` — E3, E4
+- `src/app/api/qurban/edisi/[id]/activate/route.ts` — E5
+- `src/app/api/qurban/edisi/[id]/close/route.ts` — E6
+
+**New UI:**
+- `src/app/(dashboard)/qurban/edisi/page.tsx`
+- `src/app/(dashboard)/qurban/edisi/baru/page.tsx`
+- `src/app/(dashboard)/qurban/edisi/[id]/page.tsx`
+- `src/app/(dashboard)/qurban/edisi/[id]/edit/page.tsx`
+- `src/components/qurban/EdisiForm.tsx`
+
+**New repos:**
+- `src/lib/qurban/konfigurasi-repo.ts`
+- `src/lib/qurban/panitia-repo.ts`
+
+**Modified:**
+- `src/lib/qurban/edisi-repo.ts` — added write-side helpers.
+- `src/lib/api/errors.ts` — `+DUPLICATE_TAHUN_HIJRIAH`, `+BUSINESS_PREFLIGHT_FAILED`.
+- `src/components/layout/sidebar.tsx` — peran-aware items + QURBAN section.
+- `src/middleware.ts` — restored `QURBAN_MODULE_ENABLED` as fail-open.
+- `HANDOFF_SPRINT_F02.md` — this section + §D2 correction.
+- `docs/API_REFERENCE.md` — "Qurban Edisi Endpoints" section.
+
+### Correction to Milestone A §D2
+
+In Milestone A I removed `QURBAN_MODULE_ENABLED` outright, reasoning that
+a deny-by-default switch would obstruct verification. Milestone B
+re-introduces the switch, but **fail-open**: only the literal string
+`'false'` disables the module. Unset / `'true'` / anything else leaves
+the module active. This preserves the rollback lever required by
+`PROMPT_F02 §9.2` without the original footgun.
+
+### Verification (build / CI)
+
+Run after `npm ci`:
+- `npm run type-check` → ✅ clean
+- `npm run lint` → ✅ clean (no warnings)
+- `npm run build` → ✅ `Compiled successfully`. New dynamic routes:
+  `/qurban/edisi`, `/qurban/edisi/baru`, `/qurban/edisi/[id]`,
+  `/qurban/edisi/[id]/edit`; API routes: `/api/qurban/edisi`,
+  `/api/qurban/edisi/[id]`, `/api/qurban/edisi/[id]/activate`,
+  `/api/qurban/edisi/[id]/close`.
+
+### Verification (Hopy, preview deploy)
+
+Sheet prerequisite: the staging Sheet must already contain the three
+`qurban_*` sheets from `migrate_F02`.
+
+Manual checks for Milestone B (from the prompt §8):
+- [ ] Sidebar QURBAN section visible with Dashboard + Edisi; peran-aware
+      indicators (read-only / disabled) render as specified.
+- [ ] SA/AQ: `/qurban/edisi` → "+ Edisi Baru" → create `1448H` (2027 +
+      3 tanggal, no clone) → redirect to detail, status badge `DRAFT`.
+- [ ] List shows `1448H`; filter `?status=DRAFT` works.
+- [ ] EditionSwitcher in `/qurban` layout now shows `1448H`.
+- [ ] Detail tabs render; `?tab=konfigurasi` / `?tab=panitia` deep-link
+      lands on placeholder card.
+- [ ] Edit page in DRAFT → all fields editable.
+- [ ] `Aktifkan` on `1448H` → confirm modal → preflight fails with toast
+      "Konfigurasi edisi belum diisi" (or similar). This is EXPECTED at
+      Milestone B; activation flows fully exercise after Milestone C+D.
+- [ ] BD/PD/DS: no write buttons surface. PD/DS only see AKTIF edisi.
+
+### Acceptance tests parked
+
+Acceptance test script and end-to-end create→konfigurasi→panitia→activate
+flow live in Milestone E once C and D ship.
+
+---
+
 ## Documentation updates parked for later milestones
 
-- `docs/API_REFERENCE.md` — first updated at Milestone B (E1–E6 endpoints).
 - `docs/PROJECT_BRIEF.md` — updated at Milestone E once the module shape stabilises.
-- `docs/DATABASE_SCHEMA.md` — needs the 3 new sheets documented; doing this
-  alongside the API_REFERENCE update at Milestone B keeps the doc story
-  consistent.
+- `docs/DATABASE_SCHEMA.md` — needs the 3 new sheets documented; can land
+  at any milestone B-E (sheets are stable since A).
 
 ---
 

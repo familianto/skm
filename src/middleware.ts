@@ -10,9 +10,11 @@ import { isPathAllowedForRole } from '@/lib/api/path-rules';
  *   1. Static + Next internals (`/_next/*`, `/favicon*`)            → pass
  *   2. Public allow-list (`/login`, `/api/auth/{login,logout}`,
  *      `/api/health`, `/publik/*`, `/api/publik/*`, `/mockup`)       → pass
- *   3. Session check — verify `skm_session` JWT                      → 401 if missing/invalid
- *   4. Strict role gate — `STRICT_PATH_RULES` from path-rules.ts     → 403 if disallowed
- *   5. Inject `x-user-id` + `x-user-peran` request headers           → next()
+ *   3. Qurban module kill switch — `/qurban/**` + `/api/qurban/**`
+ *      treated as 404 when `QURBAN_MODULE_ENABLED === 'false'`       → 404
+ *   4. Session check — verify `skm_session` JWT                      → 401 if missing/invalid
+ *   5. Strict role gate — `STRICT_PATH_RULES` from path-rules.ts     → 403 if disallowed
+ *   6. Inject `x-user-id` + `x-user-peran` request headers           → next()
  *
  * Scope:
  *   - F1: strict gates on `/pengaturan/anggota/**` (SUPER_ADMIN).
@@ -21,6 +23,10 @@ import { isPathAllowedForRole } from '@/lib/api/path-rules';
  *     handlers (F02-B+). Edisi context resolution (read of qurban_edisi sheet)
  *     happens in a Node-runtime server helper invoked from the /qurban layout,
  *     NOT in this middleware (Edge runtime cannot use the googleapis SDK).
+ *   - F02-B: restored the Qurban module kill switch as a FAIL-OPEN guard.
+ *     Module is active unless `QURBAN_MODULE_ENABLED` is explicitly set to
+ *     `'false'`. Unset / `'true'` / any other value → module on. Acts as a
+ *     rollback lever (PROMPT_F02 §9.2 Level 2).
  *
  * Edge-runtime constraint: this middleware MUST only import Edge-safe modules.
  * `lib/api/path-rules.ts` is pure regex/arrays; JWT verification is inlined
@@ -112,7 +118,27 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // 3. Session check
+  // 3. Qurban module kill switch — FAIL-OPEN: only `'false'` (exact string)
+  //    disables the module. Unset / `'true'` / anything else keeps it on.
+  //    When disabled, Qurban paths are surfaced as 404 to hide the module
+  //    from users entirely (per PROMPT_F02 §9.2 Level 2 rollback).
+  if (
+    process.env.QURBAN_MODULE_ENABLED === 'false' &&
+    (pathname === '/qurban' ||
+      pathname.startsWith('/qurban/') ||
+      pathname === '/api/qurban' ||
+      pathname.startsWith('/api/qurban/'))
+  ) {
+    if (pathname.startsWith('/api/')) {
+      return NextResponse.json(
+        { ok: false, error: { code: 'NOT_FOUND', message: 'Not found.' } },
+        { status: 404 }
+      );
+    }
+    return new NextResponse(null, { status: 404 });
+  }
+
+  // 4. Session check
   const token = request.cookies.get(COOKIE_NAME)?.value;
   if (!token) {
     return rejectRequest(
@@ -139,7 +165,7 @@ export async function middleware(request: NextRequest) {
     );
   }
 
-  // 4. Strict role gate
+  // 5. Strict role gate
   if (!isPathAllowedForRole(pathname, session.peran)) {
     return rejectRequest(
       pathname,
@@ -151,7 +177,7 @@ export async function middleware(request: NextRequest) {
     );
   }
 
-  // 5. Pass through with user context headers so handlers can read
+  // 6. Pass through with user context headers so handlers can read
   //    session info without re-verifying the cookie (cheap optimization
   //    for non-edge route handlers).
   const response = NextResponse.next();

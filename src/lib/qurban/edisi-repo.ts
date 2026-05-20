@@ -3,9 +3,9 @@ import { QURBAN_SHEETS } from './sheets';
 import { EDISI_STATUS, type EdisiStatus } from './edisi-state-machine';
 
 /**
- * Read-side repository for `qurban_edisi`. Milestone A only needs list +
- * find-by-id + find-active to power the edition switcher and skeleton
- * dashboard. Full CRUD (write side) ships with Milestone B endpoints.
+ * Repository for `qurban_edisi`. Read side (listEdisi / findEdisiById /
+ * findActiveEdisi) shipped with Milestone A; Milestone B adds the write
+ * helpers (createEdisi / updateEdisiAt / row<->object mapping).
  *
  * Column order MUST mirror migrate_F02's qurban_edisi sheet (12 cols):
  *   0:id  1:tahun_hijriah  2:tahun_masehi  3:tanggal_idul_adha
@@ -91,4 +91,62 @@ export function sortEdisiByCreatedDesc(list: readonly Edisi[]): Edisi[] {
   return [...list].sort((a, b) =>
     a.created_at < b.created_at ? 1 : a.created_at > b.created_at ? -1 : 0
   );
+}
+
+/** Sort newest-first by `tahun_masehi` desc (E1 default ordering). */
+export function sortEdisiByTahunDesc(list: readonly Edisi[]): Edisi[] {
+  return [...list].sort((a, b) => b.tahun_masehi - a.tahun_masehi);
+}
+
+/** Object→row: 12 string cells, ready for appendRow / updateRow. */
+export function edisiToRow(e: Edisi): string[] {
+  return [
+    e.id,
+    e.tahun_hijriah,
+    String(e.tahun_masehi),
+    e.tanggal_idul_adha,
+    e.tanggal_pendaftaran_buka,
+    e.tanggal_pendaftaran_tutup,
+    e.status,
+    e.parent_edisi_id,
+    e.cloned_at,
+    e.created_at,
+    e.updated_at,
+    e.created_by,
+  ];
+}
+
+export interface EdisiRecord {
+  rowIndex: number;
+  edisi: Edisi;
+}
+
+export async function findEdisiRecordById(id: string): Promise<EdisiRecord | null> {
+  if (!id) return null;
+  const rows = await sheetsService.getRows(QURBAN_SHEETS.EDISI);
+  for (let i = 0; i < rows.length; i++) {
+    if (rows[i][0] === id) {
+      return { rowIndex: i + 2, edisi: rowToEdisi(rows[i]) };
+    }
+  }
+  return null;
+}
+
+export async function isTahunHijriahTaken(
+  tahun: string,
+  excludeId?: string
+): Promise<boolean> {
+  const all = await listEdisi();
+  const norm = tahun.trim().toUpperCase();
+  return all.some(
+    (e) => e.tahun_hijriah.trim().toUpperCase() === norm && e.id !== excludeId
+  );
+}
+
+export async function createEdisi(edisi: Edisi): Promise<void> {
+  await sheetsService.appendRow(QURBAN_SHEETS.EDISI, edisiToRow(edisi));
+}
+
+export async function updateEdisiAt(rowIndex: number, edisi: Edisi): Promise<void> {
+  await sheetsService.updateRow(QURBAN_SHEETS.EDISI, rowIndex, edisiToRow(edisi));
 }
