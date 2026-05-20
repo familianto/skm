@@ -26,10 +26,63 @@ export const STRICT_PATH_RULES: readonly PathRule[] = [
   { pattern: /^\/pengaturan\/anggota(\/|$)/, allowedRoles: ['SUPER_ADMIN'] },
   { pattern: /^\/api\/pengaturan\/anggota(\/|$)/, allowedRoles: ['SUPER_ADMIN'] },
 
-  // F2+ extension point — uncomment / extend as `/qurban/**` ships.
-  // Example:
-  // { pattern: /^\/qurban\/distribusi(\/|$)/,
-  //   allowedRoles: ['SUPER_ADMIN', 'ADMIN_QURBAN', 'DISTRIBUSI'] },
+  // F02-A — /qurban page gates. Order matters: more specific patterns first.
+  //
+  // Note on full-access vs read-only: middleware only gates PAGE access. The
+  // full-write vs read-only distinction (e.g. BENDAHARA may read edisi but
+  // not mutate) is enforced inside API route handlers via guards. Here we
+  // include any role that may see the page in any mode.
+  //
+  // Distribusi: SUPER_ADMIN + ADMIN_QURBAN + DISTRIBUSI only (no BENDAHARA,
+  // no PENDAFTARAN per spec).
+  {
+    pattern: /^\/qurban\/distribusi(\/|$)/,
+    allowedRoles: ['SUPER_ADMIN', 'ADMIN_QURBAN', 'DISTRIBUSI'],
+  },
+  {
+    pattern: /^\/api\/qurban\/distribusi(\/|$)/,
+    allowedRoles: ['SUPER_ADMIN', 'ADMIN_QURBAN', 'DISTRIBUSI'],
+  },
+
+  // Edisi / konfigurasi / panitia: admin surfaces. DISTRIBUSI excluded.
+  {
+    pattern: /^\/qurban\/(edisi|konfigurasi|panitia)(\/|$)/,
+    allowedRoles: ['SUPER_ADMIN', 'BENDAHARA', 'ADMIN_QURBAN', 'PENDAFTARAN'],
+  },
+  {
+    pattern: /^\/api\/qurban\/(edisi|konfigurasi|panitia)(\/|$)/,
+    allowedRoles: ['SUPER_ADMIN', 'BENDAHARA', 'ADMIN_QURBAN', 'PENDAFTARAN'],
+  },
+
+  // Operational pendaftaran/peserta surfaces: same role set as edisi above.
+  {
+    pattern: /^\/qurban\/(peserta|muqorib|hewan|pemetaan|pembayaran)(\/|$)/,
+    allowedRoles: ['SUPER_ADMIN', 'BENDAHARA', 'ADMIN_QURBAN', 'PENDAFTARAN'],
+  },
+  {
+    pattern: /^\/api\/qurban\/(peserta|muqorib|hewan|pemetaan|pembayaran)(\/|$)/,
+    allowedRoles: ['SUPER_ADMIN', 'BENDAHARA', 'ADMIN_QURBAN', 'PENDAFTARAN'],
+  },
+
+  // Laporan: everyone with Qurban access can read.
+  {
+    pattern: /^\/qurban\/laporan(\/|$)/,
+    allowedRoles: ['SUPER_ADMIN', 'BENDAHARA', 'ADMIN_QURBAN', 'PENDAFTARAN', 'DISTRIBUSI'],
+  },
+  {
+    pattern: /^\/api\/qurban\/laporan(\/|$)/,
+    allowedRoles: ['SUPER_ADMIN', 'BENDAHARA', 'ADMIN_QURBAN', 'PENDAFTARAN', 'DISTRIBUSI'],
+  },
+
+  // /qurban root (dashboard): all five roles can see it.
+  {
+    pattern: /^\/qurban(\/|$)/,
+    allowedRoles: ['SUPER_ADMIN', 'BENDAHARA', 'ADMIN_QURBAN', 'PENDAFTARAN', 'DISTRIBUSI'],
+  },
+  {
+    pattern: /^\/api\/qurban(\/|$)/,
+    allowedRoles: ['SUPER_ADMIN', 'BENDAHARA', 'ADMIN_QURBAN', 'PENDAFTARAN', 'DISTRIBUSI'],
+  },
 ];
 
 /**
