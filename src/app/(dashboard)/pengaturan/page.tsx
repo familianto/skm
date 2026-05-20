@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect, useCallback, FormEvent } from 'react';
+import { Suspense, useState, useEffect, useCallback, FormEvent } from 'react';
+import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { PageTitle } from '@/components/layout/page-title';
 import { Card, CardTitle } from '@/components/ui/card';
@@ -8,46 +9,45 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Loading } from '@/components/ui/loading';
 import { useToast } from '@/components/ui/toast';
-import { cn } from '@/lib/utils';
-import type { Master, Anggota, ApiResponse } from '@/types';
+import { PengaturanTabs } from '@/components/pengaturan/PengaturanTabs';
+import { useMe } from '@/hooks/use-me';
+import type { Master, ApiResponse } from '@/types';
 
-type Tab = 'profil' | 'keamanan' | 'anggota' | 'data';
+type Tab = 'profil' | 'keamanan' | 'data';
 
-const tabs: { key: Tab; label: string }[] = [
-  { key: 'profil', label: 'Profil Masjid' },
-  { key: 'keamanan', label: 'Keamanan' },
-  { key: 'anggota', label: 'Anggota' },
-  { key: 'data', label: 'Data' },
-];
+const VALID_TABS: readonly Tab[] = ['profil', 'keamanan', 'data'];
+
+function isValidTab(value: string | null): value is Tab {
+  return value !== null && (VALID_TABS as readonly string[]).includes(value);
+}
 
 export default function PengaturanPage() {
-  const [activeTab, setActiveTab] = useState<Tab>('profil');
+  return (
+    <Suspense fallback={<Loading className="my-8" />}>
+      <PengaturanPageInner />
+    </Suspense>
+  );
+}
+
+function PengaturanPageInner() {
+  // Tab state is driven by URL `?tab=` so that linking from the shared
+  // PengaturanTabs (used on /pengaturan/anggota too) lands on the right
+  // panel. Default empty/invalid → 'profil'.
+  const searchParams = useSearchParams();
+  const rawTab = searchParams.get('tab');
+  const activeTab: Tab = isValidTab(rawTab) ? rawTab : 'profil';
+
+  const { me } = useMe();
+  const canManageAnggota = !!me?.permissions.can_manage_anggota;
 
   return (
     <div>
       <PageTitle title="Pengaturan" subtitle="Kelola profil masjid, keamanan, dan data" />
 
-      {/* Tab Navigation */}
-      <div className="flex gap-1 mb-6 border-b border-gray-200 overflow-x-auto">
-        {tabs.map(tab => (
-          <button
-            key={tab.key}
-            onClick={() => setActiveTab(tab.key)}
-            className={cn(
-              'px-4 py-2.5 text-sm font-medium whitespace-nowrap border-b-2 transition-colors -mb-px',
-              activeTab === tab.key
-                ? 'border-emerald-600 text-emerald-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-            )}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </div>
+      <PengaturanTabs showAnggotaTab={canManageAnggota} />
 
       {activeTab === 'profil' && <ProfilTab />}
       {activeTab === 'keamanan' && <KeamananTab />}
-      {activeTab === 'anggota' && <AnggotaTab />}
       {activeTab === 'data' && <DataTab />}
     </div>
   );
@@ -412,77 +412,6 @@ function KeamananTab() {
           Sesi Anda tetap aktif setelah PIN diubah. Gunakan PIN baru untuk login berikutnya.
         </p>
       </div>
-    </div>
-  );
-}
-
-// ==============================
-// Tab: Anggota
-// ==============================
-function AnggotaTab() {
-  const [anggota, setAnggota] = useState<Anggota[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-
-  const fetchAnggota = useCallback(async () => {
-    try {
-      const res = await fetch('/api/anggota');
-      const json: ApiResponse<Anggota[]> = await res.json();
-      if (json.success && json.data) {
-        setAnggota(json.data);
-      }
-    } catch {
-      setError('Gagal memuat data anggota');
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => { fetchAnggota(); }, [fetchAnggota]);
-
-  if (loading) return <Loading className="my-8" />;
-
-  const roleColors: Record<string, string> = {
-    BENDAHARA: 'bg-emerald-100 text-emerald-700',
-    PENGURUS: 'bg-blue-100 text-blue-700',
-    VIEWER: 'bg-gray-100 text-gray-700',
-  };
-
-  return (
-    <div className="max-w-2xl">
-      <Card>
-        <div className="flex items-center justify-between mb-4">
-          <CardTitle>Daftar Anggota/Pengurus</CardTitle>
-        </div>
-
-        {error && <p className="text-red-600 text-sm mb-4">{error}</p>}
-
-        {anggota.length === 0 ? (
-          <p className="text-gray-400 text-sm">Belum ada data anggota.</p>
-        ) : (
-          <div className="space-y-3">
-            {anggota.map(a => (
-              <div
-                key={a.id}
-                className="flex items-center justify-between py-3 border-b border-gray-100 last:border-0"
-              >
-                <div>
-                  <p className="text-sm font-medium text-gray-900">{a.nama}</p>
-                  <p className="text-xs text-gray-500">
-                    {a.telepon && `${a.telepon} • `}{a.email}
-                  </p>
-                </div>
-                <span className={cn(
-                  'text-xs font-medium px-2.5 py-1 rounded-full',
-                  roleColors[a.peran] || 'bg-gray-100 text-gray-700'
-                )}>
-                  {a.peran}
-                </span>
-              </div>
-            ))}
-          </div>
-        )}
-      </Card>
     </div>
   );
 }

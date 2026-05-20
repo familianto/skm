@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Loading } from '@/components/ui/loading';
+import { PengaturanTabs } from '@/components/pengaturan/PengaturanTabs';
 import { useMe } from '@/hooks/use-me';
 import { cn } from '@/lib/utils';
 import {
@@ -171,6 +172,10 @@ export default function AnggotaListPage() {
           ) : undefined
         }
       />
+
+      {/* Shared tab bar so users can hop back to Profil / Keamanan / Data
+          without losing context. F-polish-9. */}
+      <PengaturanTabs showAnggotaTab={canManage} />
 
       {/* Search + filter */}
       <Card className="mb-4">

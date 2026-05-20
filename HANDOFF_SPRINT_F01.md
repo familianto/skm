@@ -13,8 +13,8 @@
 - **Integration tests:** **26/26 PASS** via GitHub Actions workflow run #1
 - **Verification commit:** `fa58c20` on branch `qurban/f01-auth-multi-user`
 - **Test date:** 18 May 2026
-- **Polish backlog:** **6 of 8 items DONE** (F-polish-5 staging data ops + F-polish-6 production smoke + F-polish-8 Node 20 deprecation = all deferred post-merge / next sprint)
-- **Status:** **READY FOR PR MERGE TO MAIN**
+- **Polish backlog:** **7 of 9 items DONE** (F-polish-5 staging data ops + F-polish-6 production smoke + F-polish-8 Node 20 deprecation = all deferred; F-polish-9 = post-merge hotfix landed via separate PR)
+- **Status:** **MERGED TO MAIN** (`dd15a4b`); F-polish-9 hotfix follow-up in `fix/anggota-pengaturan-nav`
 
 ---
 
@@ -493,6 +493,43 @@ before Sept 16), bump to `actions/checkout@v5` OR set
 block. Re-run preview-test workflow to confirm green under Node 24.
 
 **Not blocking F01.** Pure CI runtime — no app or schema impact.
+
+### F-polish-9 — Anggota navigation wiring ✅ DONE (post-merge hotfix)
+
+Bug discovered immediately after F01 merge `dd15a4b`: the F01
+`/pengaturan/anggota` management page had **no entry point** from
+navigation. The legacy tab "Anggota" in `/pengaturan` still rendered a
+stale read-only card list (calling `/api/anggota` pre-F01 endpoint),
+and the new page was only reachable via direct URL.
+
+**Fix branch:** `fix/anggota-pengaturan-nav` (off `main` post-F01).
+
+**Changes:**
+- New shared component `src/components/pengaturan/PengaturanTabs.tsx`
+  renders the 4-tab bar with all tabs as `<Link>`s:
+    Profil   → `/pengaturan`              (default, no query)
+    Keamanan → `/pengaturan?tab=keamanan`
+    Anggota  → `/pengaturan/anggota`      (SUPER_ADMIN-gated)
+    Data     → `/pengaturan?tab=data`
+  Active-tab detection via `usePathname()` + `useSearchParams()`:
+  pathname starts with `/pengaturan/anggota` → Anggota; otherwise
+  read `?tab=` query (default `profil`).
+- `/pengaturan/page.tsx` refactored: removed local `activeTab` state
+  (now URL-driven via `?tab=`), removed stale `AnggotaTab()`
+  function entirely, added `useMe()` for SA-gating the Anggota tab
+  visibility. Suspense wrapper added because `useSearchParams`
+  requires it on the Next 16 static-prerender path.
+- `/pengaturan/anggota/page.tsx` renders `<PengaturanTabs>` at the
+  top so users can hop back to Profil / Keamanan / Data without
+  losing context.
+
+**Visibility:** Anggota tab hidden for non-SA sessions
+(defense-in-depth alongside middleware gate on
+`/pengaturan/anggota/**`).
+
+**Audit log + endpoint impact:** none. Pure frontend navigation.
+Legacy `/api/anggota` endpoint left untouched (no longer consumed by
+any UI but kept for backwards compat).
 
 ### F-polish-5 — Staging sheet full migrate_F01()
 
