@@ -2,13 +2,11 @@ import { sheetsService } from '@/lib/google-sheets';
 import { QURBAN_SHEETS } from './sheets';
 
 /**
- * Minimal repository for `qurban_konfigurasi_edisi`. Milestone B needs this
- * helper only for two flows:
- *   - E5 activate pre-flight: "does this edisi have a konfigurasi row?"
- *   - E2 create-with-clone: read source konfigurasi, write a copy for the
- *     new edisi (ID/edisi_id/timestamps regenerated).
+ * Repository for `qurban_konfigurasi_edisi`.
  *
- * Full K1/K2 endpoint + read side ships with Milestone C.
+ * Milestone B introduced read-by-edisi + create helpers to power E5 pre-flight
+ * and E2 clone. Milestone C extends the file with `findKonfigurasiRecord` +
+ * `updateKonfigurasiAt` for K2's upsert path.
  *
  * Column order MUST mirror migrate_F02's qurban_konfigurasi_edisi sheet
  * (15 cols):
@@ -111,4 +109,46 @@ export async function hasKonfigurasi(edisiId: string): Promise<boolean> {
 
 export async function createKonfigurasi(k: Konfigurasi): Promise<void> {
   await sheetsService.appendRow(QURBAN_SHEETS.KONFIGURASI_EDISI, konfigurasiToRow(k));
+}
+
+export interface KonfigurasiRecord {
+  rowIndex: number;
+  konfigurasi: Konfigurasi;
+}
+
+/**
+ * Locate the konfigurasi row for an edisi and return its sheet rowIndex
+ * alongside the parsed object — needed by K2 to do an in-place update
+ * instead of appending a duplicate row.
+ */
+export async function findKonfigurasiRecord(
+  edisiId: string
+): Promise<KonfigurasiRecord | null> {
+  if (!edisiId) return null;
+  try {
+    const rows = await sheetsService.getRows(QURBAN_SHEETS.KONFIGURASI_EDISI);
+    for (let i = 0; i < rows.length; i++) {
+      if (rows[i][1] === edisiId) {
+        return {
+          rowIndex: i + 2,
+          konfigurasi: rowToKonfigurasi(rows[i]),
+        };
+      }
+    }
+    return null;
+  } catch (err) {
+    console.error('[konfigurasi-repo.findKonfigurasiRecord] failed:', err);
+    return null;
+  }
+}
+
+export async function updateKonfigurasiAt(
+  rowIndex: number,
+  k: Konfigurasi
+): Promise<void> {
+  await sheetsService.updateRow(
+    QURBAN_SHEETS.KONFIGURASI_EDISI,
+    rowIndex,
+    konfigurasiToRow(k)
+  );
 }

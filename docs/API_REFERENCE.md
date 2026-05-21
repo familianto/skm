@@ -1468,6 +1468,117 @@ Transisi `AKTIF → SELESAI`. Pre-flight F02 hanya memeriksa state. Bukan
 
 ---
 
+## Qurban Konfigurasi Endpoints (Sprint F02 — Milestone C)
+
+Konfigurasi adalah **satu baris per edisi** (1:1 dengan `qurban_edisi`)
+yang menyimpan parameter operasional: BOP per hewan, target distribusi,
+payment suffix, flag notifikasi WhatsApp.
+
+`edisi_id` SELALU dikirim eksplisit sebagai query param — endpoint ini
+tidak meresolusi edisi via cookie/AKTIF default.
+
+| # | Method | Path | Peran |
+|---|---|---|---|
+| K1 | GET | `/api/qurban/konfigurasi?edisi_id=EDS-...` | semua peran terautentikasi |
+| K2 | PUT | `/api/qurban/konfigurasi?edisi_id=EDS-...` | SUPER_ADMIN, ADMIN_QURBAN |
+
+PENDAFTARAN/DISTRIBUSI hanya boleh K1 untuk edisi `AKTIF`; edisi non-AKTIF
+→ `403 FORBIDDEN_EDISI`.
+
+### K1 — `GET /api/qurban/konfigurasi?edisi_id=EDS-...`
+
+**Response 200 (konfigurasi ada):**
+```json
+{
+  "ok": true,
+  "data": {
+    "id": "KFG-20270101-0001",
+    "edisi_id": "EDS-20270101-0001",
+    "bop_per_ekor_sapi": 300000,
+    "bop_per_ekor_kambing": 100000,
+    "target_bungkus_total": 500,
+    "berat_target_per_bungkus": 500,
+    "tanggal_distribusi_mulai": "2027-04-20",
+    "tanggal_distribusi_selesai": "2027-04-22",
+    "payment_suffix": 3,
+    "wa_send_on_pendaftaran": true,
+    "wa_send_on_pembayaran_confirmed": true,
+    "notes": "",
+    "created_at": "2027-01-01T03:00:00.000Z",
+    "updated_at": "2027-01-01T03:00:00.000Z",
+    "created_by": "ANG-..."
+  }
+}
+```
+
+**Response 200 (belum diisi):** `{ "ok": true, "data": null }` — UI render
+form dengan nilai default.
+
+**Errors:** `400 VALIDATION_REQUIRED` (`edisi_id` kosong); `404 NOT_FOUND`
+(edisi tidak ada); `403 FORBIDDEN_EDISI` (PD/DS pada non-AKTIF).
+
+### K2 — `PUT /api/qurban/konfigurasi?edisi_id=EDS-...`
+
+Upsert (single row per edisi):
+- row ada → **UPDATE** baris yang sama, `updated_at` di-refresh.
+- row belum ada → **INSERT** baru dengan `id = KFG-YYYYMMDD-NNNN`,
+  `created_at`, `created_by` di-set. HTTP 201.
+
+**Body (semua optional):**
+```json
+{
+  "bop_per_ekor_sapi": 300000,
+  "bop_per_ekor_kambing": 100000,
+  "target_bungkus_total": 500,
+  "berat_target_per_bungkus": 500,
+  "tanggal_distribusi_mulai": "2027-04-20",
+  "tanggal_distribusi_selesai": "2027-04-22",
+  "payment_suffix": 3,
+  "wa_send_on_pendaftaran": true,
+  "wa_send_on_pembayaran_confirmed": true,
+  "notes": "..."
+}
+```
+
+**Validasi:**
+- Numeric fields (`bop_per_ekor_sapi`, `bop_per_ekor_kambing`,
+  `target_bungkus_total`, `berat_target_per_bungkus`): integer ≥ 0.
+- `payment_suffix`: integer 0–9.
+- `tanggal_distribusi_mulai` ≤ `tanggal_distribusi_selesai` (cross-field;
+  dicek pada hasil merge sehingga patch yang hanya mengubah salah satu
+  ujung range tetap tervalidasi).
+- `notes`: maksimum 500 karakter.
+
+**Defaults pada INSERT pertama** (saat field di-omit):
+- `payment_suffix = 3`
+- `wa_send_on_pendaftaran = true`
+- `wa_send_on_pembayaran_confirmed = true`
+
+**Lock per status edisi:**
+- `SELESAI` → `422 BUSINESS_EDISI_LOCKED`.
+- `DRAFT` / `AKTIF` → diizinkan.
+
+Validasi pelanggaran → `422 VALIDATION_FAILED` dengan `details.field`.
+
+### Error Codes (Konfigurasi)
+
+| Code | HTTP | Kapan |
+|---|---|---|
+| `VALIDATION_REQUIRED` | 400 | `edisi_id` kosong. |
+| `VALIDATION_FAILED` | 422 | Body validation gagal (mis. range, order). |
+| `FORBIDDEN_EDISI` | 403 | K1 — PD/DS pada konfigurasi edisi non-AKTIF. |
+| `NOT_FOUND` | 404 | `edisi_id` tidak ditemukan di `qurban_edisi`. |
+| `BUSINESS_EDISI_LOCKED` | 422 | K2 — edisi SELESAI. |
+
+### Audit Events (Konfigurasi)
+
+| `event_type` | Aksi | Sumber |
+|---|---|---|
+| `konfigurasi.created` | `CREATE` | K2 INSERT (pertama kali). |
+| `konfigurasi.updated` | `UPDATE` | K2 UPDATE (revisi). |
+
+---
+
 ## Qurban Public Endpoints
 
 ### `GET /api/publik/qurban`

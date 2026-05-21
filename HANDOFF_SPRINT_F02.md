@@ -1,8 +1,8 @@
 # HANDOFF Sprint F02 — Qurban Edisi Management
 
 **Branch:** `claude/qurban-edisi-setup-XghmL` (PR #83)
-**Status:** Milestone A ✅ done. Milestone B ✅ done — awaiting preview verification.
-**Spec source:** session prompts `Sprint F02 · Milestone A` and `Sprint F02 · Milestone B`.
+**Status:** Milestones A, B ✅ done. Milestone C ✅ done — awaiting preview verification.
+**Spec source:** session prompts `Sprint F02 · Milestone A/B/C`.
 
 ---
 
@@ -19,8 +19,8 @@ peserta, hewan, pembayaran, and distribusi state. Edisi is request state
 | ID | Title | Status | Commit |
 |---|---|---|---|
 | A  | Infrastructure (libs + middleware activation + skeleton dashboard) | ✅ done | `310dd0e` |
-| B  | Edisi CRUD endpoints (E1–E6) + edisi UI + sidebar | ✅ done | _this commit_ |
-| C  | Konfigurasi edisi (K1–K2) + tab Konfigurasi UI | ⏳ pending | — |
+| B  | Edisi CRUD endpoints (E1–E6) + edisi UI + sidebar | ✅ done | `7e951ec` |
+| C  | Konfigurasi edisi (K1–K2) + tab Konfigurasi UI | ✅ done | _this commit_ |
 | D  | Panitia management (P1–P3) + tab Panitia UI | ⏳ pending | — |
 | E  | Acceptance tests + handoff polish | ⏳ pending | — |
 
@@ -356,6 +356,123 @@ Manual checks for Milestone B (from the prompt §8):
 
 Acceptance test script and end-to-end create→konfigurasi→panitia→activate
 flow live in Milestone E once C and D ship.
+
+---
+
+## Milestone C — What Shipped
+
+K1/K2 konfigurasi endpoints + the Konfigurasi tab (previously a placeholder)
+inside the edisi detail page.
+
+### New endpoint — `/api/qurban/konfigurasi`
+
+Single route file with both methods, since K1 and K2 share the
+`edisi_id` query-param contract and there is only one konfigurasi row per
+edisi.
+
+| # | Method | Path | Notes |
+|---|---|---|---|
+| K1 | GET | `?edisi_id=EDS-...` | All authenticated roles. Returns row or `null`. PD/DS on non-AKTIF → `403 FORBIDDEN_EDISI`. |
+| K2 | PUT | `?edisi_id=EDS-...` | SA/AQ only. Upsert: existing row → UPDATE; missing → INSERT new `KFG-…`. Edisi `SELESAI` → `422 BUSINESS_EDISI_LOCKED`. |
+
+Why `edisi_id` is an explicit query param (not cookie/AKTIF default):
+Milestone C ships before any edisi is `AKTIF`, so AKTIF resolution would
+fail. The Konfigurasi tab always knows the edisi it's editing (from the
+detail page URL `[id]`) and passes it through. Cookie/AKTIF default
+behavior would only be useful from a standalone `/qurban/konfigurasi`
+page, which is intentionally out of scope.
+
+**Validation (K2):**
+- Numeric fields integer ≥ 0; `payment_suffix` integer 0–9.
+- `tanggal_distribusi_mulai ≤ tanggal_distribusi_selesai` (cross-field;
+  re-checked on the merged row so patch updates to one end of the range
+  still validate).
+- `notes` capped at 500 chars.
+
+**Defaults on first INSERT** (when fields omitted):
+- `payment_suffix = 3`
+- `wa_send_on_pendaftaran = true`
+- `wa_send_on_pembayaran_confirmed = true`
+
+**Audit events:** `konfigurasi.created` (INSERT) and `konfigurasi.updated`
+(UPDATE, with before/after diff that lists only the changed fields).
+Idempotent PUTs (no field changed) skip both the sheet write and the audit
+entry.
+
+### New repo helpers (extends Milestone B file)
+
+`src/lib/qurban/konfigurasi-repo.ts` now exports:
+- `findKonfigurasiRecord(edisiId)` — returns `{ rowIndex, konfigurasi }`
+  for upsert locality.
+- `updateKonfigurasiAt(rowIndex, k)` — in-place row update.
+
+Existing helpers (`findKonfigurasiByEdisiId`, `hasKonfigurasi`,
+`createKonfigurasi`, `konfigurasiToRow`) keep their Milestone B
+signatures — no breaking change.
+
+### Konfigurasi tab UI
+
+`src/components/qurban/KonfigurasiTab.tsx` — client component mounted from
+the edisi detail page when `?tab=konfigurasi` is active.
+
+Sections (matches §4 of the milestone prompt):
+1. **Biaya Operasional Per Hewan** — `CurrencyInput` for sapi + kambing
+   (reuses the existing Rupiah input with id-ID thousand separators).
+2. **Target Distribusi** — bungkus total + berat target + mulai/selesai dates.
+3. **Pembayaran** — `payment_suffix` numeric (0–9) with the helper text
+   verbatim from the prompt.
+4. **Notifikasi WhatsApp** — two checkboxes, both default ON.
+5. **Catatan** — optional textarea (500-char cap).
+
+UX details:
+- On mount, fetches K1 with the edisi id from the parent page; renders
+  defaults when `data: null`.
+- Server response after save (PUT K2) is fed back into the form so the
+  user sees the persisted values immediately without a separate refetch.
+- Save button hidden entirely when `canEdit` is false; whole form goes
+  read-only via disabled inputs plus an amber lock-hint banner.
+- Local validation mirrors server rules so the user gets immediate
+  feedback for obviously invalid inputs (negative numbers,
+  `payment_suffix` out of 0–9, distribusi date order). Server still
+  re-validates as the source of truth.
+
+### Files added / modified
+
+**New:**
+- `src/app/api/qurban/konfigurasi/route.ts` — K1 + K2
+- `src/components/qurban/KonfigurasiTab.tsx`
+
+**Modified:**
+- `src/lib/qurban/konfigurasi-repo.ts` — added record finder + updater
+- `src/app/(dashboard)/qurban/edisi/[id]/page.tsx` — replaced placeholder
+  with `<KonfigurasiTab />`
+- `docs/API_REFERENCE.md` — added "Qurban Konfigurasi Endpoints" section
+- `HANDOFF_SPRINT_F02.md` — this section
+
+### Verification (build / CI)
+
+After `npm ci`:
+- `npm run type-check` → ✅ clean
+- `npm run lint` → ✅ clean
+- `npm run build` → ✅ `Compiled successfully in 26.6s`. Route
+  `/api/qurban/konfigurasi` listed as `ƒ` (dynamic).
+
+### Verification (Hopy, preview deploy)
+
+Manual checks for Milestone C (from prompt §5):
+- [ ] Edisi `1448H` detail → tab Konfigurasi shows the form (not placeholder).
+- [ ] Fill BOP Sapi 300000, Kambing 100000, target bungkus 500, berat 500,
+      distribusi 2027-04-20 → 2027-04-22, payment_suffix 3, both WA flags
+      checked → Simpan → toast success.
+- [ ] Reload tab → values persist.
+- [ ] Staging `qurban_konfigurasi_edisi` sheet: one row with the matching
+      `edisi_id` and a `KFG-…` id.
+- [ ] Change a value → Simpan again → still one row in the sheet (UPDATE).
+- [ ] Detail tab → `Aktifkan` → preflight message now flips from
+      "Konfigurasi belum diisi" to "Belum ada panitia aktif" (proves the
+      konfigurasi check is satisfied). Full activation lands in Milestone D.
+- [ ] `tanggal_distribusi_mulai > selesai` → blocked with a clear message
+      (client check, plus server returns `422 VALIDATION_FAILED`).
 
 ---
 

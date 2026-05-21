@@ -13,6 +13,7 @@ import { Loading } from '@/components/ui/loading';
 import { useToast } from '@/components/ui/toast';
 import { useMe } from '@/hooks/use-me';
 import { cn } from '@/lib/utils';
+import { KonfigurasiTab } from '@/components/qurban/KonfigurasiTab';
 
 type EdisiStatus = 'DRAFT' | 'AKTIF' | 'SELESAI';
 
@@ -281,11 +282,11 @@ function EdisiDetailInner() {
       )}
 
       {activeTab === 'konfigurasi' && (
-        <Card>
-          <p className="text-sm text-gray-600">
-            Konfigurasi edisi — tersedia di langkah berikutnya.
-          </p>
-        </Card>
+        <KonfigurasiTab
+          edisiId={edisi.id}
+          edisiStatus={edisi.status}
+          canEdit={writeAllowed && edisi.status !== 'SELESAI'}
+        />
       )}
 
       {activeTab === 'panitia' && (
