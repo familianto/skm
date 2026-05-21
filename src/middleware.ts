@@ -183,8 +183,35 @@ export async function middleware(request: NextRequest) {
   const response = NextResponse.next();
   response.headers.set('x-user-id', session.user_id);
   response.headers.set('x-user-peran', session.peran);
+
+  // 7. Sticky `qurban_edisi` cookie. When a user picks an edisi via the
+  //    EditionSwitcher dropdown, the client pushes `?edisi=EDS-…` to the
+  //    URL. We persist that choice as a cookie here so subsequent
+  //    navigations (without the query param) keep the same edisi context.
+  //    Regex-only validation — no Sheet I/O — keeps this edge-safe. The
+  //    Server-Component resolver re-validates the cookie's edisi against
+  //    the role+status rules on every render.
+  if (pathname.startsWith('/qurban') && !pathname.startsWith('/api/')) {
+    const queryEdisi = request.nextUrl.searchParams.get('edisi');
+    if (queryEdisi && EDISI_ID_RE.test(queryEdisi)) {
+      const current = request.cookies.get(QURBAN_EDISI_COOKIE)?.value;
+      if (current !== queryEdisi) {
+        response.cookies.set(QURBAN_EDISI_COOKIE, queryEdisi, {
+          httpOnly: true,
+          secure: process.env.NODE_ENV === 'production',
+          sameSite: 'lax',
+          path: '/',
+        });
+      }
+    }
+  }
+
   return response;
 }
+
+const QURBAN_EDISI_COOKIE = 'qurban_edisi';
+/** Regex match only — Server Component resolver re-validates the edisi exists. */
+const EDISI_ID_RE = /^EDS-\d{8}-\d{4}$/;
 
 export const config = {
   matcher: ['/((?!_next/static|_next/image|favicon.ico).*)'],

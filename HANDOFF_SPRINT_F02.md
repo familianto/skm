@@ -633,6 +633,40 @@ Manual checks for Milestone D (from prompt §6):
 - [ ] Audit log entries present: `panitia.assigned`, `panitia.removed`,
       `edisi.activated`.
 
+### Post-deploy hotfix — `/qurban` dashboard 500 + stuck EditionSwitcher
+
+Capstone activation exposed a Next 16 constraint that had been dormant
+since Milestone A. `getEdisiContext` was calling `cookies().set()` from
+a Server Component (the `/qurban` layout + page), which Next 16 forbids
+("Cookies can only be modified in a Server Action or Route Handler").
+
+Before the capstone, the resolver always returned `cookieAction: null`
+(no edisi to default to, no cookie to clear) so the write block never
+fired. Once `1448H` became AKTIF, the resolver started returning
+`cookieAction: { type: 'set', value: '<aktif-id>' }`, and every
+`/qurban*` Server Component render started throwing. The dashboard page
+crashed with HTTP 500; on adjacent routes the exception surfaced as
+`ctx.edisi === null`, so the EditionSwitcher fell back to the "Edisi
+tidak tersedia" empty-state copy.
+
+**Fix:**
+- `src/lib/qurban/edisi-context.ts` — `getEdisiContext` is now strictly
+  read-only. The pure resolver still computes a `cookieAction` field on
+  its return value, but the Server Component caller no longer acts on
+  it. Comment in the file explains the Next 16 constraint.
+- `src/middleware.ts` — sticky-cookie behavior moved to the Edge
+  middleware. When a `/qurban*` page request carries `?edisi=EDS-…`
+  (regex-validated), the middleware writes `Set-Cookie:
+  qurban_edisi=…` on the outbound response. No Sheet I/O, no role
+  validation here — the Server Component resolver still re-validates the
+  cookie against role + status rules on every render. This preserves
+  the original Milestone A intent ("EditionSwitcher click → URL push →
+  cookie persists") without violating the Server Component contract.
+
+Other `/qurban*` Server Components scanned for similar latent
+`cookies().set()` calls — none found. The only call site was the one
+fixed.
+
 ### Open items for Milestone E
 
 - Acceptance test script for the end-to-end F02 flow.

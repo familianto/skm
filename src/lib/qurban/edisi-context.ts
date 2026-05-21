@@ -160,15 +160,24 @@ export async function resolveEdisiContext(
 }
 
 /**
- * Server Component / route handler convenience wrapper.
+ * Server Component convenience wrapper.
  *
- * Reads cookie + (optional) query param from the request scope, runs the
- * resolver, then applies the cookieAction directly to the cookie store.
- * Returns the resolved context.
+ * Reads cookie + (optional) query param from the request scope and runs the
+ * pure resolver. Returns the resolved context.
  *
- * For Server Components, pass the URL search params via `queryEdisiId`. For
- * route handlers, prefer `resolveEdisiContextFromRequest(req)` which handles
- * NextRequest directly.
+ * IMPORTANT — read-only: this function intentionally does NOT write the
+ * `qurban_edisi` cookie, because Next 15/16 forbids cookie mutations from
+ * Server Components (`Error: Cookies can only be modified in a Server
+ * Action or Route Handler`). The original Milestone A version did write,
+ * which stayed dormant until Milestone D's capstone activated the first
+ * edisi — at that point the resolver started returning
+ * `cookieAction: { type: 'set' }` and every `/qurban*` Server Component
+ * render started throwing.
+ *
+ * Sticky-cookie behavior (Milestone A spec §A.1) is now handled by the
+ * Edge middleware: when a `/qurban*` request carries a valid `?edisi=EDS-…`
+ * query param, the middleware sets the cookie on the response so the
+ * choice persists across subsequent navigations without query.
  */
 export async function getEdisiContext(opts: {
   peran: string;
@@ -177,24 +186,11 @@ export async function getEdisiContext(opts: {
   const cookieStore = await cookies();
   const cookieEdisiId = cookieStore.get(COOKIE_NAME)?.value ?? null;
 
-  const result = await resolveEdisiContext({
+  return resolveEdisiContext({
     peran: opts.peran,
     queryEdisiId: opts.queryEdisiId ?? null,
     cookieEdisiId,
   });
-
-  if (result.cookieAction?.type === 'set') {
-    cookieStore.set(COOKIE_NAME, result.cookieAction.value, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      path: '/',
-    });
-  } else if (result.cookieAction?.type === 'clear') {
-    cookieStore.delete(COOKIE_NAME);
-  }
-
-  return result;
 }
 
 export async function resolveEdisiContextFromRequest(
