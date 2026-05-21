@@ -14,6 +14,7 @@ import { useToast } from '@/components/ui/toast';
 import { useMe } from '@/hooks/use-me';
 import { cn } from '@/lib/utils';
 import { KonfigurasiTab } from '@/components/qurban/KonfigurasiTab';
+import { PanitiaTab } from '@/components/qurban/PanitiaTab';
 
 type EdisiStatus = 'DRAFT' | 'AKTIF' | 'SELESAI';
 
@@ -290,11 +291,11 @@ function EdisiDetailInner() {
       )}
 
       {activeTab === 'panitia' && (
-        <Card>
-          <p className="text-sm text-gray-600">
-            Panitia edisi — tersedia di langkah berikutnya.
-          </p>
-        </Card>
+        <PanitiaTab
+          edisiId={edisi.id}
+          edisiStatus={edisi.status}
+          canEdit={writeAllowed && edisi.status !== 'SELESAI'}
+        />
       )}
 
       <ConfirmDialog

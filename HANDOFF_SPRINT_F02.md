@@ -1,8 +1,8 @@
 # HANDOFF Sprint F02 — Qurban Edisi Management
 
 **Branch:** `claude/qurban-edisi-setup-XghmL` (PR #83)
-**Status:** Milestones A, B ✅ done. Milestone C ✅ done — awaiting preview verification.
-**Spec source:** session prompts `Sprint F02 · Milestone A/B/C`.
+**Status:** Milestones A, B, C ✅ done. Milestone D ✅ done — awaiting preview verification (includes the capstone activation check).
+**Spec source:** session prompts `Sprint F02 · Milestone A/B/C/D`.
 
 ---
 
@@ -20,8 +20,8 @@ peserta, hewan, pembayaran, and distribusi state. Edisi is request state
 |---|---|---|---|
 | A  | Infrastructure (libs + middleware activation + skeleton dashboard) | ✅ done | `310dd0e` |
 | B  | Edisi CRUD endpoints (E1–E6) + edisi UI + sidebar | ✅ done | `7e951ec` |
-| C  | Konfigurasi edisi (K1–K2) + tab Konfigurasi UI | ✅ done | `c429bd4` + hotfix |
-| D  | Panitia management (P1–P3) + tab Panitia UI | ⏳ pending | — |
+| C  | Konfigurasi edisi (K1–K2) + tab Konfigurasi UI | ✅ done | `c429bd4` + hotfix `1bb2f11` |
+| D  | Panitia management (P1–P3) + tab Panitia UI | ✅ done | _this commit_ |
 | E  | Acceptance tests + handoff polish | ⏳ pending | — |
 
 ---
@@ -512,6 +512,132 @@ Manual checks for Milestone C (from prompt §5):
       konfigurasi check is satisfied). Full activation lands in Milestone D.
 - [ ] `tanggal_distribusi_mulai > selesai` → blocked with a clear message
       (client check, plus server returns `422 VALIDATION_FAILED`).
+
+---
+
+## Milestone D — What Shipped
+
+P1/P2/P3 panitia endpoints + a candidates helper + the Panitia tab
+(previously a placeholder) inside the edisi detail page. Completes the
+F02 capstone chain: edisi → konfigurasi → panitia → activation.
+
+### New endpoints
+
+| # | Method | Path | Notes |
+|---|---|---|---|
+| P1 | GET | `/api/qurban/panitia?edisi_id=...&include_inactive=false` | All authenticated roles. Active-only by default. Rows enriched with `anggota_nama`, `anggota_peran`, `assigned_by_nama`. PD/DS on non-AKTIF → `403 FORBIDDEN_EDISI`. |
+| P2 | POST | `/api/qurban/panitia?edisi_id=...` | SA/AQ only. Validates anggota existence + active + allowed `peran`; dedupes against existing active (edisi, anggota). |
+| P3 | DELETE | `/api/qurban/panitia/[id]` | SA/AQ only. Soft-remove (`is_active=false`); idempotent no-op when already inactive. |
+| —  | GET | `/api/qurban/panitia/candidates?edisi_id=...` | SA/AQ helper for the dropdown — anggota active + peran allowed + not already on the edisi. |
+
+The candidates endpoint is a small scoped helper, not part of the P1–P3
+contract. It exists because `/api/pengaturan/anggota` is SA-only via
+`STRICT_PATH_RULES` (F01 design), so ADMIN_QURBAN cannot use it to
+populate the panitia dropdown. The helper returns only the three fields
+the dropdown actually renders.
+
+### Validation rules (P2)
+
+- Edisi must exist; `SELESAI` → `422 BUSINESS_EDISI_LOCKED`.
+- Anggota must exist AND be `is_active=true` → otherwise `422
+  VALIDATION_FAILED`.
+- `anggota.peran` whitelist: `SUPER_ADMIN`, `ADMIN_QURBAN`, `PENDAFTARAN`,
+  `DISTRIBUSI`. `BENDAHARA` is rejected with the new
+  `BUSINESS_INVALID_PERAN_FOR_PANITIA` error code (422). Rationale: SKM
+  treasury role doesn't operate Qurban; it can still read the module via
+  the navigation eye icon but should not appear in panitia composition.
+- Dedupe via `findActivePanitiaByEdisiAndAnggota`: existing active row →
+  `409 DUPLICATE_PANITIA` (`details.existing_panitia_id`). Inactive rows
+  do NOT block — re-assigning a previously removed anggota creates a new
+  `PNT-…` row with `is_active=true`, leaving the old removed row intact
+  (audit trail preserved).
+
+### Soft-remove flow (P3)
+
+Confirmed to follow the same `sheetsService.updateRow` pattern as
+`updateKonfigurasiAt` / `updateEdisiAt` (the path fixed in the
+post-Milestone-C hotfix). `findPanitiaRecordById` returns
+`{ rowIndex: i + 2, panitia }`; `updatePanitiaAt(rowIndex, { ...,
+is_active: false })` writes the full 7-cell row back to the same sheet
+range. Idempotent no-op skips both the sheet write and the audit log.
+
+### New repo helpers (extends Milestone B file)
+
+`src/lib/qurban/panitia-repo.ts` now exports:
+- `findPanitiaRecordById(id)` — single-row lookup with sheet rowIndex.
+- `findActivePanitiaByEdisiAndAnggota(edisiId, anggotaId)` — dedupe.
+- `updatePanitiaAt(rowIndex, p)` — in-place row update (for soft-remove).
+
+Existing Milestone B helpers (`listPanitia*By*`, `countActive…`,
+`createPanitia`, `panitiaToRow`) are unchanged.
+
+### Panitia tab UI
+
+`src/components/qurban/PanitiaTab.tsx`:
+- Loads `/api/qurban/panitia?edisi_id=...` (active panitia) + (when
+  `canEdit`) `/api/qurban/panitia/candidates?edisi_id=...` in parallel.
+- Table columns: Nama · Peran (badge via `peranBadgeClass`/`peranLabel`) ·
+  Ditugaskan (locale date) · Oleh (assigned_by nama) · Aksi (Hapus).
+- "Tambah Panitia" section: dropdown (filtered candidates) + textarea
+  notes + Assign button. Hidden entirely when `canEdit=false`.
+- Hapus uses the existing `ConfirmDialog` (danger variant) with copy that
+  reminds the user the row is soft-removed (not deleted).
+- Empty state: "Belum ada panitia. Tambahkan minimal 1 untuk bisa
+  Aktifkan edisi." — calls out the link to the activation pre-flight.
+- Per-role lock: BD/PD/DS never see Hapus/Add controls; the table still
+  renders. SELESAI status shows an amber lock banner.
+
+### Files added / modified
+
+**New:**
+- `src/app/api/qurban/panitia/route.ts` — P1 + P2
+- `src/app/api/qurban/panitia/[id]/route.ts` — P3
+- `src/app/api/qurban/panitia/candidates/route.ts` — dropdown helper
+- `src/components/qurban/PanitiaTab.tsx`
+
+**Modified:**
+- `src/lib/qurban/panitia-repo.ts` — added record finder, dedup helper,
+  in-place updater
+- `src/lib/api/errors.ts` — `+BUSINESS_INVALID_PERAN_FOR_PANITIA`,
+  `+DUPLICATE_PANITIA`
+- `src/app/(dashboard)/qurban/edisi/[id]/page.tsx` — replaced placeholder
+  with `<PanitiaTab />`
+- `docs/API_REFERENCE.md` — added "Qurban Panitia Endpoints" section
+- `HANDOFF_SPRINT_F02.md` — this section
+
+### Verification (build / CI)
+
+After `npm ci`:
+- `npm run type-check` → ✅ clean
+- `npm run lint` → ✅ clean
+- `npm run build` → ✅ `Compiled successfully in 39.7s`. New routes:
+  `/api/qurban/panitia`, `/api/qurban/panitia/[id]`,
+  `/api/qurban/panitia/candidates`.
+
+### Verification (Hopy, preview deploy)
+
+Manual checks for Milestone D (from prompt §6):
+- [ ] Edisi `1448H` detail → tab Panitia shows table + add section (not placeholder); empty state visible.
+- [ ] Dropdown excludes BENDAHARA (Rivendra); only SA/AQ/PD/DS visible.
+- [ ] Assign Ketua DKM (ADMIN_QURBAN) → row appears with nama/peran/tanggal/oleh.
+- [ ] Sheet `qurban_panitia`: one `PNT-…` row, `is_active=TRUE`, `assigned_by` = Hopy's id.
+- [ ] Hapus → table empties; sheet row remains with `is_active=FALSE`.
+- [ ] Re-assign Ketua DKM → new `PNT-…` row; old row still `is_active=FALSE`.
+- [ ] **Capstone — activate edisi:** with ≥1 active panitia + konfigurasi
+      present + no other AKTIF edisi → Detail tab → Aktifkan → confirm
+      → preflight **passes**; status flips `DRAFT → AKTIF`. Verify:
+      badge becomes AKTIF, `qurban_edisi.status` = AKTIF, `audit_log`
+      has `edisi.activated`.
+- [ ] EditionSwitcher strip now shows `1448H` + AKTIF (no longer "Edisi
+      tidak tersedia").
+- [ ] Audit log entries present: `panitia.assigned`, `panitia.removed`,
+      `edisi.activated`.
+
+### Open items for Milestone E
+
+- Acceptance test script for the end-to-end F02 flow.
+- Polish across the module surfaces.
+- Final docs sweep (`PROJECT_BRIEF.md`, `DATABASE_SCHEMA.md`).
 
 ---
 

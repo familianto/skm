@@ -1579,6 +1579,133 @@ Validasi pelanggaran → `422 VALIDATION_FAILED` dengan `details.field`.
 
 ---
 
+## Qurban Panitia Endpoints (Sprint F02 — Milestone D)
+
+Panitia adalah daftar anggota yang ditugaskan di sebuah edisi — **catatan
+penugasan, bukan permission gate**. Akses ditentukan oleh `anggota.peran`;
+panitia hanya mencatat siapa kerja di edisi mana. Pre-flight aktivasi
+edisi (E5) mensyaratkan ≥1 panitia aktif.
+
+`edisi_id` SELALU dikirim eksplisit sebagai query param (sama seperti K1/K2).
+
+| # | Method | Path | Peran |
+|---|---|---|---|
+| P1 | GET | `/api/qurban/panitia?edisi_id=EDS-...` | semua peran terautentikasi |
+| P2 | POST | `/api/qurban/panitia?edisi_id=EDS-...` | SUPER_ADMIN, ADMIN_QURBAN |
+| P3 | DELETE | `/api/qurban/panitia/[id]` | SUPER_ADMIN, ADMIN_QURBAN |
+| — | GET | `/api/qurban/panitia/candidates?edisi_id=EDS-...` | SUPER_ADMIN, ADMIN_QURBAN (helper untuk dropdown UI) |
+
+PENDAFTARAN/DISTRIBUSI hanya boleh P1 untuk edisi `AKTIF`; non-AKTIF →
+`403 FORBIDDEN_EDISI`.
+
+### P1 — `GET /api/qurban/panitia?edisi_id=EDS-...`
+
+Default mengembalikan hanya panitia `is_active=true`. Tambahkan
+`&include_inactive=true` untuk menampilkan baris yang sudah di-soft-remove
+(jejak audit).
+
+Setiap baris di-enrich dengan field tampilan dari sheet `anggota`:
+`anggota_nama`, `anggota_peran`, `assigned_by_nama`. Diurutkan
+`assigned_at` desc.
+
+**Response 200:**
+```json
+{
+  "ok": true,
+  "data": [
+    {
+      "id": "PNT-20270101-0001",
+      "edisi_id": "EDS-20270101-0001",
+      "anggota_id": "ANG-20260101-0002",
+      "is_active": true,
+      "assigned_at": "2027-01-01T03:00:00.000Z",
+      "assigned_by": "ANG-20260515-0003",
+      "notes": "",
+      "anggota_nama": "Ketua DKM",
+      "anggota_peran": "ADMIN_QURBAN",
+      "assigned_by_nama": "Hopy Familianto"
+    }
+  ],
+  "meta": {
+    "total": 1,
+    "page": 1,
+    "page_size": 1,
+    "has_more": false,
+    "filters_applied": { "edisi_id": "EDS-...", "include_inactive": false }
+  }
+}
+```
+
+### P2 — `POST /api/qurban/panitia?edisi_id=EDS-...`
+
+**Body:**
+```json
+{ "anggota_id": "ANG-...", "notes": "..." }
+```
+
+`notes` opsional (maks 500 char).
+
+**Validasi:**
+- Edisi harus ada; `SELESAI` → `422 BUSINESS_EDISI_LOCKED`.
+- Anggota harus ada dan `is_active=true` → `422 VALIDATION_FAILED`.
+- `anggota.peran` ∈ `{SUPER_ADMIN, ADMIN_QURBAN, PENDAFTARAN, DISTRIBUSI}`.
+  `BENDAHARA` → `422 BUSINESS_INVALID_PERAN_FOR_PANITIA`.
+- Tidak ada panitia aktif lain dengan `(edisi_id, anggota_id)` sama →
+  `409 DUPLICATE_PANITIA` (`details.existing_panitia_id`).
+
+**Response 201:** baris panitia baru (`PNT-…`).
+
+### P3 — `DELETE /api/qurban/panitia/[id]`
+
+**Soft-remove**: baris tetap di sheet, hanya `is_active` di-flip ke
+`FALSE`. Tetap meninggalkan jejak audit.
+
+- Edisi `SELESAI` → `422 BUSINESS_EDISI_LOCKED`.
+- Baris sudah `is_active=false` → **`200` no-op idempotent** (tidak error,
+  tidak nulis ulang ke sheet, tidak audit).
+- Baris tidak ditemukan → `404 NOT_FOUND`.
+
+**Response 200:** baris panitia (dengan `is_active=false`).
+
+### Helper — `GET /api/qurban/panitia/candidates?edisi_id=EDS-...`
+
+Daftar minimal anggota yang berhak ditugaskan untuk edisi tsb. Filter:
+`is_active=true`, `peran` ∈ allowed (`BENDAHARA` dikecualikan), dan
+belum jadi panitia aktif di edisi tsb. Tujuan: men-feed dropdown UI tanpa
+membuka endpoint `/api/pengaturan/anggota` (SA-only) ke ADMIN_QURBAN.
+
+**Response 200:**
+```json
+{
+  "ok": true,
+  "data": [
+    { "id": "ANG-20260101-0002", "nama": "Ketua DKM", "peran": "ADMIN_QURBAN" }
+  ],
+  "meta": { "total": 1, ... }
+}
+```
+
+### Error Codes (Panitia)
+
+| Code | HTTP | Kapan |
+|---|---|---|
+| `VALIDATION_REQUIRED` | 400 | `edisi_id` query kosong. |
+| `VALIDATION_FAILED` | 422 | `anggota_id` invalid / anggota non-aktif / notes terlalu panjang. |
+| `BUSINESS_INVALID_PERAN_FOR_PANITIA` | 422 | Anggota ber-peran `BENDAHARA`. |
+| `BUSINESS_EDISI_LOCKED` | 422 | Edisi `SELESAI`. |
+| `FORBIDDEN_EDISI` | 403 | P1 — PD/DS pada edisi non-AKTIF. |
+| `NOT_FOUND` | 404 | Edisi / panitia tidak ditemukan. |
+| `DUPLICATE_PANITIA` | 409 | Sudah ada panitia aktif dengan kombinasi (edisi, anggota) yang sama. |
+
+### Audit Events (Panitia)
+
+| `event_type` | Aksi | Sumber |
+|---|---|---|
+| `panitia.assigned` | `CREATE` | P2 |
+| `panitia.removed` | `UPDATE` | P3 (soft-remove). Skip audit kalau idempotent no-op. |
+
+---
+
 ## Qurban Public Endpoints
 
 ### `GET /api/publik/qurban`

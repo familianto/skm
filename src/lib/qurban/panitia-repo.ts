@@ -2,12 +2,11 @@ import { sheetsService } from '@/lib/google-sheets';
 import { QURBAN_SHEETS } from './sheets';
 
 /**
- * Minimal repository for `qurban_panitia`. Milestone B needs only:
- *   - E5 activate pre-flight: "does this edisi have ≥1 active panitia?"
- *   - E2 create-with-clone: read source panitia (active only), write copies
- *     for the new edisi (ID/edisi_id/assigned_* regenerated).
+ * Repository for `qurban_panitia`.
  *
- * Full P1–P3 endpoints (assign / list / deactivate) ship with Milestone D.
+ * Milestone B introduced minimal read + create helpers (preflight E5 + clone
+ * E2). Milestone D extends with single-row lookup and in-place update so P3
+ * can soft-remove (`is_active=FALSE`) without deleting the row.
  *
  * Column order MUST mirror migrate_F02's qurban_panitia sheet (7 cols):
  *   0:id  1:edisi_id  2:anggota_id  3:is_active  4:assigned_at
@@ -75,4 +74,40 @@ export async function countActivePanitiaByEdisi(edisiId: string): Promise<number
 
 export async function createPanitia(p: Panitia): Promise<void> {
   await sheetsService.appendRow(QURBAN_SHEETS.PANITIA, panitiaToRow(p));
+}
+
+export interface PanitiaRecord {
+  rowIndex: number;
+  panitia: Panitia;
+}
+
+/** Locate panitia row by id, returning sheet rowIndex (1-based) for update. */
+export async function findPanitiaRecordById(id: string): Promise<PanitiaRecord | null> {
+  if (!id) return null;
+  try {
+    const rows = await sheetsService.getRows(QURBAN_SHEETS.PANITIA);
+    for (let i = 0; i < rows.length; i++) {
+      if (rows[i][0] === id) {
+        return { rowIndex: i + 2, panitia: rowToPanitia(rows[i]) };
+      }
+    }
+    return null;
+  } catch (err) {
+    console.error('[panitia-repo.findPanitiaRecordById] failed:', err);
+    return null;
+  }
+}
+
+/** Dedup check: is this anggota already an ACTIVE panitia for this edisi? */
+export async function findActivePanitiaByEdisiAndAnggota(
+  edisiId: string,
+  anggotaId: string
+): Promise<Panitia | null> {
+  if (!edisiId || !anggotaId) return null;
+  const list = await listActivePanitiaByEdisi(edisiId);
+  return list.find((p) => p.anggota_id === anggotaId) ?? null;
+}
+
+export async function updatePanitiaAt(rowIndex: number, p: Panitia): Promise<void> {
+  await sheetsService.updateRow(QURBAN_SHEETS.PANITIA, rowIndex, panitiaToRow(p));
 }
