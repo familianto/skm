@@ -6,8 +6,8 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { CurrencyInput } from '@/components/ui/currency-input';
 import { Input } from '@/components/ui/input';
-import { Loading } from '@/components/ui/loading';
 import { useToast } from '@/components/ui/toast';
+import { FormSkeleton } from '@/components/qurban/TabSkeleton';
 
 type EdisiStatus = 'DRAFT' | 'AKTIF' | 'SELESAI';
 
@@ -191,7 +191,7 @@ export function KonfigurasiTab({
     }
   };
 
-  if (loading) return <Loading />;
+  if (loading) return <FormSkeleton />;
 
   const formDisabled = !canEdit || submitting;
   const lockHint =

@@ -158,6 +158,10 @@ export async function POST(
     return success(activated);
   } catch (err) {
     console.error('[POST /api/qurban/edisi/[id]/activate] error:', err);
-    return error(ErrorCodes.INTERNAL_ERROR, 'Gagal mengaktifkan edisi.', 500);
+    const message =
+      err instanceof Error && err.message
+        ? `Gagal mengaktifkan edisi: ${err.message}`
+        : 'Gagal mengaktifkan edisi.';
+    return error(ErrorCodes.INTERNAL_ERROR, message, 500);
   }
 }

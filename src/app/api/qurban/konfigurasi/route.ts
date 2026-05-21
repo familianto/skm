@@ -11,6 +11,7 @@ import { AuditAksi } from '@/types';
 
 import { findEdisiById } from '@/lib/qurban/edisi-repo';
 import { EDISI_STATUS } from '@/lib/qurban/edisi-state-machine';
+import { isValidDistribusiDateRange } from '@/lib/qurban/validators';
 import {
   createKonfigurasi,
   findKonfigurasiByEdisiId,
@@ -69,7 +70,11 @@ export async function GET(request: NextRequest) {
     return success(k);
   } catch (err) {
     console.error('[GET /api/qurban/konfigurasi] error:', err);
-    return error(ErrorCodes.INTERNAL_ERROR, 'Gagal memuat konfigurasi.', 500);
+    const message =
+      err instanceof Error && err.message
+        ? `Gagal memuat konfigurasi: ${err.message}`
+        : 'Gagal memuat konfigurasi.';
+    return error(ErrorCodes.INTERNAL_ERROR, message, 500);
   }
 }
 
@@ -202,9 +207,10 @@ export async function PUT(request: NextRequest) {
       // Cross-field re-check on the merged row (covers patch that only
       // moves one end of the date range).
       if (
-        merged.tanggal_distribusi_mulai &&
-        merged.tanggal_distribusi_selesai &&
-        merged.tanggal_distribusi_mulai > merged.tanggal_distribusi_selesai
+        !isValidDistribusiDateRange(
+          merged.tanggal_distribusi_mulai,
+          merged.tanggal_distribusi_selesai
+        )
       ) {
         return error(
           ErrorCodes.VALIDATION_FAILED,
@@ -275,9 +281,10 @@ export async function PUT(request: NextRequest) {
     };
 
     if (
-      newKfg.tanggal_distribusi_mulai &&
-      newKfg.tanggal_distribusi_selesai &&
-      newKfg.tanggal_distribusi_mulai > newKfg.tanggal_distribusi_selesai
+      !isValidDistribusiDateRange(
+        newKfg.tanggal_distribusi_mulai,
+        newKfg.tanggal_distribusi_selesai
+      )
     ) {
       return error(
         ErrorCodes.VALIDATION_FAILED,

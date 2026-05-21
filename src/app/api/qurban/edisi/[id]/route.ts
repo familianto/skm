@@ -65,7 +65,11 @@ export async function GET(
     return success(rec.edisi);
   } catch (err) {
     console.error('[GET /api/qurban/edisi/[id]] error:', err);
-    return error(ErrorCodes.INTERNAL_ERROR, 'Gagal memuat detail edisi.', 500);
+    const message =
+      err instanceof Error && err.message
+        ? `Gagal memuat detail edisi: ${err.message}`
+        : 'Gagal memuat detail edisi.';
+    return error(ErrorCodes.INTERNAL_ERROR, message, 500);
   }
 }
 
@@ -224,6 +228,10 @@ export async function PATCH(
     return success(merged);
   } catch (err) {
     console.error('[PATCH /api/qurban/edisi/[id]] error:', err);
-    return error(ErrorCodes.INTERNAL_ERROR, 'Gagal memperbarui edisi.', 500);
+    const message =
+      err instanceof Error && err.message
+        ? `Gagal memperbarui edisi: ${err.message}`
+        : 'Gagal memperbarui edisi.';
+    return error(ErrorCodes.INTERNAL_ERROR, message, 500);
   }
 }

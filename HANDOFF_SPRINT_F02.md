@@ -1,8 +1,11 @@
 # HANDOFF Sprint F02 — Qurban Edisi Management
 
 **Branch:** `claude/qurban-edisi-setup-XghmL` (PR #83)
-**Status:** Milestones A, B, C ✅ done. Milestone D ✅ done — awaiting preview verification (includes the capstone activation check).
-**Spec source:** session prompts `Sprint F02 · Milestone A/B/C/D`.
+**Status:** All milestones (A–E) ✅ done. Two hotfixes ✅ done. F02
+**code-complete** — pending pre-production checklist (see bottom of this
+file) before PR #83 merges to `main`.
+**Spec source:** session prompts `Sprint F02 · Milestone A/B/C/D/E` +
+the two bugfix prompts.
 
 ---
 
@@ -21,7 +24,8 @@ peserta, hewan, pembayaran, and distribusi state. Edisi is request state
 | A  | Infrastructure (libs + middleware activation + skeleton dashboard) | ✅ done | `310dd0e` |
 | B  | Edisi CRUD endpoints (E1–E6) + edisi UI + sidebar | ✅ done | `7e951ec` |
 | C  | Konfigurasi edisi (K1–K2) + tab Konfigurasi UI | ✅ done | `c429bd4` + hotfix `1bb2f11` |
-| D  | Panitia management (P1–P3) + tab Panitia UI | ✅ done | _this commit_ |
+| D  | Panitia management (P1–P3) + tab Panitia UI | ✅ done | `3ffe953` + hotfix `c7f57af` |
+| E  | Unit tests + CI + polish UI + final docs | ✅ done | _this commit_ |
 | E  | Acceptance tests + handoff polish | ⏳ pending | — |
 
 ---
@@ -675,11 +679,191 @@ fixed.
 
 ---
 
-## Documentation updates parked for later milestones
+## Milestone E — What Shipped (closing)
 
-- `docs/PROJECT_BRIEF.md` — updated at Milestone E once the module shape stabilises.
-- `docs/DATABASE_SCHEMA.md` — needs the 3 new sheets documented; can land
-  at any milestone B-E (sheets are stable since A).
+Finishing pass. No new features — unit-test coverage for the F02
+invariants, UI polish, acceptance checklist, and final documentation.
+
+### Unit tests + CI wiring
+
+Test runner: the existing **`node:test` via `tsx`** (same as F01 — no
+new dependency). Three new test files under `src/lib/qurban/__tests__/`,
+59 tests total alongside F01's existing suite.
+
+| Test file | Covers |
+|---|---|
+| `edisi-state-machine.test.ts` | Transisi sah (`DRAFT→AKTIF`, `AKTIF→SELESAI`); transisi ilegal ditolak dengan `BUSINESS_INVALID_STATE_TRANSITION`; `getEditableFields` per status; `assertFieldEditable` throws `BUSINESS_EDISI_LOCKED` dengan kode + status HTTP yang benar. |
+| `validators.test.ts` | Whitelist peran panitia (`BENDAHARA` ditolak; 4 peran lain lolos); range tanggal distribusi (lexicographic ISO compare, partial-save tolerance); `payment_suffix` 0–9 integer. |
+| `id-generator.test.ts` | `getTodayWIB()` format `YYYYMMDD`; perilaku batas (UTC midnight, 16:59 UTC, 17:00 UTC roll-over ke hari WIB berikutnya, year boundary). Helper murni — generator wrapper-nya butuh I/O dan di-cover oleh acceptance manual. |
+
+Pure-validator helpers diekstrak ke `src/lib/qurban/validators.ts` lalu
+diimport oleh route handler `panitia/route.ts`, `panitia/candidates/route.ts`,
+dan `konfigurasi/route.ts`. Perilaku route tidak berubah — hanya
+dideduplikasi & dibuat testable.
+
+**Scripts:**
+- `npm run test` — umbrella, jalankan semua test (`lib/api` + `lib/qurban`).
+- `npm run test:lib-api`, `npm run test:lib-qurban` — terpisah, dipertahankan untuk debugging fokus.
+
+**CI:** step `Unit test` ditambahkan ke `.github/workflows/ci.yml`
+antara `Type check` dan `Build`. Setiap PR ke `main` sekarang menjalankan
+`npm test` otomatis.
+
+### UI polish (no behavior change)
+
+- **Dashboard copy** — kartu placeholder Peserta/Hewan/Distribusi
+  diubah dari "Tersedia setelah edisi dibuat" ke "Tersedia di sprint
+  berikutnya" (lebih akurat — itu fitur F03/F04, bukan menunggu edisi).
+- **Loading skeleton** — komponen baru
+  `src/components/qurban/TabSkeleton.tsx` mengekspor `FormSkeleton` dan
+  `TableSkeleton`. Tab Konfigurasi sekarang render `FormSkeleton` saat
+  fetch awal; tab Panitia render `TableSkeleton`. Mengganti `<Loading />`
+  generic agar layout tidak meloncat saat data tiba.
+- **Tabel Panitia responsive** — mengikuti pola F01 anggota
+  (`F-polish-9` / Decision #19): `lg+` → tabel 5 kolom, `<lg` → card
+  stack dengan badge peran + grid dl untuk meta. iPad portrait + HP
+  mendapat layout card yang lebih ergonomis.
+- **Surface real errors** — pola hotfix C (`err.message` ditampilkan di
+  catch generic) diterapkan ke 7 catch tambahan: E1 GET list, E2 POST
+  create, E3 GET detail, E4 PATCH, E5 POST activate, E6 POST close,
+  K1 GET. Client `toast(json?.error?.message || ...)` di
+  `EdisiForm/EdisiDetail/KonfigurasiTab/PanitiaTab` sudah memprioritaskan
+  message backend, jadi UI otomatis ikut menampilkan pesan yang lebih
+  informatif.
+
+### Acceptance checklist (manual)
+
+`docs/ACCEPTANCE_F02.md` — 6 skenario step-by-step yang bisa dijalankan
+siapa pun terhadap deployment dengan akses session SUPER_ADMIN. Scenario
+1 (happy path lifecycle), 2 (pre-flight negatif), 3 (validasi),
+4 (force-close), 5 (lock SELESAI), 6 (role access matrix). Menggantikan
+rencana awal skrip `curl` (tidak feasible — endpoint auth-gated Google
+SSO).
+
+### Final docs
+
+- `docs/PROJECT_BRIEF.md` — section "Sprint F02 — Qurban Edisi
+  Management" ditambahkan; tabel Rencana Sprint diperbarui (F02 = Done,
+  F03/F04 planned).
+- `docs/API_REFERENCE.md` — sudah lengkap dari milestone B/C/D. Pass
+  final tidak menambah perubahan.
+- `CLAUDE.md` — Current Sprint diupdate ke F02 Done.
+- `HANDOFF_SPRINT_F02.md` — ini.
+
+### Verification (build / CI)
+
+After `npm ci`:
+- `npm run type-check` → ✅ clean
+- `npm run lint` → ✅ clean (0 warnings)
+- `npm test` → ✅ **59/59 pass**
+- `npm run build` → ✅ `Compiled successfully`
+
+---
+
+## Summary deliverables per milestone
+
+| Milestone | Output | Highlight commit |
+|---|---|---|
+| A | 3 sheet baru (migrate_F02), middleware activation, EditionSwitcher, skeleton `/qurban` | `310dd0e` |
+| B | Endpoint E1–E6 (edisi CRUD + state machine), 4 halaman UI edisi, sidebar QURBAN, restore `QURBAN_MODULE_ENABLED` fail-open | `7e951ec` |
+| C | Endpoint K1–K2 (konfigurasi upsert), tab Konfigurasi UI | `c429bd4` + hotfix `1bb2f11` |
+| D | Endpoint P1–P3 (panitia assign/remove), helper `/api/qurban/panitia/candidates`, tab Panitia UI, **capstone aktivasi end-to-end** | `3ffe953` + hotfix `c7f57af` |
+| E | Unit tests + CI, polish UI, `docs/ACCEPTANCE_F02.md`, dokumentasi final | _this commit_ |
+
+## Hotfix log — lessons learned
+
+Dua hotfix mid-sprint, keduanya pola yang sama: **jalur kode yang belum
+pernah dieksekusi sebelumnya menyimpan bug**.
+
+### Hotfix C1 — `SHEET_HEADERS` missing for Qurban sheets
+
+**Symptom:** K2 PUT (update existing konfigurasi) gagal dengan
+`500 Internal Error`; K2 INSERT bekerja.
+
+**Akar masalah:** `sheetsService.updateRow(sheetName, …)` di
+`src/lib/google-sheets.ts` melakukan `SHEET_HEADERS[sheetName]` lookup
+untuk menghitung A1 range. Tiga sheet Qurban tidak terdaftar di
+`SHEET_HEADERS` (`src/lib/constants.ts`), jadi setiap UPDATE Qurban
+throw `Unknown sheet: …`. `appendRow` lolos karena pakai literal range
+`!A:A` yang tidak konsultasi `SHEET_HEADERS`. Jalur INSERT-only
+(`createEdisi`, `createKonfigurasi`, `createPanitia`) lolos sampai PUT
+pertama.
+
+**Fix:** register 3 sheet Qurban di `SHEET_HEADERS` dengan jumlah kolom
+yang benar (12/15/7). Surface `err.message` di response K2 catch
+(generic "Gagal menyimpan" sebelumnya menyembunyikan akar masalah).
+
+### Hotfix C2 — `cookies().set()` di Server Component
+
+**Symptom:** `/qurban` dashboard HTTP 500 setelah edisi pertama
+diaktifkan; EditionSwitcher stuck di "Edisi tidak tersedia".
+
+**Akar masalah:** `getEdisiContext` di `lib/qurban/edisi-context.ts`
+memanggil `cookieStore.set()` saat resolver mengembalikan
+`cookieAction: { type: 'set' }`. Next.js 15/16 melarang mutasi cookie
+dari Server Component (`Cookies can only be modified in a Server Action
+or Route Handler`). Cabang `set` hanya fire saat resolver mencapai path
+3 "Default to AKTIF" — kondisi yang baru pertama kali terjadi setelah
+capstone Milestone D mengaktifkan edisi pertama.
+
+**Fix:** `getEdisiContext` jadi strictly read-only. Sticky-cookie
+behavior dipindah ke middleware (edge-safe, regex-validated) — saat
+URL `/qurban*` membawa `?edisi=EDS-…` query yang valid format, middleware
+set cookie pada response.
+
+**Pelajaran umum:** kapan saja kita menulis cabang yang bergantung pada
+state baru (mis. "AKTIF exists", "row exists"), pastikan cabang itu
+diuji ASAP — tidak harus dengan end-to-end test, tapi paling tidak
+walkthrough manual atau unit-test pure logic. Bug dorman seperti ini
+muncul bersamaan dengan first-time-state-change.
+
+## Keterbatasan & yang ditunda ke F03+
+
+- **Master hewan + master muqorib** — belum ada. Pre-flight E5 punya
+  TODO `master_hewan ≥ 1` (F3) yang sekarang di-skip.
+- **Peserta pendaftaran + pembayaran + distribusi mapping** — ditunda ke
+  F04+. Pre-flight E6 close punya TODO untuk blok peserta TERDAFTAR
+  belum lunas (`BUSINESS_EDISI_TUTUP_BLOCKED`).
+- **Sidebar `/qurban`** — hanya 2 item (Dashboard, Edisi). Item lain
+  (Peserta, Hewan, Pembayaran, Muqorib, Distribusi, Konfigurasi
+  standalone, Panitia standalone, Laporan) menyusul saat halamannya ada
+  di sprint berikutnya. Tidak menambahkan link dead.
+- **Endpoint K/P standalone** — `Konfigurasi` dan `Panitia` tidak
+  punya halaman level-atas (`/qurban/konfigurasi`, `/qurban/panitia`);
+  hanya tab di dalam halaman detail edisi. Cukup untuk F02.
+- **Laporan Qurban** — F04+ scope.
+- **Auto-cleanup soft-removed panitia** — `is_active=false` rows tetap
+  bertumpuk untuk jejak audit. Tidak ada GC; jumlah baris akan tumbuh
+  per pergantian panitia, tapi volumenya kecil per edisi.
+
+## Checklist pra-produksi (untuk Hopy, sebelum PR #83 di-merge)
+
+Ini langkah operasional Hopy — **bukan tugas coding**. Setelah semua
+centang, PR #83 aman di-merge ke `main`.
+
+1. **Migrasi Sheet produksi.** Jalankan Apps Script `migrate_F02`
+   dengan `F02_TARGET=PRODUCTION` agar 3 sheet Qurban (`qurban_edisi`,
+   `qurban_konfigurasi_edisi`, `qurban_panitia`) dibuat di Sheet
+   produksi (`GOOGLE_SHEETS_ID`). Verify: 3 tab baru muncul, headers
+   terisi sesuai schema.
+2. **Set environment variables di Vercel Production:**
+   - `QURBAN_LEGACY_LOGIN_ENABLED=false` (F01 post-deploy gate, finally
+     flipped per HANDOFF F01 §F-polish-6).
+   - `QURBAN_BOOTSTRAP_ENABLED=false` (bootstrap path inert; sama).
+   - `QURBAN_MODULE_ENABLED` — biarkan **unset** (fail-open default
+     dari F02-B). Set ke `'false'` HANYA untuk rollback darurat.
+3. **Smoke test di production** setelah deploy:
+   - Login sebagai SUPER_ADMIN.
+   - Buka `/qurban` — empty state ("Belum ada edisi") tampil tanpa
+     error.
+   - Buka `/qurban/edisi` — daftar kosong, tombol `+ Edisi Baru`
+     tampil.
+   - (Opsional) Buat edisi DRAFT untuk tahun mendatang sebagai test;
+     jangan aktifkan kalau masjid tidak sedang menyelenggarakan
+     Qurban.
+
+Setelah ketiga langkah selesai dan smoke test lulus, F02 LIVE di
+production. Lanjut: persiapan Sprint F03 (Master Muqorib + Master Hewan).
 
 ---
 

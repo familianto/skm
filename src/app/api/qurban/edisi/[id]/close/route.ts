@@ -72,6 +72,10 @@ export async function POST(
     return success(closed);
   } catch (err) {
     console.error('[POST /api/qurban/edisi/[id]/close] error:', err);
-    return error(ErrorCodes.INTERNAL_ERROR, 'Gagal menutup edisi.', 500);
+    const message =
+      err instanceof Error && err.message
+        ? `Gagal menutup edisi: ${err.message}`
+        : 'Gagal menutup edisi.';
+    return error(ErrorCodes.INTERNAL_ERROR, message, 500);
   }
 }

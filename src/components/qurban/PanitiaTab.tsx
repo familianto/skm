@@ -5,10 +5,10 @@ import { useCallback, useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
-import { Loading } from '@/components/ui/loading';
 import { useToast } from '@/components/ui/toast';
 import { peranBadgeClass, peranLabel } from '@/lib/anggota-display';
 import { cn } from '@/lib/utils';
+import { TableSkeleton } from '@/components/qurban/TabSkeleton';
 
 type EdisiStatus = 'DRAFT' | 'AKTIF' | 'SELESAI';
 
@@ -153,7 +153,7 @@ export function PanitiaTab({ edisiId, edisiStatus, canEdit }: Props) {
     }
   };
 
-  if (loading) return <Loading />;
+  if (loading) return <TableSkeleton rows={3} />;
 
   const lockHint =
     edisiStatus === 'SELESAI'
@@ -179,60 +179,105 @@ export function PanitiaTab({ edisiId, edisiStatus, canEdit }: Props) {
             Belum ada panitia. Tambahkan minimal 1 untuk bisa Aktifkan edisi.
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="min-w-full text-sm">
-              <thead className="bg-gray-50 text-gray-600 text-xs uppercase tracking-wide">
-                <tr>
-                  <th className="px-4 py-3 text-left">Nama</th>
-                  <th className="px-4 py-3 text-left">Peran</th>
-                  <th className="px-4 py-3 text-left">Ditugaskan</th>
-                  <th className="px-4 py-3 text-left">Oleh</th>
-                  {showRemoveButton && (
-                    <th className="px-4 py-3 text-right">Aksi</th>
-                  )}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {list.map((p) => (
-                  <tr key={p.id} className="hover:bg-gray-50">
-                    <td className="px-4 py-3 font-medium text-gray-900">
-                      {p.anggota_nama || p.anggota_id}
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className={peranBadgeClass(p.anggota_peran)}>
-                        {peranLabel(p.anggota_peran)}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-gray-700">
-                      {formatAssignedAt(p.assigned_at)}
-                    </td>
-                    <td className="px-4 py-3 text-gray-700">
-                      {p.assigned_by_nama || '—'}
-                    </td>
+          <>
+            {/* lg+ : table (5 cols). <lg : card stack (covers iPad portrait). */}
+            <div className="hidden lg:block overflow-x-auto">
+              <table className="min-w-full text-sm">
+                <thead className="bg-gray-50 text-gray-600 text-xs uppercase tracking-wide">
+                  <tr>
+                    <th className="px-4 py-3 text-left">Nama</th>
+                    <th className="px-4 py-3 text-left">Peran</th>
+                    <th className="px-4 py-3 text-left">Ditugaskan</th>
+                    <th className="px-4 py-3 text-left">Oleh</th>
                     {showRemoveButton && (
-                      <td className="px-4 py-3 text-right">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() =>
-                            setConfirmRemove({
-                              open: true,
-                              id: p.id,
-                              nama: p.anggota_nama || p.anggota_id,
-                            })
-                          }
-                          disabled={removing === p.id}
-                          className="text-red-600 hover:bg-red-50"
-                        >
-                          {removing === p.id ? 'Menghapus...' : 'Hapus'}
-                        </Button>
-                      </td>
+                      <th className="px-4 py-3 text-right">Aksi</th>
                     )}
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {list.map((p) => (
+                    <tr key={p.id} className="hover:bg-gray-50">
+                      <td className="px-4 py-3 font-medium text-gray-900">
+                        {p.anggota_nama || p.anggota_id}
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className={peranBadgeClass(p.anggota_peran)}>
+                          {peranLabel(p.anggota_peran)}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-gray-700">
+                        {formatAssignedAt(p.assigned_at)}
+                      </td>
+                      <td className="px-4 py-3 text-gray-700">
+                        {p.assigned_by_nama || '—'}
+                      </td>
+                      {showRemoveButton && (
+                        <td className="px-4 py-3 text-right">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() =>
+                              setConfirmRemove({
+                                open: true,
+                                id: p.id,
+                                nama: p.anggota_nama || p.anggota_id,
+                              })
+                            }
+                            disabled={removing === p.id}
+                            className="text-red-600 hover:bg-red-50"
+                          >
+                            {removing === p.id ? 'Menghapus...' : 'Hapus'}
+                          </Button>
+                        </td>
+                      )}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <ul className="lg:hidden divide-y divide-gray-100">
+              {list.map((p) => (
+                <li key={p.id} className="p-4 space-y-2">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="font-medium text-gray-900 truncate">
+                        {p.anggota_nama || p.anggota_id}
+                      </p>
+                      <p className="mt-1">
+                        <span className={peranBadgeClass(p.anggota_peran)}>
+                          {peranLabel(p.anggota_peran)}
+                        </span>
+                      </p>
+                    </div>
+                    {showRemoveButton && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() =>
+                          setConfirmRemove({
+                            open: true,
+                            id: p.id,
+                            nama: p.anggota_nama || p.anggota_id,
+                          })
+                        }
+                        disabled={removing === p.id}
+                        className="text-red-600 hover:bg-red-50 shrink-0"
+                      >
+                        {removing === p.id ? 'Menghapus...' : 'Hapus'}
+                      </Button>
+                    )}
+                  </div>
+                  <dl className="text-xs text-gray-500 grid grid-cols-2 gap-x-3 gap-y-1">
+                    <dt className="text-gray-400">Ditugaskan</dt>
+                    <dd className="text-gray-700">{formatAssignedAt(p.assigned_at)}</dd>
+                    <dt className="text-gray-400">Oleh</dt>
+                    <dd className="text-gray-700 truncate">{p.assigned_by_nama || '—'}</dd>
+                  </dl>
+                </li>
+              ))}
+            </ul>
+          </>
         )}
       </Card>
 

@@ -8,10 +8,14 @@ import { writeAuditLog } from '@/lib/api/audit';
 import { getClientIp } from '@/lib/api/rate-limit';
 import { PERAN } from '@/lib/api/permissions';
 import { listAll } from '@/lib/api/anggota-repo';
-import { AuditAksi, UserPeran } from '@/types';
+import { AuditAksi } from '@/types';
 
 import { findEdisiById } from '@/lib/qurban/edisi-repo';
 import { EDISI_STATUS } from '@/lib/qurban/edisi-state-machine';
+import {
+  ALLOWED_PANITIA_PERAN,
+  isAllowedPanitiaPeran,
+} from '@/lib/qurban/validators';
 import {
   createPanitia,
   findActivePanitiaByEdisiAndAnggota,
@@ -22,17 +26,6 @@ import {
 import { generatePanitiaId } from '@/lib/qurban/id-generator';
 
 const WRITE_ROLES = [PERAN.SUPER_ADMIN, PERAN.ADMIN_QURBAN];
-
-/**
- * Peran yang boleh ditugaskan sebagai panitia. BENDAHARA secara eksplisit
- * dikecualikan — peran SKM-only tidak terlibat dalam operasional Qurban.
- */
-const ALLOWED_PANITIA_PERAN: readonly string[] = [
-  UserPeran.SUPER_ADMIN,
-  UserPeran.ADMIN_QURBAN,
-  UserPeran.PENDAFTARAN,
-  UserPeran.DISTRIBUSI,
-];
 
 function isPanitiaRole(peran: string): boolean {
   return peran === PERAN.PENDAFTARAN || peran === PERAN.DISTRIBUSI;
@@ -216,7 +209,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!ALLOWED_PANITIA_PERAN.includes(anggota.peran)) {
+    if (!isAllowedPanitiaPeran(anggota.peran)) {
       return error(
         ErrorCodes.BUSINESS_INVALID_PERAN_FOR_PANITIA,
         `Peran ${anggota.peran} tidak diizinkan menjadi panitia.`,

@@ -65,17 +65,17 @@ export default async function QurbanDashboardPage({
         <Card>
           <CardTitle>Peserta</CardTitle>
           <p className="text-2xl font-semibold text-gray-400 mt-2">—</p>
-          <p className="text-xs text-gray-500 mt-1">Tersedia setelah edisi dibuat.</p>
+          <p className="text-xs text-gray-500 mt-1">Tersedia di sprint berikutnya.</p>
         </Card>
         <Card>
           <CardTitle>Hewan</CardTitle>
           <p className="text-2xl font-semibold text-gray-400 mt-2">—</p>
-          <p className="text-xs text-gray-500 mt-1">Tersedia setelah edisi dibuat.</p>
+          <p className="text-xs text-gray-500 mt-1">Tersedia di sprint berikutnya.</p>
         </Card>
         <Card>
           <CardTitle>Distribusi</CardTitle>
           <p className="text-2xl font-semibold text-gray-400 mt-2">—</p>
-          <p className="text-xs text-gray-500 mt-1">Tersedia setelah edisi dibuat.</p>
+          <p className="text-xs text-gray-500 mt-1">Tersedia di sprint berikutnya.</p>
         </Card>
       </div>
 

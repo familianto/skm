@@ -83,7 +83,11 @@ export async function GET(request: NextRequest) {
     });
   } catch (err) {
     console.error('[GET /api/qurban/edisi] error:', err);
-    return error(ErrorCodes.INTERNAL_ERROR, 'Gagal memuat daftar edisi.', 500);
+    const message =
+      err instanceof Error && err.message
+        ? `Gagal memuat daftar edisi: ${err.message}`
+        : 'Gagal memuat daftar edisi.';
+    return error(ErrorCodes.INTERNAL_ERROR, message, 500);
   }
 }
 
@@ -240,6 +244,10 @@ export async function POST(request: NextRequest) {
     return success(newEdisi, undefined, { status: 201 });
   } catch (err) {
     console.error('[POST /api/qurban/edisi] error:', err);
-    return error(ErrorCodes.INTERNAL_ERROR, 'Gagal membuat edisi.', 500);
+    const message =
+      err instanceof Error && err.message
+        ? `Gagal membuat edisi: ${err.message}`
+        : 'Gagal membuat edisi.';
+    return error(ErrorCodes.INTERNAL_ERROR, message, 500);
   }
 }

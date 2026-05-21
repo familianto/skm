@@ -5,10 +5,10 @@ import { ErrorCodes } from '@/lib/api/errors';
 import { requireRole } from '@/lib/api/guards';
 import { PERAN } from '@/lib/api/permissions';
 import { listAll } from '@/lib/api/anggota-repo';
-import { UserPeran } from '@/types';
 
 import { findEdisiById } from '@/lib/qurban/edisi-repo';
 import { listActivePanitiaByEdisi } from '@/lib/qurban/panitia-repo';
+import { isAllowedPanitiaPeran } from '@/lib/qurban/validators';
 
 const WRITE_ROLES = [PERAN.SUPER_ADMIN, PERAN.ADMIN_QURBAN];
 
@@ -21,12 +21,6 @@ const WRITE_ROLES = [PERAN.SUPER_ADMIN, PERAN.ADMIN_QURBAN];
  *
  * Response items intentionally minimal — only what the dropdown renders.
  */
-const ALLOWED_PANITIA_PERAN: readonly string[] = [
-  UserPeran.SUPER_ADMIN,
-  UserPeran.ADMIN_QURBAN,
-  UserPeran.PENDAFTARAN,
-  UserPeran.DISTRIBUSI,
-];
 
 export async function GET(request: NextRequest) {
   const guard = await requireRole(request, WRITE_ROLES);
@@ -59,7 +53,7 @@ export async function GET(request: NextRequest) {
       .filter(
         ({ anggota }) =>
           anggota.is_active &&
-          ALLOWED_PANITIA_PERAN.includes(anggota.peran) &&
+          isAllowedPanitiaPeran(anggota.peran) &&
           !takenIds.has(anggota.id)
       )
       .map(({ anggota }) => ({
