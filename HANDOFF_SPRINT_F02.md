@@ -20,7 +20,7 @@ peserta, hewan, pembayaran, and distribusi state. Edisi is request state
 |---|---|---|---|
 | A  | Infrastructure (libs + middleware activation + skeleton dashboard) | ✅ done | `310dd0e` |
 | B  | Edisi CRUD endpoints (E1–E6) + edisi UI + sidebar | ✅ done | `7e951ec` |
-| C  | Konfigurasi edisi (K1–K2) + tab Konfigurasi UI | ✅ done | _this commit_ |
+| C  | Konfigurasi edisi (K1–K2) + tab Konfigurasi UI | ✅ done | `c429bd4` + hotfix |
 | D  | Panitia management (P1–P3) + tab Panitia UI | ⏳ pending | — |
 | E  | Acceptance tests + handoff polish | ⏳ pending | — |
 
@@ -456,6 +456,45 @@ After `npm ci`:
 - `npm run lint` → ✅ clean
 - `npm run build` → ✅ `Compiled successfully in 26.6s`. Route
   `/api/qurban/konfigurasi` listed as `ƒ` (dynamic).
+
+### Post-deploy hotfix — K2 UPDATE path
+
+The first preview verification exposed a regression in K2 UPDATE: every
+attempt to PATCH an existing konfigurasi returned `500 INTERNAL_ERROR`
+with the generic message "Gagal menyimpan konfigurasi". K2 INSERT was
+fine; K1 read was fine; only UPDATE failed.
+
+**Root cause:** `sheetsService.updateRow(sheetName, …)` in
+`src/lib/google-sheets.ts` looks up `SHEET_HEADERS[sheetName]` to compute
+the A1 range. The three Qurban sheets (`qurban_edisi`,
+`qurban_konfigurasi_edisi`, `qurban_panitia`) had never been registered
+in `SHEET_HEADERS`, so the call throws `Unknown sheet:
+qurban_konfigurasi_edisi` (visible in the Vercel function logs).
+`appendRow` doesn't share this guard because it writes to a literal
+`!A:A` range, so INSERT-only flows (E2 create, K2 first-time INSERT)
+worked and masked the gap.
+
+Same bug latent in Milestone B endpoints (E4 PATCH edisi, E5 activate,
+E6 close) — they invoke `updateRow` on `qurban_edisi`. None had been
+exercised end-to-end yet (E5 always tripped the panitia preflight), so
+the failure surfaced first via K2.
+
+**Fix:**
+- `src/lib/constants.ts` — added `SHEET_HEADERS` entries for
+  `qurban_edisi` (12 cols), `qurban_konfigurasi_edisi` (15 cols), and
+  `qurban_panitia` (7 cols). Comment points to `lib/qurban/sheets.ts`
+  and the per-repo row mappers as the authoritative sources. The
+  literals only need to match the column **count** for `updateRow`'s
+  range computation, but I kept the names in sync for documentation.
+- `src/app/api/qurban/konfigurasi/route.ts` — K2 PUT catch handler now
+  surfaces `err.message` in the response (`"Gagal menyimpan
+  konfigurasi: <reason>"`) instead of swallowing it behind a generic
+  string. The endpoint is auth-gated; leaking the message string is
+  acceptable and dramatically shortens debugging.
+
+`KonfigurasiTab.tsx` already prefers `json.error.message` over the
+generic fallback, so no client change was needed — the UI immediately
+benefits from the richer backend message.
 
 ### Verification (Hopy, preview deploy)
 

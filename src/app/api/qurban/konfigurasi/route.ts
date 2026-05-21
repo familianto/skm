@@ -301,6 +301,14 @@ export async function PUT(request: NextRequest) {
     return success(newKfg, undefined, { status: 201 });
   } catch (err) {
     console.error('[PUT /api/qurban/konfigurasi] error:', err);
-    return error(ErrorCodes.INTERNAL_ERROR, 'Gagal menyimpan konfigurasi.', 500);
+    // Surface the underlying message so the UI doesn't show a generic
+    // "Gagal menyimpan konfigurasi" that hides the real cause (e.g. an
+    // upstream `Unknown sheet` from sheetsService). The endpoint is
+    // auth-gated, so leaking the message string is acceptable here.
+    const message =
+      err instanceof Error && err.message
+        ? `Gagal menyimpan konfigurasi: ${err.message}`
+        : 'Gagal menyimpan konfigurasi.';
+    return error(ErrorCodes.INTERNAL_ERROR, message, 500);
   }
 }
