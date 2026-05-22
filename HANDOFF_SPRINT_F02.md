@@ -705,9 +705,17 @@ dideduplikasi & dibuat testable.
 - `npm run test` — umbrella, jalankan semua test (`lib/api` + `lib/qurban`).
 - `npm run test:lib-api`, `npm run test:lib-qurban` — terpisah, dipertahankan untuk debugging fokus.
 
+Test file dilist eksplisit di script (bukan glob). Awalnya pakai pola
+`"<dir>/*.test.ts"`, tapi pola di dalam kuotasi diserahkan literal ke
+`node --test` dan gagal di runner CI (lihat post-E hotfix). Listing
+eksplisit deterministic + lintas-environment; saat menambah file test
+baru, tambahkan path-nya ke script `test` (dan ke `test:lib-*` yang
+sesuai).
+
 **CI:** step `Unit test` ditambahkan ke `.github/workflows/ci.yml`
 antara `Type check` dan `Build`. Setiap PR ke `main` sekarang menjalankan
-`npm test` otomatis.
+`npm test` otomatis. Action bumped ke `checkout@v5` + `setup-node@v5`
+dengan Node 22 (aligned dengan Node 24 mandatory upcoming).
 
 ### UI polish (no behavior change)
 
@@ -816,6 +824,42 @@ state baru (mis. "AKTIF exists", "row exists"), pastikan cabang itu
 diuji ASAP — tidak harus dengan end-to-end test, tapi paling tidak
 walkthrough manual atau unit-test pure logic. Bug dorman seperti ini
 muncul bersamaan dengan first-time-state-change.
+
+### Hotfix E1 — Glob test files tidak ter-resolve di CI
+
+**Symptom:** GitHub Actions step "Unit test" gagal di commit pertama
+Milestone E (`b13aa3b`) dengan
+`Could not find '/home/runner/work/skm/skm/src/lib/api/__tests__/*.test.ts'`.
+`npm test` lulus 59/59 di lokal. Vercel build OK.
+
+**Akar masalah:** script `test` memakai `npx tsx --test "<dir>/*.test.ts"`.
+Karena glob di dalam kuotasi, shell tidak mengekspansinya — pola sampai
+ke `node --test` secara literal. Lokal kebetulan punya ekspansi yang
+berbeda (atau cached resolve) sehingga test jalan; runner CI tidak
+punya, dan node test runner tidak menerima glob pattern langsung di
+`--test` arg. Hasilnya: tidak ada file yang ter-resolve, step gagal.
+Pola "first-time-execution-exposes-bug" lagi — step ini baru pertama
+kali dijalankan di CI saat Milestone E menambahkannya.
+
+**Fix:**
+- `package.json` — script `test` / `test:lib-api` / `test:lib-qurban`
+  diubah dari glob menjadi **list path eksplisit per file test**.
+  Deterministic, lintas-environment, tidak bergantung pada ekspansi
+  shell atau perilaku node version. Maintenance: saat menambah file
+  test baru, tambahkan path ke script terkait.
+- `.github/workflows/ci.yml` — bump `actions/checkout@v5` +
+  `actions/setup-node@v5`, Node 22 (mengatasi deprecation warning
+  Node 20 + alignment dengan Node 24 mandatory).
+
+Alternatif yang dipertimbangkan: argumen direktori (`tsx --test <dir>/`)
+— tapi `tsx --test` mencoba resolve direktori sebagai single module
+entry (`index.*`), bukan auto-discover seperti `node --test <dir>`.
+Tidak ter-discover → exit 0 dengan 0 test (false green). Listing
+eksplisit lebih aman.
+
+**Pelajaran umum:** kalau script lokal pakai shell glob, jangan
+mengandalkannya bekerja di CI. Pilih cara invokasi yang deterministic
+(list eksplisit, atau wrapper script yang glob via fs/Node API).
 
 ## Keterbatasan & yang ditunda ke F03+
 
