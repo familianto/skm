@@ -4,29 +4,34 @@ import { jwtVerify } from 'jose';
 import { isPathAllowedForRole } from '@/lib/api/path-rules';
 
 /**
- * Root middleware — F1 defense-in-depth per PROMPT_F01 §7 + Tahap 3.E §2.1.
+ * Root middleware — defense-in-depth per Tahap 3.E §2.1.
  *
  * Sequence per request:
  *   1. Static + Next internals (`/_next/*`, `/favicon*`)            → pass
  *   2. Public allow-list (`/login`, `/api/auth/{login,logout}`,
  *      `/api/health`, `/publik/*`, `/api/publik/*`, `/mockup`)       → pass
- *   3. Module kill switch — `/qurban/*` + `/api/qurban/*` blocked
- *      when `QURBAN_MODULE_ENABLED !== 'true'`                       → 503 / redirect
+ *   3. Qurban module kill switch — `/qurban/**` + `/api/qurban/**`
+ *      treated as 404 when `QURBAN_MODULE_ENABLED === 'false'`       → 404
  *   4. Session check — verify `skm_session` JWT                      → 401 if missing/invalid
  *   5. Strict role gate — `STRICT_PATH_RULES` from path-rules.ts     → 403 if disallowed
  *   6. Inject `x-user-id` + `x-user-peran` request headers           → next()
  *
- * F1 scope (per Hopy's Milestone D decision):
- *   - Strict gate covers ONLY `/pengaturan/anggota/**` and
- *     `/api/pengaturan/anggota/**` (SUPER_ADMIN). All other authenticated
- *     routes pass at step 4 with session-only auth.
- *   - F2 extends `STRICT_PATH_RULES` to enforce per-role allow-list for
- *     `/qurban/**` routes as they ship.
+ * Scope:
+ *   - F1: strict gates on `/pengaturan/anggota/**` (SUPER_ADMIN).
+ *   - F02-A: strict gates on `/qurban/**` per-role allow-list. Pure page-level
+ *     gating; full-write vs read-only distinction is enforced inside route
+ *     handlers (F02-B+). Edisi context resolution (read of qurban_edisi sheet)
+ *     happens in a Node-runtime server helper invoked from the /qurban layout,
+ *     NOT in this middleware (Edge runtime cannot use the googleapis SDK).
+ *   - F02-B: restored the Qurban module kill switch as a FAIL-OPEN guard.
+ *     Module is active unless `QURBAN_MODULE_ENABLED` is explicitly set to
+ *     `'false'`. Unset / `'true'` / any other value → module on. Acts as a
+ *     rollback lever (PROMPT_F02 §9.2 Level 2).
  *
- * This middleware runs in Edge Runtime, so it can ONLY import from
- * Edge-safe modules. `lib/api/path-rules.ts` is pure regex/arrays; we
- * inline JWT verification with `jose` instead of importing from
- * `lib/api/auth.ts` (which imports `next/headers`).
+ * Edge-runtime constraint: this middleware MUST only import Edge-safe modules.
+ * `lib/api/path-rules.ts` is pure regex/arrays; JWT verification is inlined
+ * with `jose` instead of importing from `lib/api/auth.ts` (which pulls in
+ * `next/headers`).
  */
 
 const COOKIE_NAME = 'skm_session';
@@ -113,18 +118,24 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // 3. Module kill switch for Qurban routes (forward-compat for F2)
-  const isQurbanScope =
-    pathname.startsWith('/qurban') || pathname.startsWith('/api/qurban');
-  if (isQurbanScope && process.env.QURBAN_MODULE_ENABLED !== 'true') {
-    return rejectRequest(
-      pathname,
-      request,
-      503,
-      'MODULE_DISABLED',
-      'Modul Qurban sedang tidak aktif.',
-      '/'
-    );
+  // 3. Qurban module kill switch — FAIL-OPEN: only `'false'` (exact string)
+  //    disables the module. Unset / `'true'` / anything else keeps it on.
+  //    When disabled, Qurban paths are surfaced as 404 to hide the module
+  //    from users entirely (per PROMPT_F02 §9.2 Level 2 rollback).
+  if (
+    process.env.QURBAN_MODULE_ENABLED === 'false' &&
+    (pathname === '/qurban' ||
+      pathname.startsWith('/qurban/') ||
+      pathname === '/api/qurban' ||
+      pathname.startsWith('/api/qurban/'))
+  ) {
+    if (pathname.startsWith('/api/')) {
+      return NextResponse.json(
+        { ok: false, error: { code: 'NOT_FOUND', message: 'Not found.' } },
+        { status: 404 }
+      );
+    }
+    return new NextResponse(null, { status: 404 });
   }
 
   // 4. Session check
@@ -172,8 +183,35 @@ export async function middleware(request: NextRequest) {
   const response = NextResponse.next();
   response.headers.set('x-user-id', session.user_id);
   response.headers.set('x-user-peran', session.peran);
+
+  // 7. Sticky `qurban_edisi` cookie. When a user picks an edisi via the
+  //    EditionSwitcher dropdown, the client pushes `?edisi=EDS-…` to the
+  //    URL. We persist that choice as a cookie here so subsequent
+  //    navigations (without the query param) keep the same edisi context.
+  //    Regex-only validation — no Sheet I/O — keeps this edge-safe. The
+  //    Server-Component resolver re-validates the cookie's edisi against
+  //    the role+status rules on every render.
+  if (pathname.startsWith('/qurban') && !pathname.startsWith('/api/')) {
+    const queryEdisi = request.nextUrl.searchParams.get('edisi');
+    if (queryEdisi && EDISI_ID_RE.test(queryEdisi)) {
+      const current = request.cookies.get(QURBAN_EDISI_COOKIE)?.value;
+      if (current !== queryEdisi) {
+        response.cookies.set(QURBAN_EDISI_COOKIE, queryEdisi, {
+          httpOnly: true,
+          secure: process.env.NODE_ENV === 'production',
+          sameSite: 'lax',
+          path: '/',
+        });
+      }
+    }
+  }
+
   return response;
 }
+
+const QURBAN_EDISI_COOKIE = 'qurban_edisi';
+/** Regex match only — Server Component resolver re-validates the edisi exists. */
+const EDISI_ID_RE = /^EDS-\d{8}-\d{4}$/;
 
 export const config = {
   matcher: ['/((?!_next/static|_next/image|favicon.ico).*)'],

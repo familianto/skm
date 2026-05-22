@@ -329,6 +329,44 @@ Lihat detail di `SPRINT_PLAN.md` dan file individual di `sprints/`.
 | 8 | Mutasi Internal | 1 minggu | ✅ Done |
 | 9 | Bulk Edit & Proteksi Hapus | 1 minggu | ✅ Done |
 | F01 | Auth Multi-User & Anggota CRUD | 6-8 hari | ✅ Done |
+| F02 | Qurban Edisi Management | 5 hari (5 milestone A–E) | ✅ Done |
+| F03 | Master Muqorib + Master Hewan Qurban | TBD | ⏳ Planned |
+| F04 | Pendaftaran Peserta Qurban + Pembayaran | TBD | ⏳ Planned |
+
+### Sprint F02 — Qurban Edisi Management
+
+Fondasi modul Qurban sebagai layer operasional terpisah di atas auth F01.
+Setiap penyelenggaraan Qurban (per tahun hijriah) dimodelkan sebagai
+**edisi** dengan state machine `DRAFT → AKTIF → SELESAI`. Maksimal satu
+edisi `AKTIF` pada satu waktu, dengan force-close opsional.
+
+**Kemampuan modul (delivered):**
+
+- **Edisi CRUD** (E1–E6): create + clone (konfigurasi default ON,
+  panitia default OFF), edit dengan field-lock per status, activate
+  dengan pre-flight (konfigurasi present + ≥1 panitia aktif + single
+  AKTIF), close, list/detail.
+- **Konfigurasi per edisi** (K1–K2, 1:1 dengan edisi): BOP per ekor
+  sapi/kambing, target distribusi (bungkus + berat), tanggal
+  distribusi, payment suffix, flag notifikasi WhatsApp.
+- **Panitia per edisi** (P1–P3): daftar penugasan anggota; whitelist
+  peran (`SUPER_ADMIN`/`ADMIN_QURBAN`/`PENDAFTARAN`/`DISTRIBUSI` —
+  `BENDAHARA` ditolak); soft-remove dengan jejak audit.
+- **Edition Switcher** (cookie + query param): satu strip top-of-page
+  yang memilih edisi konteks; sticky deep-link via middleware.
+- **Role-based access** untuk modul Qurban: SA/AQ full-write; BD/PD
+  read-only; DS scoped ke distribusi (sprint mendatang).
+- **3 sheet baru:** `qurban_edisi` (12 kolom), `qurban_konfigurasi_edisi`
+  (15), `qurban_panitia` (7). Migrasi via Apps Script `migrate_F02`.
+
+**Tertunda (sengaja) ke F03+:** master hewan, master muqorib, peserta
+pendaftaran, pembayaran, distribusi pemetaan, laporan keuangan Qurban.
+Pre-flight aktivasi punya TODO marker untuk cek master_hewan (F3) dan
+hewan AKTIF (F4); pre-flight close punya TODO untuk blok peserta
+TERDAFTAR belum lunas (F4+).
+
+Detail lengkap: `HANDOFF_SPRINT_F02.md`, `docs/API_REFERENCE.md`
+(section Qurban Edisi/Konfigurasi/Panitia), `docs/ACCEPTANCE_F02.md`.
 
 ## 9. Saran Fitur Masa Depan (Backlog)
 

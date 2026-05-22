@@ -36,19 +36,18 @@ export function isValidPeran(peran: string): peran is Peran {
 /**
  * Where the user lands right after login.
  *
- * F1 NOTE: `/qurban` routes don't exist yet (built in F2+). All roles land at
- * `/` in F1. After F2 deploys, Qurban-only roles will land at `/qurban`.
+ * F02-A: Qurban-only roles (ADMIN_QURBAN, PENDAFTARAN, DISTRIBUSI) land on
+ * `/qurban`; SKM-side roles (SUPER_ADMIN, BENDAHARA) land on `/`. The Qurban
+ * dashboard handles the "no edisi yet" empty state gracefully so panitia roles
+ * are never sent to a 404 even when no edisi has been created.
  */
 export function getLandingUrl(peran: string): string {
-  // F1: /qurban routes don't exist yet — sending Qurban-only roles there would
-  // 404. Once Milestone F2 ships, return '/qurban' for the three branches below.
-  const isQurbanRole =
+  if (
     peran === PERAN.ADMIN_QURBAN ||
     peran === PERAN.PENDAFTARAN ||
-    peran === PERAN.DISTRIBUSI;
-  if (isQurbanRole) {
-    // F1 fallback. F2+: return '/qurban'.
-    return '/';
+    peran === PERAN.DISTRIBUSI
+  ) {
+    return '/qurban';
   }
   return '/';
 }

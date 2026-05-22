@@ -1315,6 +1315,397 @@ Cek koneksi ke Google Sheets.
 
 ---
 
+## Qurban Edisi Endpoints (Sprint F02 — Milestone B)
+
+Endpoint untuk manajemen edisi penyelenggaraan Qurban (container per tahun
+hijriah). State: `DRAFT → AKTIF → SELESAI`. Maksimal satu edisi `AKTIF`
+pada satu waktu. Edisi adalah state cookie-backed, bukan path — semua
+endpoint di sini menggunakan `id` eksplisit.
+
+**Akses peran:**
+
+| # | Method | Path | Peran |
+|---|---|---|---|
+| E1 | GET | `/api/qurban/edisi` | SUPER_ADMIN, BENDAHARA, ADMIN_QURBAN, PENDAFTARAN†, DISTRIBUSI† |
+| E2 | POST | `/api/qurban/edisi` | SUPER_ADMIN, ADMIN_QURBAN |
+| E3 | GET | `/api/qurban/edisi/[id]` | SUPER_ADMIN, BENDAHARA, ADMIN_QURBAN, PENDAFTARAN†, DISTRIBUSI† |
+| E4 | PATCH | `/api/qurban/edisi/[id]` | SUPER_ADMIN, ADMIN_QURBAN |
+| E5 | POST | `/api/qurban/edisi/[id]/activate` | SUPER_ADMIN, ADMIN_QURBAN |
+| E6 | POST | `/api/qurban/edisi/[id]/close` | SUPER_ADMIN, ADMIN_QURBAN |
+
+`†` = read-only; PENDAFTARAN/DISTRIBUSI hanya melihat edisi berstatus
+`AKTIF` (E1 otomatis ter-filter, E3 untuk edisi non-AKTIF → `403
+FORBIDDEN_EDISI`).
+
+### E1 — `GET /api/qurban/edisi`
+
+Daftar edisi diurutkan dari `tahun_masehi` desc.
+
+**Query params:**
+- `status` (opsional) — filter `DRAFT` | `AKTIF` | `SELESAI`
+
+**Response 200:**
+```json
+{
+  "ok": true,
+  "data": [
+    {
+      "id": "EDS-20270101-0001",
+      "tahun_hijriah": "1448H",
+      "tahun_masehi": 2027,
+      "tanggal_idul_adha": "2027-05-17",
+      "tanggal_pendaftaran_buka": "2027-02-01",
+      "tanggal_pendaftaran_tutup": "2027-04-30",
+      "status": "DRAFT",
+      "parent_edisi_id": "",
+      "cloned_at": "",
+      "created_at": "2027-01-01T03:00:00.000Z",
+      "updated_at": "2027-01-01T03:00:00.000Z",
+      "created_by": "ANG-..."
+    }
+  ],
+  "meta": { "total": 1, "page": 1, "page_size": 1, "has_more": false, "filters_applied": {} }
+}
+```
+
+### E2 — `POST /api/qurban/edisi`
+
+**Body:**
+```json
+{
+  "tahun_hijriah": "1448H",
+  "tahun_masehi": 2027,
+  "tanggal_idul_adha": "2027-05-17",
+  "tanggal_pendaftaran_buka": "2027-02-01",
+  "tanggal_pendaftaran_tutup": "2027-04-30",
+  "clone_from": "EDS-...",
+  "clone_options": { "konfigurasi": true, "panitia": false }
+}
+```
+
+`clone_from` opsional. Saat di-set, `clone_options.konfigurasi` default
+`true`, `clone_options.panitia` default `false`. Master hewan tidak
+di-clone di F02 (ditangani F3).
+
+**Validasi:**
+- `tahun_hijriah` & `tahun_masehi` wajib.
+- 3 tanggal wajib (format `YYYY-MM-DD`).
+- `tanggal_pendaftaran_buka` ≤ `tanggal_pendaftaran_tutup`.
+- `tahun_hijriah` unik (case-insensitive) → 409 `DUPLICATE_TAHUN_HIJRIAH`.
+
+**Response 201:** edisi baru (status `DRAFT`).
+
+### E3 — `GET /api/qurban/edisi/[id]`
+
+Detail satu edisi. PENDAFTARAN/DISTRIBUSI yang membuka edisi non-AKTIF →
+`403 FORBIDDEN_EDISI`.
+
+### E4 — `PATCH /api/qurban/edisi/[id]`
+
+**Body (semua optional):** `tahun_hijriah`, `tahun_masehi`,
+`tanggal_idul_adha`, `tanggal_pendaftaran_buka`,
+`tanggal_pendaftaran_tutup`. Minimal satu wajib.
+
+**Lock per status:**
+- `DRAFT` — semua field editable.
+- `AKTIF` — hanya 3 field tanggal. Field lain → `422
+  BUSINESS_EDISI_LOCKED`.
+- `SELESAI` — read-only total → `422 BUSINESS_EDISI_LOCKED`.
+
+Mengubah `tahun_hijriah` ke nilai yang sudah dipakai → `409
+DUPLICATE_TAHUN_HIJRIAH`.
+
+### E5 — `POST /api/qurban/edisi/[id]/activate`
+
+Transisi `DRAFT → AKTIF`.
+
+**Body (opsional):** `{ "force_close_existing_aktif": false }`.
+
+**Pre-flight (F02):**
+1. `status == DRAFT` → bila bukan, `422 BUSINESS_INVALID_STATE_TRANSITION`.
+2. Konfigurasi edisi ada → bila tidak, `422 BUSINESS_PREFLIGHT_FAILED`
+   (`details.check = "konfigurasi"`).
+3. ≥1 panitia aktif → bila tidak, `422 BUSINESS_PREFLIGHT_FAILED`
+   (`details.check = "panitia_active"`).
+4. Tidak ada edisi lain berstatus `AKTIF`:
+   - `force_close_existing_aktif=false` → `422 BUSINESS_PREFLIGHT_FAILED`
+     (`details.check = "single_aktif"`, `details.existing_aktif = {id, tahun_hijriah}`).
+   - `force_close_existing_aktif=true` → tutup edisi lama (`edisi.closed`,
+     notes "auto-closed by activation of …"), lalu aktivasi.
+
+> TODO(F3): pre-flight tambahan — `≥1 master_hewan` aktif.
+> TODO(F4): pre-flight tambahan — `≥1 hewan` berstatus AKTIF.
+
+### E6 — `POST /api/qurban/edisi/[id]/close`
+
+Transisi `AKTIF → SELESAI`. Pre-flight F02 hanya memeriksa state. Bukan
+`AKTIF` → `422 BUSINESS_INVALID_STATE_TRANSITION`.
+
+> TODO(F4+): pre-flight tambahan — blok bila ada peserta TERDAFTAR belum
+> lunas (`BUSINESS_EDISI_TUTUP_BLOCKED`).
+
+### Error Codes (Qurban Edisi)
+
+| Code | HTTP | Kapan |
+|---|---|---|
+| `VALIDATION_FAILED` | 400 | Body validation gagal (mis. format tanggal, urutan tanggal). |
+| `FORBIDDEN_ROLE` | 403 | Peran tidak diizinkan untuk method ini (mis. PD/DS POST E2). |
+| `FORBIDDEN_EDISI` | 403 | E3 — PD/DS membuka edisi non-AKTIF. |
+| `NOT_FOUND` | 404 | Edisi tidak ditemukan. |
+| `DUPLICATE_TAHUN_HIJRIAH` | 409 | E2/E4 — `tahun_hijriah` sudah dipakai edisi lain. |
+| `BUSINESS_EDISI_LOCKED` | 422 | E4 — field tidak editable pada status saat ini. |
+| `BUSINESS_INVALID_STATE_TRANSITION` | 422 | E5/E6 — status saat ini tidak mendukung transisi. |
+| `BUSINESS_PREFLIGHT_FAILED` | 422 | E5 — pre-flight gagal (konfigurasi/panitia/single AKTIF). |
+
+### Audit Events (Qurban Edisi)
+
+| `event_type` | Aksi | Sumber |
+|---|---|---|
+| `edisi.created` | `CREATE` | E2 |
+| `edisi.updated` | `UPDATE` | E4 |
+| `edisi.activated` | `UPDATE` | E5 |
+| `edisi.closed` | `UPDATE` | E6 (atau E5 saat `force_close_existing_aktif=true`) |
+
+---
+
+## Qurban Konfigurasi Endpoints (Sprint F02 — Milestone C)
+
+Konfigurasi adalah **satu baris per edisi** (1:1 dengan `qurban_edisi`)
+yang menyimpan parameter operasional: BOP per hewan, target distribusi,
+payment suffix, flag notifikasi WhatsApp.
+
+`edisi_id` SELALU dikirim eksplisit sebagai query param — endpoint ini
+tidak meresolusi edisi via cookie/AKTIF default.
+
+| # | Method | Path | Peran |
+|---|---|---|---|
+| K1 | GET | `/api/qurban/konfigurasi?edisi_id=EDS-...` | semua peran terautentikasi |
+| K2 | PUT | `/api/qurban/konfigurasi?edisi_id=EDS-...` | SUPER_ADMIN, ADMIN_QURBAN |
+
+PENDAFTARAN/DISTRIBUSI hanya boleh K1 untuk edisi `AKTIF`; edisi non-AKTIF
+→ `403 FORBIDDEN_EDISI`.
+
+### K1 — `GET /api/qurban/konfigurasi?edisi_id=EDS-...`
+
+**Response 200 (konfigurasi ada):**
+```json
+{
+  "ok": true,
+  "data": {
+    "id": "KFG-20270101-0001",
+    "edisi_id": "EDS-20270101-0001",
+    "bop_per_ekor_sapi": 300000,
+    "bop_per_ekor_kambing": 100000,
+    "target_bungkus_total": 500,
+    "berat_target_per_bungkus": 500,
+    "tanggal_distribusi_mulai": "2027-04-20",
+    "tanggal_distribusi_selesai": "2027-04-22",
+    "payment_suffix": 3,
+    "wa_send_on_pendaftaran": true,
+    "wa_send_on_pembayaran_confirmed": true,
+    "notes": "",
+    "created_at": "2027-01-01T03:00:00.000Z",
+    "updated_at": "2027-01-01T03:00:00.000Z",
+    "created_by": "ANG-..."
+  }
+}
+```
+
+**Response 200 (belum diisi):** `{ "ok": true, "data": null }` — UI render
+form dengan nilai default.
+
+**Errors:** `400 VALIDATION_REQUIRED` (`edisi_id` kosong); `404 NOT_FOUND`
+(edisi tidak ada); `403 FORBIDDEN_EDISI` (PD/DS pada non-AKTIF).
+
+### K2 — `PUT /api/qurban/konfigurasi?edisi_id=EDS-...`
+
+Upsert (single row per edisi):
+- row ada → **UPDATE** baris yang sama, `updated_at` di-refresh.
+- row belum ada → **INSERT** baru dengan `id = KFG-YYYYMMDD-NNNN`,
+  `created_at`, `created_by` di-set. HTTP 201.
+
+**Body (semua optional):**
+```json
+{
+  "bop_per_ekor_sapi": 300000,
+  "bop_per_ekor_kambing": 100000,
+  "target_bungkus_total": 500,
+  "berat_target_per_bungkus": 500,
+  "tanggal_distribusi_mulai": "2027-04-20",
+  "tanggal_distribusi_selesai": "2027-04-22",
+  "payment_suffix": 3,
+  "wa_send_on_pendaftaran": true,
+  "wa_send_on_pembayaran_confirmed": true,
+  "notes": "..."
+}
+```
+
+**Validasi:**
+- Numeric fields (`bop_per_ekor_sapi`, `bop_per_ekor_kambing`,
+  `target_bungkus_total`, `berat_target_per_bungkus`): integer ≥ 0.
+- `payment_suffix`: integer 0–9.
+- `tanggal_distribusi_mulai` ≤ `tanggal_distribusi_selesai` (cross-field;
+  dicek pada hasil merge sehingga patch yang hanya mengubah salah satu
+  ujung range tetap tervalidasi).
+- `notes`: maksimum 500 karakter.
+
+**Defaults pada INSERT pertama** (saat field di-omit):
+- `payment_suffix = 3`
+- `wa_send_on_pendaftaran = true`
+- `wa_send_on_pembayaran_confirmed = true`
+
+**Lock per status edisi:**
+- `SELESAI` → `422 BUSINESS_EDISI_LOCKED`.
+- `DRAFT` / `AKTIF` → diizinkan.
+
+Validasi pelanggaran → `422 VALIDATION_FAILED` dengan `details.field`.
+
+### Error Codes (Konfigurasi)
+
+| Code | HTTP | Kapan |
+|---|---|---|
+| `VALIDATION_REQUIRED` | 400 | `edisi_id` kosong. |
+| `VALIDATION_FAILED` | 422 | Body validation gagal (mis. range, order). |
+| `FORBIDDEN_EDISI` | 403 | K1 — PD/DS pada konfigurasi edisi non-AKTIF. |
+| `NOT_FOUND` | 404 | `edisi_id` tidak ditemukan di `qurban_edisi`. |
+| `BUSINESS_EDISI_LOCKED` | 422 | K2 — edisi SELESAI. |
+
+### Audit Events (Konfigurasi)
+
+| `event_type` | Aksi | Sumber |
+|---|---|---|
+| `konfigurasi.created` | `CREATE` | K2 INSERT (pertama kali). |
+| `konfigurasi.updated` | `UPDATE` | K2 UPDATE (revisi). |
+
+---
+
+## Qurban Panitia Endpoints (Sprint F02 — Milestone D)
+
+Panitia adalah daftar anggota yang ditugaskan di sebuah edisi — **catatan
+penugasan, bukan permission gate**. Akses ditentukan oleh `anggota.peran`;
+panitia hanya mencatat siapa kerja di edisi mana. Pre-flight aktivasi
+edisi (E5) mensyaratkan ≥1 panitia aktif.
+
+`edisi_id` SELALU dikirim eksplisit sebagai query param (sama seperti K1/K2).
+
+| # | Method | Path | Peran |
+|---|---|---|---|
+| P1 | GET | `/api/qurban/panitia?edisi_id=EDS-...` | semua peran terautentikasi |
+| P2 | POST | `/api/qurban/panitia?edisi_id=EDS-...` | SUPER_ADMIN, ADMIN_QURBAN |
+| P3 | DELETE | `/api/qurban/panitia/[id]` | SUPER_ADMIN, ADMIN_QURBAN |
+| — | GET | `/api/qurban/panitia/candidates?edisi_id=EDS-...` | SUPER_ADMIN, ADMIN_QURBAN (helper untuk dropdown UI) |
+
+PENDAFTARAN/DISTRIBUSI hanya boleh P1 untuk edisi `AKTIF`; non-AKTIF →
+`403 FORBIDDEN_EDISI`.
+
+### P1 — `GET /api/qurban/panitia?edisi_id=EDS-...`
+
+Default mengembalikan hanya panitia `is_active=true`. Tambahkan
+`&include_inactive=true` untuk menampilkan baris yang sudah di-soft-remove
+(jejak audit).
+
+Setiap baris di-enrich dengan field tampilan dari sheet `anggota`:
+`anggota_nama`, `anggota_peran`, `assigned_by_nama`. Diurutkan
+`assigned_at` desc.
+
+**Response 200:**
+```json
+{
+  "ok": true,
+  "data": [
+    {
+      "id": "PNT-20270101-0001",
+      "edisi_id": "EDS-20270101-0001",
+      "anggota_id": "ANG-20260101-0002",
+      "is_active": true,
+      "assigned_at": "2027-01-01T03:00:00.000Z",
+      "assigned_by": "ANG-20260515-0003",
+      "notes": "",
+      "anggota_nama": "Ketua DKM",
+      "anggota_peran": "ADMIN_QURBAN",
+      "assigned_by_nama": "Hopy Familianto"
+    }
+  ],
+  "meta": {
+    "total": 1,
+    "page": 1,
+    "page_size": 1,
+    "has_more": false,
+    "filters_applied": { "edisi_id": "EDS-...", "include_inactive": false }
+  }
+}
+```
+
+### P2 — `POST /api/qurban/panitia?edisi_id=EDS-...`
+
+**Body:**
+```json
+{ "anggota_id": "ANG-...", "notes": "..." }
+```
+
+`notes` opsional (maks 500 char).
+
+**Validasi:**
+- Edisi harus ada; `SELESAI` → `422 BUSINESS_EDISI_LOCKED`.
+- Anggota harus ada dan `is_active=true` → `422 VALIDATION_FAILED`.
+- `anggota.peran` ∈ `{SUPER_ADMIN, ADMIN_QURBAN, PENDAFTARAN, DISTRIBUSI}`.
+  `BENDAHARA` → `422 BUSINESS_INVALID_PERAN_FOR_PANITIA`.
+- Tidak ada panitia aktif lain dengan `(edisi_id, anggota_id)` sama →
+  `409 DUPLICATE_PANITIA` (`details.existing_panitia_id`).
+
+**Response 201:** baris panitia baru (`PNT-…`).
+
+### P3 — `DELETE /api/qurban/panitia/[id]`
+
+**Soft-remove**: baris tetap di sheet, hanya `is_active` di-flip ke
+`FALSE`. Tetap meninggalkan jejak audit.
+
+- Edisi `SELESAI` → `422 BUSINESS_EDISI_LOCKED`.
+- Baris sudah `is_active=false` → **`200` no-op idempotent** (tidak error,
+  tidak nulis ulang ke sheet, tidak audit).
+- Baris tidak ditemukan → `404 NOT_FOUND`.
+
+**Response 200:** baris panitia (dengan `is_active=false`).
+
+### Helper — `GET /api/qurban/panitia/candidates?edisi_id=EDS-...`
+
+Daftar minimal anggota yang berhak ditugaskan untuk edisi tsb. Filter:
+`is_active=true`, `peran` ∈ allowed (`BENDAHARA` dikecualikan), dan
+belum jadi panitia aktif di edisi tsb. Tujuan: men-feed dropdown UI tanpa
+membuka endpoint `/api/pengaturan/anggota` (SA-only) ke ADMIN_QURBAN.
+
+**Response 200:**
+```json
+{
+  "ok": true,
+  "data": [
+    { "id": "ANG-20260101-0002", "nama": "Ketua DKM", "peran": "ADMIN_QURBAN" }
+  ],
+  "meta": { "total": 1, ... }
+}
+```
+
+### Error Codes (Panitia)
+
+| Code | HTTP | Kapan |
+|---|---|---|
+| `VALIDATION_REQUIRED` | 400 | `edisi_id` query kosong. |
+| `VALIDATION_FAILED` | 422 | `anggota_id` invalid / anggota non-aktif / notes terlalu panjang. |
+| `BUSINESS_INVALID_PERAN_FOR_PANITIA` | 422 | Anggota ber-peran `BENDAHARA`. |
+| `BUSINESS_EDISI_LOCKED` | 422 | Edisi `SELESAI`. |
+| `FORBIDDEN_EDISI` | 403 | P1 — PD/DS pada edisi non-AKTIF. |
+| `NOT_FOUND` | 404 | Edisi / panitia tidak ditemukan. |
+| `DUPLICATE_PANITIA` | 409 | Sudah ada panitia aktif dengan kombinasi (edisi, anggota) yang sama. |
+
+### Audit Events (Panitia)
+
+| `event_type` | Aksi | Sumber |
+|---|---|---|
+| `panitia.assigned` | `CREATE` | P2 |
+| `panitia.removed` | `UPDATE` | P3 (soft-remove). Skip audit kalau idempotent no-op. |
+
+---
+
 ## Qurban Public Endpoints
 
 ### `GET /api/publik/qurban`

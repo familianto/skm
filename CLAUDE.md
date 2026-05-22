@@ -11,7 +11,10 @@
 
 ## Current Sprint
 
-> **Sprint 9 — Bulk Edit & Proteksi Hapus** selesai. Lihat `HANDOFF_SPRINT09.md` untuk detail.
+> **Sprint F02 — Qurban Edisi Management** selesai (A–E + 2 hotfix).
+> Lihat `HANDOFF_SPRINT_F02.md` untuk detail; `docs/ACCEPTANCE_F02.md`
+> untuk checklist acceptance manual. Sprint berikutnya: **F03 — Master
+> Muqorib + Master Hewan**.
 
 Update baris ini setiap kali sprint berganti.
 

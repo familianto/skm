@@ -4,17 +4,32 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
+import { useMe } from '@/hooks/use-me';
+
+type Peran = 'SUPER_ADMIN' | 'BENDAHARA' | 'ADMIN_QURBAN' | 'PENDAFTARAN' | 'DISTRIBUSI';
 
 interface NavItem {
   href: string;
   label: string;
   icon: string;
+  /** When set, item only renders for these peran (full or read-only). */
+  visibleRoles?: Peran[];
+  /** Peran that see the item grayed-out with a lock icon. */
+  disabledRoles?: Peran[];
+  /** Peran that see the item with a read-only eye indicator. */
+  readOnlyRoles?: Peran[];
 }
 
 interface NavSection {
   label: string;
   items: NavItem[];
 }
+
+const QURBAN_ICON =
+  'M19 14l-7 7m0 0l-7-7m7 7V3';
+// "Edisi" — calendar-clock-ish glyph
+const QURBAN_EDISI_ICON =
+  'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z';
 
 const navSections: NavSection[] = [
   {
@@ -24,6 +39,25 @@ const navSections: NavSection[] = [
       { href: '/transaksi', label: 'Transaksi', icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2' },
       { href: '/kelompok', label: 'Kelompok Anggaran', icon: 'M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z' },
       { href: '/import', label: 'Import CSV', icon: 'M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12' },
+    ],
+  },
+  {
+    label: 'Qurban',
+    items: [
+      {
+        href: '/qurban',
+        label: 'Dashboard',
+        icon: QURBAN_ICON,
+        visibleRoles: ['SUPER_ADMIN', 'BENDAHARA', 'ADMIN_QURBAN', 'PENDAFTARAN', 'DISTRIBUSI'],
+      },
+      {
+        href: '/qurban/edisi',
+        label: 'Edisi',
+        icon: QURBAN_EDISI_ICON,
+        visibleRoles: ['SUPER_ADMIN', 'BENDAHARA', 'ADMIN_QURBAN', 'PENDAFTARAN', 'DISTRIBUSI'],
+        readOnlyRoles: ['BENDAHARA', 'PENDAFTARAN'],
+        disabledRoles: ['DISTRIBUSI'],
+      },
     ],
   },
   {
@@ -56,11 +90,22 @@ export function Sidebar({ masjidName = 'SKM', logoUrl }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const { me } = useMe();
+  const peran = me?.user.peran as Peran | undefined;
 
   const handleLogout = async () => {
     await fetch('/api/auth/logout', { method: 'POST' });
     router.push('/login');
   };
+
+  const visibleSections = navSections
+    .map((section) => ({
+      ...section,
+      items: section.items.filter(
+        (item) => !item.visibleRoles || (peran && item.visibleRoles.includes(peran))
+      ),
+    }))
+    .filter((section) => section.items.length > 0);
 
   const navContent = (
     <>
@@ -92,7 +137,7 @@ export function Sidebar({ masjidName = 'SKM', logoUrl }: SidebarProps) {
 
       {/* Nav Sections */}
       <nav className="flex-1 px-3 py-4 space-y-4 overflow-y-auto">
-        {navSections.map((section) => (
+        {visibleSections.map((section) => (
           <div key={section.label}>
             <p className="px-3 mb-1.5 text-[10px] font-semibold uppercase tracking-widest text-emerald-400/70">
               {section.label}
@@ -100,22 +145,56 @@ export function Sidebar({ masjidName = 'SKM', logoUrl }: SidebarProps) {
             <div className="space-y-0.5">
               {section.items.map((item) => {
                 const isActive = pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href));
+                const isDisabled = peran ? item.disabledRoles?.includes(peran) : false;
+                const isReadOnly = peran ? item.readOnlyRoles?.includes(peran) : false;
+                const baseClass = cn(
+                  'flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors',
+                  isDisabled
+                    ? 'text-emerald-300/60 cursor-not-allowed'
+                    : isActive
+                    ? 'bg-emerald-700 text-white'
+                    : 'text-emerald-100 hover:bg-emerald-700/50'
+                );
+                const content = (
+                  <>
+                    <svg className="w-5 h-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d={item.icon} />
+                    </svg>
+                    <span className="flex-1">{item.label}</span>
+                    {isDisabled && (
+                      <svg className="w-3.5 h-3.5 opacity-70" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-label="Tidak tersedia">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 11c0-1.105-.895-2-2-2s-2 .895-2 2v3m9 0V8a5 5 0 00-10 0v3M5 14h14v7H5v-7z" />
+                      </svg>
+                    )}
+                    {!isDisabled && isReadOnly && (
+                      <svg className="w-3.5 h-3.5 opacity-70" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-label="Lihat saja">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                      </svg>
+                    )}
+                  </>
+                );
+                if (isDisabled) {
+                  return (
+                    <span
+                      key={item.href}
+                      className={baseClass}
+                      title="Tidak tersedia untuk peran Anda"
+                      aria-disabled="true"
+                    >
+                      {content}
+                    </span>
+                  );
+                }
                 return (
                   <Link
                     key={item.href}
                     href={item.href}
                     onClick={() => setMobileOpen(false)}
-                    className={cn(
-                      'flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors',
-                      isActive
-                        ? 'bg-emerald-700 text-white'
-                        : 'text-emerald-100 hover:bg-emerald-700/50'
-                    )}
+                    className={baseClass}
+                    title={isReadOnly ? 'Hanya lihat (read-only)' : undefined}
                   >
-                    <svg className="w-5 h-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d={item.icon} />
-                    </svg>
-                    {item.label}
+                    {content}
                   </Link>
                 );
               })}

@@ -74,6 +74,30 @@ export const SHEET_HEADERS: Record<string, string[]> = {
     'kategori_masuk', 'kategori_keluar',
     'created_at', 'updated_at',
   ],
+
+  // F02 — Qurban module sheets. Nama sheet authoritative-nya hidup di
+  // `lib/qurban/sheets.ts` (QURBAN_SHEETS); literal di sini harus persis
+  // sama. Row mapping authoritative-nya hidup di `lib/qurban/*-repo.ts`.
+  // Headers di sini hanya dipakai oleh `sheetsService.updateRow` /
+  // `ensureSheet` / `setupHeaders` untuk menghitung range — tanpa entry di
+  // sini, semua UPDATE ke sheet Qurban throw "Unknown sheet".
+  'qurban_edisi': [
+    'id', 'tahun_hijriah', 'tahun_masehi', 'tanggal_idul_adha',
+    'tanggal_pendaftaran_buka', 'tanggal_pendaftaran_tutup', 'status',
+    'parent_edisi_id', 'cloned_at', 'created_at', 'updated_at', 'created_by',
+  ],
+  'qurban_konfigurasi_edisi': [
+    'id', 'edisi_id', 'bop_per_ekor_sapi', 'bop_per_ekor_kambing',
+    'target_bungkus_total', 'berat_target_per_bungkus',
+    'tanggal_distribusi_mulai', 'tanggal_distribusi_selesai',
+    'payment_suffix', 'wa_send_on_pendaftaran',
+    'wa_send_on_pembayaran_confirmed', 'notes',
+    'created_at', 'updated_at', 'created_by',
+  ],
+  'qurban_panitia': [
+    'id', 'edisi_id', 'anggota_id', 'is_active', 'assigned_at',
+    'assigned_by', 'notes',
+  ],
 };
 
 // Default categories to seed
