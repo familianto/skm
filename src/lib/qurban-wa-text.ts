@@ -21,17 +21,11 @@ export function generateQurbanWAText(data: QurbanPublikResponse, pageUrl: string
   for (const [tipe, count] of Object.entries(summary.sapi_breakdown).sort()) {
     t += `   \u2022 Kelas ${tipe}: ${count} ekor\n`;
   }
-  if (summary.sapi_penitipan > 0) {
-    t += `   \u2022 ${LABEL_BAWA_SENDIRI}: ${summary.sapi_penitipan} ekor\n`;
-  }
   t += '\n';
 
   t += `\u{1F410} Kambing: *${summary.total_kambing} ekor*\n`;
   for (const [tipe, count] of Object.entries(summary.kambing_breakdown).sort()) {
     t += `   \u2022 Kelas ${tipe}: ${count} ekor\n`;
-  }
-  if (summary.kambing_penitipan > 0) {
-    t += `   \u2022 ${LABEL_BAWA_SENDIRI}: ${summary.kambing_penitipan} ekor\n`;
   }
   t += '\n';
 
