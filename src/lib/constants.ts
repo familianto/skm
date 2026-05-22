@@ -98,6 +98,19 @@ export const SHEET_HEADERS: Record<string, string[]> = {
     'id', 'edisi_id', 'anggota_id', 'is_active', 'assigned_at',
     'assigned_by', 'notes',
   ],
+
+  // F03 — Master Qurban (Muqorib lintas-edisi + Master Hewan per-edisi).
+  // Kolom otoritatif di `scripts/migrate_F03.gs`; mapper di
+  // `lib/qurban/muqorib-repo.ts` & `lib/qurban/master-hewan-repo.ts` harus
+  // memakai urutan yang sama persis.
+  'qurban_muqorib': [
+    'id', 'nama_lengkap', 'alamat', 'rt', 'no_hp', 'is_active',
+    'data_induk_ref_1447h', 'notes', 'created_at', 'created_by', 'updated_at',
+  ],
+  'qurban_master_hewan': [
+    'id', 'edisi_id', 'jenis', 'kelas', 'kapasitas_slot', 'harga_beli',
+    'harga_bawa_sendiri', 'is_active', 'created_at', 'updated_at', 'created_by',
+  ],
 };
 
 // Default categories to seed

@@ -43,3 +43,53 @@ export function isValidDistribusiDateRange(start: string, end: string): boolean 
 export function isValidPaymentSuffix(n: number): boolean {
   return Number.isInteger(n) && n >= 0 && n <= 9;
 }
+
+// ---------------------------------------------------------------------------
+// F03 — Master Qurban (Muqorib + Master Hewan) primitives.
+// ---------------------------------------------------------------------------
+
+/** RT yang valid untuk muqorib (lingkup masjid). */
+export const RT_VALUES = ['001', '002', '003', '004', '005', '006', 'Lainnya'] as const;
+
+/** Jenis hewan qurban yang didukung. */
+export const JENIS_HEWAN = ['SAPI', 'KAMBING'] as const;
+
+/** Kelas/tier hewan qurban (membedakan bobot/harga di dalam satu jenis). */
+export const KELAS_HEWAN = ['A', 'B', 'C', 'D'] as const;
+
+/**
+ * Normalisasi nomor telepon ke format `628xxxxxxxxxx`.
+ *
+ * - Buang semua karakter non-digit.
+ * - `0xxx` → `62xxx`.
+ * - `8xxx` → `628xxx`.
+ * - `62xxx` → biarkan.
+ * - Selain itu → kembalikan apa adanya (biarkan `isValidNoHp` yang menolak).
+ * - String kosong → `''`.
+ */
+export function normalizeNoHp(input: string): string {
+  if (!input) return '';
+  const digits = input.replace(/\D+/g, '');
+  if (!digits) return '';
+  if (digits.startsWith('62')) return digits;
+  if (digits.startsWith('0')) return '62' + digits.slice(1);
+  if (digits.startsWith('8')) return '62' + digits;
+  return digits;
+}
+
+/** `true` kalau cocok pola nomor seluler Indonesia ter-normalisasi. */
+export function isValidNoHp(value: string): boolean {
+  return /^628\d{7,12}$/.test(value);
+}
+
+export function isValidRt(value: string): boolean {
+  return (RT_VALUES as readonly string[]).includes(value);
+}
+
+export function isValidJenisHewan(value: string): boolean {
+  return (JENIS_HEWAN as readonly string[]).includes(value);
+}
+
+export function isValidKelasHewan(value: string): boolean {
+  return (KELAS_HEWAN as readonly string[]).includes(value);
+}

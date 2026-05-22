@@ -23,3 +23,11 @@ export function generateKonfigurasiId(): Promise<string> {
 export function generatePanitiaId(): Promise<string> {
   return generateId('PNT', QURBAN_SHEETS.PANITIA);
 }
+
+export function generateMuqoribId(): Promise<string> {
+  return generateId('MQR', QURBAN_SHEETS.MUQORIB);
+}
+
+export function generateMasterHewanId(): Promise<string> {
+  return generateId('MHW', QURBAN_SHEETS.MASTER_HEWAN);
+}
