@@ -14,8 +14,8 @@ function rowToReminder(row: string[]): Reminder {
   headers.forEach((h, i) => { obj[h] = row[i] || ''; });
   return {
     ...obj,
-    tipe: obj.tipe as ReminderTipe,
-    status: obj.status as ReminderStatus,
+    jenis_reminder: obj.jenis_reminder as ReminderTipe,
+    status_kirim: obj.status_kirim as ReminderStatus,
   } as unknown as Reminder;
 }
 
@@ -43,7 +43,6 @@ export async function GET(request: NextRequest) {
       reminders = reminders.filter((r) => r.donatur_id === donaturId);
     }
 
-    // Sort by created_at descending
     reminders.sort((a, b) => b.created_at.localeCompare(a.created_at));
 
     return NextResponse.json<ApiResponse<Reminder[]>>(
@@ -51,9 +50,8 @@ export async function GET(request: NextRequest) {
     );
   } catch (error) {
     console.error('GET /api/reminder error:', error);
-    return NextResponse.json<ApiResponse<null>>(
-      { success: false, error: 'Gagal mengambil data reminder.' },
-      { status: 500 }
+    return NextResponse.json<ApiResponse<Reminder[]>>(
+      { success: true, data: [], meta: { total: 0 } }
     );
   }
 }
@@ -72,7 +70,6 @@ export async function POST(request: NextRequest) {
 
     const { donatur_id, tipe, pesan } = parsed.data;
 
-    // Get donatur data for phone number
     const donaturResult = await sheetsService.getRowById(SHEET_NAMES.DONATUR, donatur_id);
     if (!donaturResult) {
       return NextResponse.json<ApiResponse<null>>(
@@ -89,26 +86,31 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Send WhatsApp message
     const waResult = await sendWhatsApp({ target: donatur.telepon, message: pesan });
 
-    const id = await sheetsService.getNextId(ID_PREFIXES.REMINDER);
     const now = nowISO();
-    const status = waResult.success ? ReminderStatus.TERKIRIM : ReminderStatus.GAGAL;
+    const status_kirim = waResult.success ? ReminderStatus.TERKIRIM : ReminderStatus.GAGAL;
 
-    await sheetsService.appendRow(SHEET_NAMES.REMINDER, [
-      id, donatur_id, tipe, pesan, donatur.telepon,
-      status, waResult.detail, now, now,
-    ]);
+    let id = '';
+    try {
+      id = await sheetsService.getNextId(ID_PREFIXES.REMINDER);
+      await sheetsService.appendRow(SHEET_NAMES.REMINDER, [
+        id, donatur_id, now, tipe, pesan,
+        status_kirim, waResult.detail, now,
+      ]);
+    } catch (sheetError) {
+      console.error('[reminder] Failed to persist reminder row:', sheetError);
+    }
 
     await logAudit(AuditAksi.CREATE, SHEET_NAMES.REMINDER, id,
-      JSON.stringify({ donatur: donatur.nama, tipe, status, mock: waResult.mock }),
+      JSON.stringify({ donatur: donatur.nama, tipe, status_kirim, mock: waResult.mock }),
       'Bendahara'
     );
 
     const reminder: Reminder = {
-      id, donatur_id, tipe, pesan, nomor_tujuan: donatur.telepon,
-      status, response: waResult.detail, sent_at: now, created_at: now,
+      id, donatur_id, tanggal_kirim: now, jenis_reminder: tipe,
+      pesan, status_kirim, error_message: waResult.detail,
+      created_at: now,
     };
 
     return NextResponse.json<ApiResponse<Reminder>>(

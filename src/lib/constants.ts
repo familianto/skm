@@ -8,7 +8,7 @@ export const SHEET_NAMES = {
   ANGGOTA: 'anggota',
   REKONSILIASI: 'rekonsiliasi',
   DONATUR: 'donatur',
-  REMINDER: 'reminder',
+  REMINDER: 'reminder_log',
   KELOMPOK: 'kelompok',
 } as const;
 
@@ -66,8 +66,8 @@ export const SHEET_HEADERS: Record<string, string[]> = {
     'jumlah_komitmen', 'catatan', 'is_active', 'created_at', 'updated_at',
   ],
   [SHEET_NAMES.REMINDER]: [
-    'id', 'donatur_id', 'tipe', 'pesan', 'nomor_tujuan',
-    'status', 'response', 'sent_at', 'created_at',
+    'id', 'donatur_id', 'tanggal_kirim', 'jenis_reminder',
+    'pesan', 'status_kirim', 'error_message', 'created_at',
   ],
   [SHEET_NAMES.KELOMPOK]: [
     'id', 'nama', 'deskripsi', 'warna',
