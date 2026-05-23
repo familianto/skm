@@ -101,11 +101,11 @@ export default function DonaturDetailPage() {
       });
       const data = await res.json();
       if (data.success) {
-        const status = data.data?.status;
-        if (status === ReminderStatus.TERKIRIM) {
+        const statusKirim = data.data?.status_kirim;
+        if (statusKirim === ReminderStatus.TERKIRIM) {
           toast('Pesan WhatsApp berhasil dikirim');
         } else {
-          toast('Pesan dicatat (mode mock - Fonnte belum terkoneksi)', 'error');
+          toast('Pesan dicatat (mode mock - Fonnte belum terkoneksi)', 'info');
         }
         setSendModalOpen(false);
         fetchData();
@@ -182,13 +182,13 @@ export default function DonaturDetailPage() {
             <div className="flex justify-between">
               <dt className="text-sm text-gray-500">Terkirim</dt>
               <dd className="text-sm font-bold text-emerald-600">
-                {reminders.filter((r) => r.status === ReminderStatus.TERKIRIM).length}
+                {reminders.filter((r) => r.status_kirim === ReminderStatus.TERKIRIM).length}
               </dd>
             </div>
             <div className="flex justify-between">
               <dt className="text-sm text-gray-500">Gagal</dt>
               <dd className="text-sm font-bold text-red-600">
-                {reminders.filter((r) => r.status === ReminderStatus.GAGAL).length}
+                {reminders.filter((r) => r.status_kirim === ReminderStatus.GAGAL).length}
               </dd>
             </div>
           </dl>
@@ -217,12 +217,12 @@ export default function DonaturDetailPage() {
                 <TableRow key={r.id}>
                   <TableCell className="text-sm whitespace-nowrap">{formatTimestamp(r.created_at)}</TableCell>
                   <TableCell>
-                    <span className="text-sm">{TIPE_LABELS[r.tipe] || r.tipe}</span>
+                    <span className="text-sm">{TIPE_LABELS[r.jenis_reminder] || r.jenis_reminder}</span>
                   </TableCell>
                   <TableCell>
                     <Badge
-                      label={r.status}
-                      variant={STATUS_VARIANT[r.status] as 'AKTIF' | 'VOID' | 'default'}
+                      label={r.status_kirim}
+                      variant={STATUS_VARIANT[r.status_kirim] as 'AKTIF' | 'VOID' | 'default'}
                     />
                   </TableCell>
                   <TableCell>

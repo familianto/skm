@@ -42,7 +42,6 @@ export async function POST(request: NextRequest) {
 
     const { donatur_ids, tipe, pesan } = parsed.data;
 
-    // Get all donatur data
     const allRows = await sheetsService.getRows(SHEET_NAMES.DONATUR);
     const allDonaturs = allRows.map(rowToDonatur);
     const selectedDonaturs = allDonaturs.filter(
@@ -62,44 +61,38 @@ export async function POST(request: NextRequest) {
     for (const donatur of selectedDonaturs) {
       const personalizedMessage = pesan.replace(/\{nama\}/g, donatur.nama);
 
-      // 1. Send WhatsApp — sendWhatsApp never throws; it returns a
-      //    structured SendResult on both success and failure.
       const waResult = await sendWhatsApp({
         target: donatur.telepon,
         message: personalizedMessage,
       });
 
-      const status = waResult.success ? ReminderStatus.TERKIRIM : ReminderStatus.GAGAL;
+      const status_kirim = waResult.success ? ReminderStatus.TERKIRIM : ReminderStatus.GAGAL;
 
-      // 2. Persist an audit row. If Google Sheets fails here we must NOT
-      //    report a send failure to the user — the WhatsApp message was
-      //    already delivered (or failed) regardless of our bookkeeping.
       let id = '';
       try {
         id = await sheetsService.getNextId(ID_PREFIXES.REMINDER);
         await sheetsService.appendRow(SHEET_NAMES.REMINDER, [
-          id, donatur.id, tipe, personalizedMessage, donatur.telepon,
-          status, waResult.detail, now, now,
+          id, donatur.id, now, tipe, personalizedMessage,
+          status_kirim, waResult.detail, now,
         ]);
       } catch (sheetError) {
         console.error(
           `[reminder/send] Failed to persist reminder row for donatur ${donatur.id}:`,
           sheetError
         );
-        // Keep going — the message status is still reported in the response.
       }
 
       results.push({
-        id, donatur_id: donatur.id, tipe: tipe as ReminderTipe, pesan: personalizedMessage,
-        nomor_tujuan: donatur.telepon, status, response: waResult.detail,
-        sent_at: now, created_at: now,
+        id, donatur_id: donatur.id, tanggal_kirim: now,
+        jenis_reminder: tipe as ReminderTipe, pesan: personalizedMessage,
+        status_kirim, error_message: waResult.detail,
+        created_at: now,
       });
     }
 
-    const terkirim = results.filter((r) => r.status === ReminderStatus.TERKIRIM).length;
-    const gagal = results.filter((r) => r.status === ReminderStatus.GAGAL).length;
+    const terkirim = results.filter((r) => r.status_kirim === ReminderStatus.TERKIRIM).length;
+    const gagal = results.filter((r) => r.status_kirim === ReminderStatus.GAGAL).length;
 
-    // Audit log is best-effort (logAudit already swallows its own errors).
     await logAudit(
       AuditAksi.CREATE,
       SHEET_NAMES.REMINDER,

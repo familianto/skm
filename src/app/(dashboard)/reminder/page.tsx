@@ -120,8 +120,8 @@ export default function ReminderPage() {
       });
       const data: ApiResponse<Reminder[]> = await res.json();
       if (data.success && data.data) {
-        const terkirim = data.data.filter((r) => r.status === ReminderStatus.TERKIRIM).length;
-        const gagal = data.data.filter((r) => r.status === ReminderStatus.GAGAL).length;
+        const terkirim = data.data.filter((r) => r.status_kirim === ReminderStatus.TERKIRIM).length;
+        const gagal = data.data.filter((r) => r.status_kirim === ReminderStatus.GAGAL).length;
 
         if (terkirim > 0 && gagal === 0) {
           toast(`Berhasil mengirim ke ${terkirim} donatur`, 'success');
@@ -143,8 +143,9 @@ export default function ReminderPage() {
     }
   };
 
-  // Build donatur name lookup for reminder history
-  const donaturMap = new Map(donaturs.map((d) => [d.id, d.nama]));
+  // Build donatur lookups for reminder history
+  const donaturNameMap = new Map(donaturs.map((d) => [d.id, d.nama]));
+  const donaturPhoneMap = new Map(donaturs.map((d) => [d.id, d.telepon]));
 
   if (loading) return <Loading className="py-12" />;
 
@@ -292,17 +293,17 @@ export default function ReminderPage() {
               {reminders.slice(0, 50).map((r) => (
                 <TableRow key={r.id}>
                   <TableCell className="text-sm whitespace-nowrap">{formatTimestamp(r.created_at)}</TableCell>
-                  <TableCell className="text-sm font-medium">{donaturMap.get(r.donatur_id) || r.donatur_id}</TableCell>
-                  <TableCell className="text-sm">{TIPE_LABELS[r.tipe] || r.tipe}</TableCell>
-                  <TableCell className="text-sm">{r.nomor_tujuan}</TableCell>
+                  <TableCell className="text-sm font-medium">{donaturNameMap.get(r.donatur_id) || r.donatur_id}</TableCell>
+                  <TableCell className="text-sm">{TIPE_LABELS[r.jenis_reminder] || r.jenis_reminder}</TableCell>
+                  <TableCell className="text-sm">{donaturPhoneMap.get(r.donatur_id) || '-'}</TableCell>
                   <TableCell>
                     <Badge
-                      label={r.status}
-                      variant={STATUS_VARIANT[r.status] as 'AKTIF' | 'VOID' | 'default'}
+                      label={r.status_kirim}
+                      variant={STATUS_VARIANT[r.status_kirim] as 'AKTIF' | 'VOID' | 'default'}
                     />
                   </TableCell>
                   <TableCell>
-                    <p className="text-xs text-gray-500 max-w-xs truncate">{r.response}</p>
+                    <p className="text-xs text-gray-500 max-w-xs truncate">{r.error_message}</p>
                   </TableCell>
                 </TableRow>
               ))}

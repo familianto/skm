@@ -180,12 +180,11 @@ export interface Donatur {
 export interface Reminder {
   id: string;
   donatur_id: string;
-  tipe: ReminderTipe;
+  tanggal_kirim: string;
+  jenis_reminder: ReminderTipe;
   pesan: string;
-  nomor_tujuan: string;
-  status: ReminderStatus;
-  response: string;
-  sent_at: string;
+  status_kirim: ReminderStatus;
+  error_message: string;
   created_at: string;
 }
 
