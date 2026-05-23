@@ -1,10 +1,11 @@
+import { sheetsService } from '@/lib/google-sheets';
 import { QURBAN_SHEETS } from './sheets';
 
 /**
  * Repository for `qurban_muqorib` — master jamaah qurban LINTAS-EDISI.
  *
- * Milestone A: skeleton only — sheet-name constant + row↔object mappers.
- * Fungsi CRUD (list/find/create/update/deactivate) menyusul di Milestone B.
+ * Milestone A: sheet-name constant + row↔object mappers.
+ * Milestone B: CRUD helpers (list/find/append/update) — mirror `edisi-repo.ts`.
  *
  * Column order MUST mirror migrate_F03's qurban_muqorib sheet (11 cols):
  *   0:id  1:nama_lengkap  2:alamat  3:rt  4:no_hp  5:is_active
@@ -59,4 +60,69 @@ export function mapMuqoribToRow(m: QurbanMuqorib): unknown[] {
     m.created_by,
     m.updated_at,
   ];
+}
+
+/** All values produced by `mapMuqoribToRow` are strings. */
+function muqoribRowAsStrings(m: QurbanMuqorib): string[] {
+  return mapMuqoribToRow(m).map((v) => (v == null ? '' : String(v)));
+}
+
+/**
+ * Read every muqorib row (active + inactive). Filtering/sorting/pagination
+ * is the caller's responsibility (M1 route handler).
+ *
+ * Defensive: returns `[]` when the sheet is missing so list endpoints don't
+ * crash in environments where `migrate_F03.gs` hasn't run yet.
+ */
+export async function listAllMuqorib(): Promise<QurbanMuqorib[]> {
+  try {
+    const rows = await sheetsService.getRows(MUQORIB_SHEET);
+    return rows.filter((r) => r[0]).map(mapRowToMuqorib);
+  } catch (err) {
+    console.error('[muqorib-repo.listAllMuqorib] failed:', err);
+    return [];
+  }
+}
+
+export async function getMuqoribById(id: string): Promise<QurbanMuqorib | null> {
+  if (!id) return null;
+  const all = await listAllMuqorib();
+  return all.find((m) => m.id === id) ?? null;
+}
+
+interface MuqoribRecord {
+  rowIndex: number;
+  muqorib: QurbanMuqorib;
+}
+
+/** Locate a muqorib row + its sheet rowIndex (1-based) for in-place update. */
+async function findMuqoribRecordById(id: string): Promise<MuqoribRecord | null> {
+  if (!id) return null;
+  const rows = await sheetsService.getRows(MUQORIB_SHEET);
+  for (let i = 0; i < rows.length; i++) {
+    if (rows[i][0] === id) {
+      return { rowIndex: i + 2, muqorib: mapRowToMuqorib(rows[i]) };
+    }
+  }
+  return null;
+}
+
+/** Append a new muqorib row. Returns the record unchanged for caller use. */
+export async function appendMuqorib(record: QurbanMuqorib): Promise<QurbanMuqorib> {
+  await sheetsService.appendRow(MUQORIB_SHEET, muqoribRowAsStrings(record));
+  return record;
+}
+
+/**
+ * Update an existing muqorib (matched by `record.id`). Throws if no row
+ * matches — callers should `getMuqoribById` first and 404 at the route layer
+ * before reaching here.
+ */
+export async function updateMuqorib(record: QurbanMuqorib): Promise<QurbanMuqorib> {
+  const found = await findMuqoribRecordById(record.id);
+  if (!found) {
+    throw new Error(`Muqorib not found: ${record.id}`);
+  }
+  await sheetsService.updateRow(MUQORIB_SHEET, found.rowIndex, muqoribRowAsStrings(record));
+  return record;
 }

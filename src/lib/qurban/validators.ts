@@ -93,3 +93,168 @@ export function isValidJenisHewan(value: string): boolean {
 export function isValidKelasHewan(value: string): boolean {
   return (KELAS_HEWAN as readonly string[]).includes(value);
 }
+
+// ---------------------------------------------------------------------------
+// Muqorib — composite payload validators.
+// ---------------------------------------------------------------------------
+
+export interface ValidationError {
+  field: string;
+  message: string;
+}
+
+export interface ValidationResult<T> {
+  ok: boolean;
+  errors: ValidationError[];
+  /** Normalized values (no_hp normalized, strings trimmed). Only set when `ok`. */
+  value?: T;
+}
+
+export interface MuqoribCreateInput {
+  nama_lengkap: string;
+  alamat: string;
+  rt: string;
+  no_hp: string;
+  notes?: string;
+}
+
+export type MuqoribPatchInput = Partial<MuqoribCreateInput>;
+
+function isString(v: unknown): v is string {
+  return typeof v === 'string';
+}
+
+function nonEmptyString(v: unknown): string | null {
+  if (!isString(v)) return null;
+  const trimmed = v.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+function validateField(
+  errors: ValidationError[],
+  field: string,
+  raw: unknown,
+  out: Record<string, string>
+): void {
+  if (field === 'nama_lengkap' || field === 'alamat') {
+    const v = nonEmptyString(raw);
+    if (v === null) {
+      errors.push({ field, message: `${field} wajib diisi.` });
+      return;
+    }
+    out[field] = v;
+    return;
+  }
+  if (field === 'rt') {
+    if (!isString(raw)) {
+      errors.push({ field, message: 'rt wajib diisi.' });
+      return;
+    }
+    if (!isValidRt(raw)) {
+      errors.push({ field, message: 'rt tidak valid.' });
+      return;
+    }
+    out.rt = raw;
+    return;
+  }
+  if (field === 'no_hp') {
+    if (!isString(raw)) {
+      errors.push({ field, message: 'no_hp wajib diisi.' });
+      return;
+    }
+    const normalized = normalizeNoHp(raw);
+    if (!isValidNoHp(normalized)) {
+      errors.push({ field, message: 'no_hp tidak valid (format: 628xxxxxxxxxx).' });
+      return;
+    }
+    out.no_hp = normalized;
+    return;
+  }
+  if (field === 'notes') {
+    if (raw === undefined || raw === null) {
+      out.notes = '';
+      return;
+    }
+    if (!isString(raw)) {
+      errors.push({ field, message: 'notes harus berupa string.' });
+      return;
+    }
+    out.notes = raw;
+    return;
+  }
+}
+
+/**
+ * Validate the create payload for `POST /api/qurban/muqorib`.
+ *
+ * Returns the normalized values (with `no_hp` already in `628...` form and
+ * trimmed strings) so the route handler doesn't have to re-do normalization.
+ */
+export function validateMuqoribCreate(
+  input: unknown
+): ValidationResult<MuqoribCreateInput> {
+  const errors: ValidationError[] = [];
+  if (!input || typeof input !== 'object') {
+    errors.push({ field: '_', message: 'Body wajib berupa object.' });
+    return { ok: false, errors };
+  }
+  const raw = input as Record<string, unknown>;
+  const out: Record<string, string> = {};
+  for (const field of ['nama_lengkap', 'alamat', 'rt', 'no_hp', 'notes'] as const) {
+    if (field === 'notes' && raw[field] === undefined) {
+      out.notes = '';
+      continue;
+    }
+    if (raw[field] === undefined) {
+      errors.push({ field, message: `${field} wajib diisi.` });
+      continue;
+    }
+    validateField(errors, field, raw[field], out);
+  }
+  if (errors.length > 0) return { ok: false, errors };
+  return {
+    ok: true,
+    errors: [],
+    value: {
+      nama_lengkap: out.nama_lengkap,
+      alamat: out.alamat,
+      rt: out.rt,
+      no_hp: out.no_hp,
+      notes: out.notes,
+    },
+  };
+}
+
+const PATCHABLE_FIELDS = ['nama_lengkap', 'alamat', 'rt', 'no_hp', 'notes'] as const;
+
+/**
+ * Validate the patch payload for `PATCH /api/qurban/muqorib/[id]`.
+ *
+ * Requires at least one patchable field; validates only the fields actually
+ * present. Returns the normalized subset.
+ */
+export function validateMuqoribPatch(
+  input: unknown
+): ValidationResult<MuqoribPatchInput> {
+  const errors: ValidationError[] = [];
+  if (!input || typeof input !== 'object') {
+    errors.push({ field: '_', message: 'Body wajib berupa object.' });
+    return { ok: false, errors };
+  }
+  const raw = input as Record<string, unknown>;
+  const present = PATCHABLE_FIELDS.filter((f) => raw[f] !== undefined);
+  if (present.length === 0) {
+    errors.push({ field: '_', message: 'Minimal satu field wajib diberikan untuk update.' });
+    return { ok: false, errors };
+  }
+  const out: Record<string, string> = {};
+  for (const field of present) {
+    validateField(errors, field, raw[field], out);
+  }
+  if (errors.length > 0) return { ok: false, errors };
+  const value: MuqoribPatchInput = {};
+  for (const field of present) {
+    (value as Record<string, string>)[field] = out[field];
+  }
+  return { ok: true, errors: [], value };
+}
