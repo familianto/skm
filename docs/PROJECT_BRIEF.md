@@ -97,6 +97,8 @@ Lihat detail lengkap di `DATABASE_SCHEMA.md`.
 | `rekonsiliasi` | Data rekonsiliasi bank | Sprint 5 |
 | `donatur` | Data donatur masjid | Sprint 3 |
 | `reminder` | Log pengiriman reminder WA | Sprint 3 |
+| `qurban_muqorib` | Master jamaah qurban (lintas-edisi) | Sprint F03 |
+| `qurban_master_hewan` | Katalog tipe hewan qurban (per-edisi) | Sprint F03 |
 
 ## 5. Fitur Utama
 
@@ -330,7 +332,7 @@ Lihat detail di `SPRINT_PLAN.md` dan file individual di `sprints/`.
 | 9 | Bulk Edit & Proteksi Hapus | 1 minggu | ✅ Done |
 | F01 | Auth Multi-User & Anggota CRUD | 6-8 hari | ✅ Done |
 | F02 | Qurban Edisi Management | 5 hari (5 milestone A–E) | ✅ Done |
-| F03 | Master Muqorib + Master Hewan Qurban | TBD | ⏳ Planned |
+| F03 | Master Muqorib + Master Hewan Qurban | 5 milestone A–E | ✅ Done |
 | F04 | Pendaftaran Peserta Qurban + Pembayaran | TBD | ⏳ Planned |
 
 ### Sprint F02 — Qurban Edisi Management
@@ -367,6 +369,43 @@ TERDAFTAR belum lunas (F4+).
 
 Detail lengkap: `HANDOFF_SPRINT_F02.md`, `docs/API_REFERENCE.md`
 (section Qurban Edisi/Konfigurasi/Panitia), `docs/ACCEPTANCE_F02.md`.
+
+### Sprint F03 — Master Muqorib + Master Hewan (Opsi B)
+
+Data master modul Qurban: **muqorib** (jamaah, lintas-edisi) dan **master
+tipe hewan** (katalog jenis+kelas per edisi). Lingkup dibatasi ke Opsi B —
+katalog tipe hewan, bukan inventory hewan fisik per ekor (ditunda ke F05
+bersama Pemetaan).
+
+**Kemampuan modul (delivered):**
+
+- **Muqorib CRUD lintas-edisi** (M1–M6): list dengan search/filter
+  status/sort/paginasi, create, detail (+ seksi riwayat partisipasi yang
+  kosong sampai F04), edit, deactivate/reactivate. `no_hp` dinormalisasi
+  server-side ke `628…`.
+- **Smart-lookup muqorib** (M7): autocomplete Jaro-Winkler + boost telepon
+  (last-4) & alamat/RT; `no_hp` di-mask di response. Konsumennya modul
+  Pendaftaran (F04).
+- **Master tipe hewan per-edisi** (MH1–MH5): list per edisi, create tipe
+  (`jenis`×`kelas` unik per edisi), update inline (kapasitas/harga;
+  `jenis`/`kelas` immutable), deactivate. Bulk-upsert (MH5) tersedia di API
+  tetapi tanpa UI di F03.
+- **UI Muqorib** (4 halaman): `/qurban/muqorib`, `/baru`, `/[id]`,
+  `/[id]/edit` — mirror pola CRUD Anggota F01.
+- **UI Master Hewan**: `/qurban/hewan` dengan tab Master Tipe (fungsional,
+  inline edit + modal tambah) + tab Daftar Inventory (placeholder F05).
+- **Role-gating**: Muqorib tulis = SA/AQ/PD, status = SA/AQ; Master Hewan
+  tulis = SA/AQ. Akses halaman mengikuti `path-rules.ts`
+  (`/qurban/(muqorib|hewan)` → SA/BD/AQ/PD).
+- **2 sheet baru:** `qurban_muqorib` (11 kolom, lintas-edisi),
+  `qurban_master_hewan` (11 kolom, per-edisi). Migrasi via Apps Script
+  `migrate_F03`.
+
+**Tertunda (sengaja) ke F05:** inventory hewan fisik per ekor
+(`qurban_daftar_hewan`), halaman Pemetaan, dan UI bulk-setup tipe.
+
+Detail lengkap: `HANDOFF_SPRINT_F03.md`, `docs/API_REFERENCE.md`
+(section Qurban Muqorib + Master Hewan).
 
 ## 9. Saran Fitur Masa Depan (Backlog)
 
