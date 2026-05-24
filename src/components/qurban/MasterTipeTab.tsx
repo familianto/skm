@@ -48,6 +48,13 @@ export function MasterTipeTab({ edisiId, edisiStatus, canEdit }: Props) {
   }>({ open: false, id: '', label: '' });
   const [deactivating, setDeactivating] = useState(false);
 
+  const [confirmReactivate, setConfirmReactivate] = useState<{
+    open: boolean;
+    id: string;
+    label: string;
+  }>({ open: false, id: '', label: '' });
+  const [reactivating, setReactivating] = useState(false);
+
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
@@ -149,6 +156,28 @@ export function MasterTipeTab({ edisiId, edisiStatus, canEdit }: Props) {
       toast('Tidak dapat terhubung ke server.', 'error');
     } finally {
       setDeactivating(false);
+    }
+  };
+
+  const handleReactivate = async (id: string) => {
+    setReactivating(true);
+    try {
+      const res = await fetch(
+        `/api/qurban/master-hewan/${id}/reactivate?edisi_id=${encodeURIComponent(edisiId)}`,
+        { method: 'POST', headers: { 'Content-Type': 'application/json' } }
+      );
+      const json = await res.json().catch(() => ({}));
+      if (res.ok && json?.ok) {
+        toast('Tipe hewan diaktifkan kembali.', 'success');
+        setConfirmReactivate({ open: false, id: '', label: '' });
+        await fetchData();
+        return;
+      }
+      toast(json?.error?.message || 'Gagal mengaktifkan kembali.', 'error');
+    } catch {
+      toast('Tidak dapat terhubung ke server.', 'error');
+    } finally {
+      setReactivating(false);
     }
   };
 
@@ -300,28 +329,42 @@ export function MasterTipeTab({ edisiId, edisiStatus, canEdit }: Props) {
                               Batal
                             </Button>
                           </div>
+                        ) : m.is_active ? (
+                          <div className="flex gap-2 justify-end">
+                            <Button size="sm" variant="secondary" onClick={() => startEdit(m)}>
+                              Edit
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="text-red-600 hover:bg-red-50"
+                              onClick={() =>
+                                setConfirmDeactivate({
+                                  open: true,
+                                  id: m.id,
+                                  label: `${m.jenis} kelas ${m.kelas}`,
+                                })
+                              }
+                            >
+                              Nonaktifkan
+                            </Button>
+                          </div>
                         ) : (
-                          m.is_active && (
-                            <div className="flex gap-2 justify-end">
-                              <Button size="sm" variant="secondary" onClick={() => startEdit(m)}>
-                                Edit
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                className="text-red-600 hover:bg-red-50"
-                                onClick={() =>
-                                  setConfirmDeactivate({
-                                    open: true,
-                                    id: m.id,
-                                    label: `${m.jenis} kelas ${m.kelas}`,
-                                  })
-                                }
-                              >
-                                Nonaktifkan
-                              </Button>
-                            </div>
-                          )
+                          <div className="flex justify-end">
+                            <Button
+                              size="sm"
+                              variant="secondary"
+                              onClick={() =>
+                                setConfirmReactivate({
+                                  open: true,
+                                  id: m.id,
+                                  label: `${m.jenis} kelas ${m.kelas}`,
+                                })
+                              }
+                            >
+                              Aktifkan Kembali
+                            </Button>
+                          </div>
                         )}
                       </td>
                     )}
@@ -393,27 +436,44 @@ export function MasterTipeTab({ edisiId, edisiStatus, canEdit }: Props) {
                     <dt className="text-gray-500">Harga Bawa Sendiri</dt>
                     <dd className="text-gray-900 text-right">{formatRupiah(m.harga_bawa_sendiri)}</dd>
                   </dl>
-                  {canEdit && m.is_active && (
-                    <div className="flex gap-2 justify-end mt-3">
-                      <Button size="sm" variant="secondary" onClick={() => startEdit(m)}>
-                        Edit
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="text-red-600 hover:bg-red-50"
-                        onClick={() =>
-                          setConfirmDeactivate({
-                            open: true,
-                            id: m.id,
-                            label: `${m.jenis} kelas ${m.kelas}`,
-                          })
-                        }
-                      >
-                        Nonaktifkan
-                      </Button>
-                    </div>
-                  )}
+                  {canEdit &&
+                    (m.is_active ? (
+                      <div className="flex gap-2 justify-end mt-3">
+                        <Button size="sm" variant="secondary" onClick={() => startEdit(m)}>
+                          Edit
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="text-red-600 hover:bg-red-50"
+                          onClick={() =>
+                            setConfirmDeactivate({
+                              open: true,
+                              id: m.id,
+                              label: `${m.jenis} kelas ${m.kelas}`,
+                            })
+                          }
+                        >
+                          Nonaktifkan
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="flex justify-end mt-3">
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          onClick={() =>
+                            setConfirmReactivate({
+                              open: true,
+                              id: m.id,
+                              label: `${m.jenis} kelas ${m.kelas}`,
+                            })
+                          }
+                        >
+                          Aktifkan Kembali
+                        </Button>
+                      </div>
+                    ))}
                 </>
               )}
             </Card>
@@ -440,6 +500,17 @@ export function MasterTipeTab({ edisiId, edisiStatus, canEdit }: Props) {
         loading={deactivating}
         onCancel={() => setConfirmDeactivate({ open: false, id: '', label: '' })}
         onConfirm={() => handleDeactivate(confirmDeactivate.id)}
+      />
+
+      <ConfirmDialog
+        open={confirmReactivate.open}
+        title="Aktifkan kembali tipe hewan?"
+        message={`Tipe ${confirmReactivate.label} akan aktif kembali dan bisa dipilih saat pendaftaran.`}
+        confirmLabel="Aktifkan Kembali"
+        variant="primary"
+        loading={reactivating}
+        onCancel={() => setConfirmReactivate({ open: false, id: '', label: '' })}
+        onConfirm={() => handleReactivate(confirmReactivate.id)}
       />
     </div>
   );

@@ -1798,7 +1798,8 @@ Smart autocomplete atas muqorib AKTIF (Jaro-Winkler + boost telepon/alamat).
 
 Master Hewan adalah **katalog tipe hewan qurban PER-EDISI**. `edisi_id` SELALU
 dikirim eksplisit sebagai query param. Natural key `(edisi_id, jenis, kelas)`
-unik. Soft-delete via `is_active` (tanpa reactivate by design).
+unik. Soft-delete via `is_active`; MH4 (deactivate) + MH6 (reactivate)
+berpasangan.
 
 | # | Method | Path | Peran |
 |---|---|---|---|
@@ -1807,6 +1808,7 @@ unik. Soft-delete via `is_active` (tanpa reactivate by design).
 | MH3 | PATCH | `/api/qurban/master-hewan/[id]?edisi_id=EDS-...` | SUPER_ADMIN, ADMIN_QURBAN |
 | MH4 | POST | `/api/qurban/master-hewan/[id]/deactivate?edisi_id=EDS-...` | SUPER_ADMIN, ADMIN_QURBAN |
 | MH5 | POST | `/api/qurban/master-hewan/bulk-upsert?edisi_id=EDS-...` | SUPER_ADMIN, ADMIN_QURBAN |
+| MH6 | POST | `/api/qurban/master-hewan/[id]/reactivate?edisi_id=EDS-...` | SUPER_ADMIN, ADMIN_QURBAN |
 
 `†` = PENDAFTARAN/DISTRIBUSI hanya boleh MH1 untuk edisi `AKTIF`; edisi
 non-AKTIF → `403 FORBIDDEN_EDISI`. Catatan: ini akses **lapisan API**; akses
@@ -1835,12 +1837,19 @@ Duplikat `(edisi_id, jenis, kelas)` → `422 DUPLICATE_MASTER_HEWAN`. **Response
 
 ### MH4 — `POST /api/qurban/master-hewan/[id]/deactivate?edisi_id=EDS-...`
 
-Soft-delete. `SELESAI` → `422 BUSINESS_EDISI_LOCKED`. Idempotent. Tanpa reactivate.
+Soft-delete. `SELESAI` → `422 BUSINESS_EDISI_LOCKED`. Idempotent.
 
 ### MH5 — `POST /api/qurban/master-hewan/bulk-upsert?edisi_id=EDS-...`
 
 Bulk create/update tipe dalam satu request (dipakai untuk setup awal /
 clone antar-edisi). **Tidak ada UI di Milestone E** — CRUD per-baris saja.
+
+### MH6 — `POST /api/qurban/master-hewan/[id]/reactivate?edisi_id=EDS-...`
+
+Inverse MH4 — set `is_active` → `TRUE`. `SELESAI` → `422 BUSINESS_EDISI_LOCKED`.
+Idempotent (sudah aktif → no-op sukses). Karena cek duplikat MH2 mencakup baris
+nonaktif, reactivate adalah jalan benar untuk menghidupkan kembali tipe yang
+sempat dinonaktifkan (bukan membuat baris baru).
 
 ### Error Codes (Master Hewan)
 
@@ -1861,6 +1870,7 @@ clone antar-edisi). **Tidak ada UI di Milestone E** — CRUD per-baris saja.
 | `master_hewan.created` | `CREATE` | MH2 |
 | `master_hewan.updated` | `UPDATE` | MH3 (split harga/kapasitas; skip kalau no-op) |
 | `master_hewan.deactivated` | `UPDATE` | MH4 (skip kalau sudah nonaktif) |
+| `master_hewan.reactivated` | `UPDATE` | MH6 (skip kalau sudah aktif) |
 
 ---
 

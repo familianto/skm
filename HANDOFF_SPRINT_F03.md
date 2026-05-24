@@ -78,6 +78,7 @@ Natural key `(edisi_id, jenis, kelas)` is unique.
 | MH3 | PATCH | `/api/qurban/master-hewan/[id]` | SA, AQ |
 | MH4 | POST | `/api/qurban/master-hewan/[id]/deactivate` | SA, AQ |
 | MH5 | POST | `/api/qurban/master-hewan/bulk-upsert` | SA, AQ |
+| MH6 | POST | `/api/qurban/master-hewan/[id]/reactivate` | SA, AQ |
 
 `†` PD/DS hanya MH1 untuk edisi `AKTIF` (non-AKTIF → `403 FORBIDDEN_EDISI`).
 
@@ -133,11 +134,19 @@ API access — there is no conflict. The UI gates write elements via
 The F02 fail-open module kill-switch remains in force; F03 pages live under
 the same `/qurban` umbrella and inherit it. F03 did not change it.
 
-### D4 — Master Hewan has no reactivate (by design)
+### D4 — Master Hewan deactivate + reactivate (MH4 + MH6)
 
-MH4 deactivate is one-way; there is no MH reactivate counterpart (unlike
-Muqorib M6). The UI shows write actions (Edit/Nonaktifkan) only on active
-rows; inactive rows render with a "Nonaktif" badge and no actions.
+> **Updated by F03 polish (commit after `35016da`).** Initially Milestone E
+> shipped MH4 deactivate with no counterpart. Verification found a dead end:
+> MH2's duplicate check is **all-scope** (covers inactive rows), so a
+> deactivated type could be neither reactivated nor re-created — locked
+> forever. The polish added **MH6 reactivate** (mirror of MH4, inverted),
+> making the pair symmetric with Muqorib M5/M6.
+
+UI: active rows show `Edit` + `Nonaktifkan`; inactive rows show `Aktifkan
+Kembali` (and cannot inline-edit until reactivated). The all-scope MH2
+duplicate check is intentional — bringing back a deactivated type goes through
+reactivate, not a new row, keeping the audit trail clean.
 
 ### D5 — Reused, not reinvented
 
