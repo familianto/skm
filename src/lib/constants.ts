@@ -111,6 +111,16 @@ export const SHEET_HEADERS: Record<string, string[]> = {
     'id', 'edisi_id', 'jenis', 'kelas', 'kapasitas_slot', 'harga_beli',
     'harga_bawa_sendiri', 'is_active', 'created_at', 'updated_at', 'created_by',
   ],
+
+  // F5a — Inventaris fisik per-ekor. Kolom otoritatif di
+  // `scripts/migrate_F5a.gs`; mapper (Milestone B) di
+  // `lib/qurban/daftar-hewan-repo.ts` harus memakai urutan yang sama persis.
+  'qurban_daftar_hewan': [
+    'id', 'edisi_id', 'master_hewan_id', 'jenis', 'kelas', 'nomor_urut',
+    'kapasitas_slot', 'tipe_pembelian', 'vendor_nama', 'harga_beli_aktual',
+    'tanggal_pembelian', 'status', 'notes', 'nomor_urut_pemotongan',
+    'created_at', 'updated_at', 'created_by',
+  ],
 };
 
 // Default categories to seed

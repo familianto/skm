@@ -12,4 +12,6 @@ export const QURBAN_SHEETS = {
   // F03 — Master Qurban
   MUQORIB: 'qurban_muqorib',
   MASTER_HEWAN: 'qurban_master_hewan',
+  // F5a — Inventaris fisik per-ekor
+  DAFTAR_HEWAN: 'qurban_daftar_hewan',
 } as const;
