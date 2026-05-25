@@ -2,11 +2,12 @@
 
 import { useRouter, useSearchParams } from 'next/navigation';
 
-import { Card } from '@/components/ui/card';
 import { useMe } from '@/hooks/use-me';
 import { cn } from '@/lib/utils';
 import { canWriteMasterHewan } from '@/lib/qurban/master-hewan-display';
+import { canWriteDaftarHewan, canManageHewanStatus } from '@/lib/qurban/daftar-hewan-display';
 import { MasterTipeTab } from '@/components/qurban/MasterTipeTab';
+import { HewanInventoryTab } from '@/components/qurban/HewanInventoryTab';
 
 type EdisiStatus = 'DRAFT' | 'AKTIF' | 'SELESAI';
 
@@ -39,6 +40,8 @@ export function HewanTabs({ edisiId, edisiStatus, edisiTahun }: Props) {
       : 'master';
 
   const canEdit = canWriteMasterHewan(me?.user.peran) && edisiStatus !== 'SELESAI';
+  const canEditInventory = canWriteDaftarHewan(me?.user.peran) && edisiStatus !== 'SELESAI';
+  const canBatchStatus = canManageHewanStatus(me?.user.peran) && edisiStatus !== 'SELESAI';
 
   const setTab = (next: TabKey) => {
     const params = new URLSearchParams(search.toString());
@@ -77,17 +80,12 @@ export function HewanTabs({ edisiId, edisiStatus, edisiTahun }: Props) {
       )}
 
       {activeTab === 'inventory' && (
-        <Card>
-          <div className="text-center py-10">
-            <p className="text-gray-500 text-sm">
-              Pencatatan hewan fisik per ekor (inventory) belum tersedia.
-            </p>
-            <p className="text-xs text-gray-400 mt-1">
-              Fitur ini akan hadir di sprint berikutnya (F05) — mencatat tiap ekor
-              hewan, kondisi, dan pemetaan ke peserta.
-            </p>
-          </div>
-        </Card>
+        <HewanInventoryTab
+          edisiId={edisiId}
+          edisiStatus={edisiStatus}
+          canEdit={canEditInventory}
+          canBatchStatus={canBatchStatus}
+        />
       )}
     </div>
   );

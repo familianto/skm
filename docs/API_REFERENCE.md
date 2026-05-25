@@ -1874,6 +1874,121 @@ sempat dinonaktifkan (bukan membuat baris baru).
 
 ---
 
+## Qurban Daftar Hewan (Inventaris Fisik) Endpoints (Sprint F5a)
+
+Daftar Hewan adalah **inventaris fisik per-ekor** — 1 baris = 1 ekor hewan
+nyata, melengkapi katalog tipe (`qurban_master_hewan`, F03). **PER-EDISI**:
+`edisi_id` SELALU dikirim eksplisit sebagai query param (`?edisi_id=EDS-...`),
+sama seperti Master Hewan F03.
+
+| # | Method | Path | Peran |
+|---|---|---|---|
+| H1 | GET | `/api/qurban/hewan?edisi_id=EDS-...` | SUPER_ADMIN, BENDAHARA, ADMIN_QURBAN, PENDAFTARAN |
+| H2 | POST | `/api/qurban/hewan?edisi_id=EDS-...` | SUPER_ADMIN, ADMIN_QURBAN, PENDAFTARAN |
+| H3 | GET | `/api/qurban/hewan/[id]?edisi_id=EDS-...` | SUPER_ADMIN, BENDAHARA, ADMIN_QURBAN, PENDAFTARAN |
+| H4 | PATCH | `/api/qurban/hewan/[id]?edisi_id=EDS-...` | SUPER_ADMIN, ADMIN_QURBAN, PENDAFTARAN |
+| H5 | POST | `/api/qurban/hewan/reorder?edisi_id=EDS-...` | SUPER_ADMIN, ADMIN_QURBAN, PENDAFTARAN |
+| H6 | POST | `/api/qurban/hewan/batch-status?edisi_id=EDS-...` | SUPER_ADMIN, ADMIN_QURBAN |
+| H7 | POST | `/api/qurban/hewan/[id]/cancel?edisi_id=EDS-...` | SUPER_ADMIN, ADMIN_QURBAN |
+
+Akses **halaman** `/qurban/hewan` di-gate `path-rules.ts` ke SA/BD/AQ/PD
+(DISTRIBUSI dikecualikan). PENDAFTARAN (panitia) hanya boleh edisi `AKTIF`
+(edisi lain → `403 FORBIDDEN_EDISI`). Semua endpoint tulis (H2/H4/H5/H6/H7)
+menolak edisi `SELESAI` → `422 BUSINESS_EDISI_LOCKED`.
+
+**Schema `qurban_daftar_hewan` (17 kolom):** `id` (prefix `HWN-`), `edisi_id`,
+`master_hewan_id`, `jenis` (`SAPI`|`KAMBING`), `kelas` (`A`–`D`), `nomor_urut`
+(int), `kapasitas_slot` (int), `tipe_pembelian` (`BELI`|`BAWA_SENDIRI`),
+`vendor_nama`, `harga_beli_aktual` (≥ 0), `tanggal_pembelian` (`YYYY-MM-DD`),
+`status` (`DRAFT`|`AKTIF`|`TERPOTONG`|`BATAL`), `notes`, `nomor_urut_pemotongan`
+(**milik F7 — selalu kosong di F5a**), `created_at`, `updated_at`, `created_by`.
+
+`jenis`, `kelas`, `kapasitas_slot` **didenormalisasi** dari `master_hewan_id`.
+
+**State machine status:** `DRAFT→AKTIF`, `DRAFT→BATAL`, `AKTIF→TERPOTONG`
+(butuh `tanggal_pemotongan`), `AKTIF→BATAL`. `TERPOTONG` & `BATAL` terminal.
+
+### H1 — `GET /api/qurban/hewan?edisi_id=EDS-...`
+
+**Query:** `edisi_id` (wajib), filter opsional `jenis`, `kelas`, `status`.
+Diurutkan `jenis`, `kelas`, `nomor_urut`. Tiap item diperkaya: `nama_display`
+(`"Sapi-A-01"`), `slot_terisi`, `kapasitas_slot`. `slot_terisi = 0` selama
+sheet `qurban_peserta` belum ada (F4a). `meta: { total, filters_applied }`.
+
+### H2 — `POST /api/qurban/hewan?edisi_id=EDS-...`
+
+**Body:** `{ master_hewan_id, tipe_pembelian, vendor_nama?, harga_beli_aktual?,
+tanggal_pembelian?, notes?, status? }` (`status` default `AKTIF`, hanya
+`DRAFT`/`AKTIF`). `master_hewan_id` harus ada, `is_active`, & se-edisi. Untuk
+`BAWA_SENDIRI`, `harga_beli_aktual` dipaksa `0`. **Auto-numbering** grup
+`(edisi, jenis, kelas)`: `BELI` → `max+1`; `BAWA_SENDIRI` → slot BAWA berikutnya
+lalu geser tiap `BELI` ≥ slot itu +1 (invariant: BAWA_SENDIRI selalu di depan
+BELI). **Response 201** (+ `nama_display`).
+
+### H3 — `GET /api/qurban/hewan/[id]?edisi_id=EDS-...`
+
+Detail satu hewan + `nama_display` + ringkasan slot: `kapasitas_slot`,
+`slot_terisi`, `occupants[]` (kosong selama `qurban_peserta` belum ada).
+`404` bila id tidak ditemukan / beda edisi.
+
+### H4 — `PATCH /api/qurban/hewan/[id]?edisi_id=EDS-...`
+
+**Body (subset):** `vendor_nama`, `harga_beli_aktual`, `tanggal_pembelian`,
+`notes`. Field lain (penomoran, denormalisasi, `tipe_pembelian`, `status`)
+immutable di sini. `BAWA_SENDIRI` → `harga_beli_aktual` harus `0`. Status
+terminal → `422 BUSINESS_HEWAN_TERMINAL`. Idempotent no-op bila tak ada
+perubahan.
+
+### H5 — `POST /api/qurban/hewan/reorder?edisi_id=EDS-...`
+
+**Body:** `{ jenis, kelas, ordered_hewan_ids }`. `ordered_hewan_ids` WAJIB
+**permutasi lengkap** grup `(edisi, jenis, kelas)` — kurang/lebih/duplikat →
+`422 VALIDATION_FAILED`. Assign `nomor_urut = 1..N` sesuai urutan; baris yang
+nomornya tak berubah dilewati. Tidak menegakkan invariant BAWA_SENDIRI/BELI
+(reorder manual).
+
+### H6 — `POST /api/qurban/hewan/batch-status?edisi_id=EDS-...`
+
+**Body:** `{ hewan_ids, target_status, tanggal_pemotongan?, notes? }`.
+`target_status` ∈ `AKTIF`|`TERPOTONG`|`BATAL`. **Validasi atomik** — bila ada
+satu hewan dengan transisi tidak sah / (untuk `BATAL`) masih punya peserta
+`TERDAFTAR`, **seluruh batch ditolak** (tanpa perubahan). `TERPOTONG` wajib
+`tanggal_pemotongan` (`YYYY-MM-DD`) — **tidak disimpan sebagai kolom**, hanya
+direkam di audit (Opsi A).
+
+### H7 — `POST /api/qurban/hewan/[id]/cancel?edisi_id=EDS-...`
+
+**Body:** `{ notes? }`. Set `status → BATAL`. Hanya `DRAFT`/`AKTIF` (terminal →
+`422 BUSINESS_HEWAN_TERMINAL`); hewan dengan peserta `TERDAFTAR` →
+`422 BUSINESS_HEWAN_HAS_PESERTA`.
+
+### Error Codes (Daftar Hewan)
+
+| Code | HTTP | Kapan |
+|---|---|---|
+| `VALIDATION_REQUIRED` | 400 | `edisi_id` query param kosong. |
+| `VALIDATION_FAILED` | 400/422 | Body validation gagal / reorder bukan permutasi. |
+| `FORBIDDEN_ROLE` | 403 | Peran tidak diizinkan untuk endpoint. |
+| `FORBIDDEN_EDISI` | 403 | PENDAFTARAN mengakses edisi non-AKTIF. |
+| `NOT_FOUND` | 404 | Edisi / hewan tidak ditemukan. |
+| `BUSINESS_EDISI_LOCKED` | 422 | Edisi `SELESAI` — inventaris tidak dapat diubah. |
+| `BUSINESS_INVALID_STATE_TRANSITION` | 422 | H6 — transisi status tidak sah. |
+| `BUSINESS_HEWAN_TERMINAL` | 422 | H4/H7 — hewan berstatus terminal. |
+| `BUSINESS_HEWAN_HAS_PESERTA` | 422 | H6/H7 BATAL — hewan masih punya peserta `TERDAFTAR`. |
+
+### Audit Events (Daftar Hewan)
+
+| `event_type` | Aksi | Sumber |
+|---|---|---|
+| `hewan.created` | `CREATE` | H2 |
+| `hewan.nomor_urut_changed` | `UPDATE` | H2 (geseran auto-number), H5 (reorder) |
+| `hewan.updated` | `UPDATE` | H4 (skip kalau no-op) |
+| `hewan.status_changed` | `UPDATE` | H6 (transisi non-TERPOTONG) |
+| `hewan.batch_terpotong` | `UPDATE` | H6 `→ TERPOTONG` (metadata `tanggal_pemotongan`) |
+| `hewan.cancelled` | `UPDATE` | H7 |
+
+---
+
 ## Qurban Public Endpoints
 
 ### `GET /api/publik/qurban`

@@ -31,3 +31,7 @@ export function generateMuqoribId(): Promise<string> {
 export function generateMasterHewanId(): Promise<string> {
   return generateId('MHW', QURBAN_SHEETS.MASTER_HEWAN);
 }
+
+export function generateDaftarHewanId(): Promise<string> {
+  return generateId('HWN', QURBAN_SHEETS.DAFTAR_HEWAN);
+}
