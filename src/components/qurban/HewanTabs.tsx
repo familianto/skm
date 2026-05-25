@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useMe } from '@/hooks/use-me';
 import { cn } from '@/lib/utils';
 import { canWriteMasterHewan } from '@/lib/qurban/master-hewan-display';
-import { canWriteDaftarHewan } from '@/lib/qurban/daftar-hewan-display';
+import { canWriteDaftarHewan, canManageHewanStatus } from '@/lib/qurban/daftar-hewan-display';
 import { MasterTipeTab } from '@/components/qurban/MasterTipeTab';
 import { HewanInventoryTab } from '@/components/qurban/HewanInventoryTab';
 
@@ -41,6 +41,7 @@ export function HewanTabs({ edisiId, edisiStatus, edisiTahun }: Props) {
 
   const canEdit = canWriteMasterHewan(me?.user.peran) && edisiStatus !== 'SELESAI';
   const canEditInventory = canWriteDaftarHewan(me?.user.peran) && edisiStatus !== 'SELESAI';
+  const canBatchStatus = canManageHewanStatus(me?.user.peran) && edisiStatus !== 'SELESAI';
 
   const setTab = (next: TabKey) => {
     const params = new URLSearchParams(search.toString());
@@ -79,7 +80,12 @@ export function HewanTabs({ edisiId, edisiStatus, edisiTahun }: Props) {
       )}
 
       {activeTab === 'inventory' && (
-        <HewanInventoryTab edisiId={edisiId} edisiStatus={edisiStatus} canEdit={canEditInventory} />
+        <HewanInventoryTab
+          edisiId={edisiId}
+          edisiStatus={edisiStatus}
+          canEdit={canEditInventory}
+          canBatchStatus={canBatchStatus}
+        />
       )}
     </div>
   );

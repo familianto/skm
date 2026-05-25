@@ -31,7 +31,10 @@ export default async function MasterHewanPage({
 
   return (
     <div>
-      <PageTitle title="Master Hewan" subtitle="Katalog tipe hewan qurban per edisi" />
+      <PageTitle
+        title="Hewan Qurban"
+        subtitle="Master tipe hewan & inventaris fisik per ekor (per edisi)"
+      />
 
       {edisi ? (
         <Suspense fallback={<Loading className="my-8" />}>

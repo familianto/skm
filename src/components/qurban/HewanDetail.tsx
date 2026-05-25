@@ -11,6 +11,7 @@ import { useMe } from '@/hooks/use-me';
 import { formatRupiah } from '@/lib/utils';
 import {
   canWriteDaftarHewan,
+  canManageHewanStatus,
   hewanStatusBadgeClass,
   hewanStatusLabel,
   tipePembelianLabel,
@@ -19,6 +20,7 @@ import {
   isHewanTerminal,
   type DaftarHewanDetailData,
 } from '@/lib/qurban/daftar-hewan-display';
+import { HewanCancelModal } from '@/components/qurban/HewanCancelModal';
 
 interface Props {
   edisiId: string;
@@ -32,6 +34,7 @@ export function HewanDetail({ edisiId, hewanId }: Props) {
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [notFound, setNotFound] = useState(false);
+  const [showCancel, setShowCancel] = useState(false);
 
   const listHref = `/qurban/hewan?tab=inventory&edisi=${encodeURIComponent(edisiId)}`;
   const editHref = `/qurban/hewan/${hewanId}/edit?edisi=${encodeURIComponent(edisiId)}`;
@@ -100,6 +103,7 @@ export function HewanDetail({ edisiId, hewanId }: Props) {
   }
 
   const canEdit = canWriteDaftarHewan(me?.user.peran) && !isHewanTerminal(hewan.status);
+  const canCancel = canManageHewanStatus(me?.user.peran) && !isHewanTerminal(hewan.status);
 
   return (
     <div className="max-w-2xl mx-auto">
@@ -159,16 +163,37 @@ export function HewanDetail({ edisiId, hewanId }: Props) {
       </Card>
 
       {/* Actions */}
-      {canEdit && (
+      {(canEdit || canCancel) && (
         <Card>
           <h2 className="text-sm font-semibold text-gray-900 mb-3">Aksi</h2>
-          <Link href={editHref}>
-            <Button variant="secondary" className="w-full sm:w-auto">
-              Edit
-            </Button>
-          </Link>
+          <div className="flex flex-col sm:flex-row sm:flex-wrap gap-2">
+            {canEdit && (
+              <Link href={editHref}>
+                <Button variant="secondary" className="w-full sm:w-auto">
+                  Edit
+                </Button>
+              </Link>
+            )}
+            {canCancel && (
+              <Button variant="danger" onClick={() => setShowCancel(true)} className="w-full sm:w-auto">
+                Batalkan Hewan
+              </Button>
+            )}
+          </div>
         </Card>
       )}
+
+      <HewanCancelModal
+        open={showCancel}
+        edisiId={edisiId}
+        hewanId={hewan.id}
+        namaDisplay={hewan.nama_display}
+        onClose={() => setShowCancel(false)}
+        onSuccess={() => {
+          setShowCancel(false);
+          fetchDetail();
+        }}
+      />
     </div>
   );
 }

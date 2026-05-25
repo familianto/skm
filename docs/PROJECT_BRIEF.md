@@ -333,6 +333,7 @@ Lihat detail di `SPRINT_PLAN.md` dan file individual di `sprints/`.
 | F01 | Auth Multi-User & Anggota CRUD | 6-8 hari | ✅ Done |
 | F02 | Qurban Edisi Management | 5 hari (5 milestone A–E) | ✅ Done |
 | F03 | Master Muqorib + Master Hewan Qurban | 5 milestone A–E | ✅ Done |
+| F5a | Inventaris Hewan Fisik (`qurban_daftar_hewan`) | 4 milestone A–D | ✅ Done |
 | F04 | Pendaftaran Peserta Qurban + Pembayaran | TBD | ⏳ Planned |
 
 ### Sprint F02 — Qurban Edisi Management
@@ -406,6 +407,37 @@ bersama Pemetaan).
 
 Detail lengkap: `HANDOFF_SPRINT_F03.md`, `docs/API_REFERENCE.md`
 (section Qurban Muqorib + Master Hewan).
+
+### Sprint F5a — Inventaris Hewan Fisik
+
+Lapisan **inventaris fisik per-ekor** di atas katalog tipe F03. Tabel
+`qurban_daftar_hewan` mencatat tiap ekor hewan nyata (1 baris = 1 ekor),
+dengan `jenis`/`kelas`/`kapasitas_slot` didenormalisasi dari master tipe.
+
+**Kemampuan modul (delivered):**
+
+- **CRUD per-ekor** (H1–H4): list per edisi (filter jenis/kelas/status,
+  diperkaya `nama_display` + slot), create dengan **auto-numbering** grup
+  `(jenis, kelas)` (BAWA_SENDIRI selalu mendahului BELI), detail (+ ringkasan
+  slot & penghuni), edit field non-penomoran. `BAWA_SENDIRI` → harga 0.
+- **Operasi batch & status** (H5–H7): reorder manual per grup (naik/turun,
+  bukan drag-drop), batch ubah status (`AKTIF`/`TERPOTONG`/`BATAL`, validasi
+  atomik), batalkan satu hewan. State machine: `DRAFT→AKTIF`, `DRAFT→BATAL`,
+  `AKTIF→TERPOTONG`, `AKTIF→BATAL` (TERPOTONG/BATAL terminal).
+- **UI**: tab "Daftar Inventory" di `/qurban/hewan` (list + reorder +
+  multi-select batch-status), `/qurban/hewan/baru`, `/[id]` (detail +
+  batalkan), `/[id]/edit`.
+- **Role-gating**: baca = SA/BD/AQ/PD; tulis CRUD + reorder = SA/AQ/PD;
+  batch-status + cancel = SA/AQ. Edisi `SELESAI` mengunci semua tulis.
+- **1 sheet baru:** `qurban_daftar_hewan` (17 kolom). Migrasi via Apps Script
+  `migrate_F5a` (idempoten, `verify_F5a` dengan guard jumlah kolom).
+
+**Keputusan terkunci:** `tanggal_pemotongan` direkam di audit log (bukan
+kolom, Opsi A); `nomor_urut_pemotongan` dibuat sekarang tapi milik F7;
+penanganan defensif `qurban_peserta` (sheet belum ada hingga F4a → slot `0`).
+
+Detail lengkap: `HANDOFF_SPRINT_F5a.md`, `docs/API_REFERENCE.md`
+(section Qurban Daftar Hewan H1–H7).
 
 ## 9. Saran Fitur Masa Depan (Backlog)
 

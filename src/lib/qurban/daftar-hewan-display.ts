@@ -54,12 +54,17 @@ export const DAFTAR_HEWAN_WRITE_ROLES = [
   'ADMIN_QURBAN',
   'PENDAFTARAN',
 ] as const;
+/** Status ops (batch-status H6, cancel H7) are admin-only. */
+export const DAFTAR_HEWAN_STATUS_ROLES = ['SUPER_ADMIN', 'ADMIN_QURBAN'] as const;
 
 export function canReadDaftarHewan(peran: string | undefined): boolean {
   return !!peran && (DAFTAR_HEWAN_READ_ROLES as readonly string[]).includes(peran);
 }
 export function canWriteDaftarHewan(peran: string | undefined): boolean {
   return !!peran && (DAFTAR_HEWAN_WRITE_ROLES as readonly string[]).includes(peran);
+}
+export function canManageHewanStatus(peran: string | undefined): boolean {
+  return !!peran && (DAFTAR_HEWAN_STATUS_ROLES as readonly string[]).includes(peran);
 }
 
 export const JENIS_OPTIONS = ['SAPI', 'KAMBING'] as const;
