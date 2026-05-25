@@ -456,3 +456,326 @@ export function validateMasterHewanPatch(
   }
   return { ok: true, errors: [], value };
 }
+
+// ---------------------------------------------------------------------------
+// Daftar Hewan (F5a) — inventaris fisik per-ekor. Payload validators.
+// ---------------------------------------------------------------------------
+
+export const TIPE_PEMBELIAN = ['BELI', 'BAWA_SENDIRI'] as const;
+/** Status yang boleh dikirim operator saat CREATE (DRAFT/AKTIF saja). */
+export const STATUS_HEWAN_CREATABLE = ['DRAFT', 'AKTIF'] as const;
+/** Status target yang sah untuk batch-status (H6). */
+export const STATUS_HEWAN_TARGET = ['AKTIF', 'TERPOTONG', 'BATAL'] as const;
+
+export function isValidTipePembelian(value: string): boolean {
+  return (TIPE_PEMBELIAN as readonly string[]).includes(value);
+}
+
+/** Strict `YYYY-MM-DD` calendar date. */
+export function isValidYmd(value: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const [y, m, d] = value.split('-').map((p) => parseInt(p, 10));
+  if (m < 1 || m > 12 || d < 1 || d > 31) return false;
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  return (
+    dt.getUTCFullYear() === y &&
+    dt.getUTCMonth() === m - 1 &&
+    dt.getUTCDate() === d
+  );
+}
+
+export interface DaftarHewanCreateInput {
+  master_hewan_id: string;
+  tipe_pembelian: 'BELI' | 'BAWA_SENDIRI';
+  vendor_nama: string;
+  harga_beli_aktual: number;
+  tanggal_pembelian: string;
+  notes: string;
+  status: 'DRAFT' | 'AKTIF';
+}
+
+export function validateDaftarHewanCreate(
+  input: unknown
+): ValidationResult<DaftarHewanCreateInput> {
+  const errors: ValidationError[] = [];
+  if (!input || typeof input !== 'object') {
+    errors.push({ field: '_', message: 'Body wajib berupa object.' });
+    return { ok: false, errors };
+  }
+  const raw = input as Record<string, unknown>;
+
+  const master_hewan_id = nonEmptyString(raw.master_hewan_id);
+  if (master_hewan_id === null) {
+    errors.push({ field: 'master_hewan_id', message: 'master_hewan_id wajib diisi.' });
+  }
+
+  let tipe: 'BELI' | 'BAWA_SENDIRI' | null = null;
+  if (!isString(raw.tipe_pembelian) || !isValidTipePembelian(raw.tipe_pembelian)) {
+    errors.push({
+      field: 'tipe_pembelian',
+      message: 'tipe_pembelian tidak valid (BELI | BAWA_SENDIRI).',
+    });
+  } else {
+    tipe = raw.tipe_pembelian as 'BELI' | 'BAWA_SENDIRI';
+  }
+
+  let vendor_nama = '';
+  if (raw.vendor_nama !== undefined && raw.vendor_nama !== null) {
+    if (!isString(raw.vendor_nama)) {
+      errors.push({ field: 'vendor_nama', message: 'vendor_nama harus berupa string.' });
+    } else {
+      vendor_nama = raw.vendor_nama.trim();
+    }
+  }
+
+  let harga_beli_aktual = 0;
+  if (raw.harga_beli_aktual !== undefined && raw.harga_beli_aktual !== null) {
+    if (!isNonNegativeNumber(raw.harga_beli_aktual)) {
+      errors.push({ field: 'harga_beli_aktual', message: 'harga_beli_aktual harus angka ≥ 0.' });
+    } else {
+      harga_beli_aktual = raw.harga_beli_aktual;
+    }
+  }
+
+  let tanggal_pembelian = '';
+  if (raw.tanggal_pembelian !== undefined && raw.tanggal_pembelian !== null && raw.tanggal_pembelian !== '') {
+    if (!isString(raw.tanggal_pembelian) || !isValidYmd(raw.tanggal_pembelian)) {
+      errors.push({ field: 'tanggal_pembelian', message: 'tanggal_pembelian harus format YYYY-MM-DD.' });
+    } else {
+      tanggal_pembelian = raw.tanggal_pembelian;
+    }
+  }
+
+  let notes = '';
+  if (raw.notes !== undefined && raw.notes !== null) {
+    if (!isString(raw.notes)) {
+      errors.push({ field: 'notes', message: 'notes harus berupa string.' });
+    } else {
+      notes = raw.notes;
+    }
+  }
+
+  let status: 'DRAFT' | 'AKTIF' = 'AKTIF';
+  if (raw.status !== undefined && raw.status !== null && raw.status !== '') {
+    if (!isString(raw.status) || !(STATUS_HEWAN_CREATABLE as readonly string[]).includes(raw.status)) {
+      errors.push({ field: 'status', message: 'status saat create hanya boleh DRAFT atau AKTIF.' });
+    } else {
+      status = raw.status as 'DRAFT' | 'AKTIF';
+    }
+  }
+
+  if (errors.length > 0) return { ok: false, errors };
+  return {
+    ok: true,
+    errors: [],
+    value: {
+      master_hewan_id: master_hewan_id as string,
+      tipe_pembelian: tipe as 'BELI' | 'BAWA_SENDIRI',
+      vendor_nama,
+      harga_beli_aktual,
+      tanggal_pembelian,
+      notes,
+      status,
+    },
+  };
+}
+
+export interface DaftarHewanPatchInput {
+  vendor_nama?: string;
+  harga_beli_aktual?: number;
+  tanggal_pembelian?: string;
+  notes?: string;
+}
+
+const DAFTAR_HEWAN_PATCHABLE = [
+  'vendor_nama',
+  'harga_beli_aktual',
+  'tanggal_pembelian',
+  'notes',
+] as const;
+
+/** Field yang TIDAK boleh di-PATCH lewat H4 (ditolak bila dikirim). */
+const DAFTAR_HEWAN_IMMUTABLE = [
+  'id',
+  'edisi_id',
+  'master_hewan_id',
+  'jenis',
+  'kelas',
+  'kapasitas_slot',
+  'nomor_urut',
+  'tipe_pembelian',
+  'status',
+  'nomor_urut_pemotongan',
+  'created_at',
+  'updated_at',
+  'created_by',
+] as const;
+
+export function validateDaftarHewanPatch(
+  input: unknown
+): ValidationResult<DaftarHewanPatchInput> {
+  const errors: ValidationError[] = [];
+  if (!input || typeof input !== 'object') {
+    errors.push({ field: '_', message: 'Body wajib berupa object.' });
+    return { ok: false, errors };
+  }
+  const raw = input as Record<string, unknown>;
+
+  for (const immutable of DAFTAR_HEWAN_IMMUTABLE) {
+    if (raw[immutable] !== undefined) {
+      errors.push({ field: immutable, message: `${immutable} tidak dapat diubah lewat endpoint ini.` });
+    }
+  }
+  if (errors.length > 0) return { ok: false, errors };
+
+  const present = DAFTAR_HEWAN_PATCHABLE.filter((f) => raw[f] !== undefined);
+  if (present.length === 0) {
+    errors.push({ field: '_', message: 'Minimal satu field wajib diberikan untuk update.' });
+    return { ok: false, errors };
+  }
+
+  const value: DaftarHewanPatchInput = {};
+  for (const field of present) {
+    const v = raw[field];
+    if (field === 'harga_beli_aktual') {
+      if (!isNonNegativeNumber(v)) {
+        errors.push({ field, message: 'harga_beli_aktual harus angka ≥ 0.' });
+        continue;
+      }
+      value.harga_beli_aktual = v;
+    } else if (field === 'tanggal_pembelian') {
+      if (v === '' || v === null) {
+        value.tanggal_pembelian = '';
+      } else if (!isString(v) || !isValidYmd(v)) {
+        errors.push({ field, message: 'tanggal_pembelian harus format YYYY-MM-DD.' });
+        continue;
+      } else {
+        value.tanggal_pembelian = v;
+      }
+    } else {
+      // vendor_nama | notes
+      if (v !== null && !isString(v)) {
+        errors.push({ field, message: `${field} harus berupa string.` });
+        continue;
+      }
+      value[field] = v === null ? '' : (field === 'vendor_nama' ? (v as string).trim() : (v as string));
+    }
+  }
+
+  if (errors.length > 0) return { ok: false, errors };
+  return { ok: true, errors: [], value };
+}
+
+export interface ReorderInput {
+  jenis: string;
+  kelas: string;
+  ordered_hewan_ids: string[];
+}
+
+export function validateReorderPayload(
+  input: unknown
+): ValidationResult<ReorderInput> {
+  const errors: ValidationError[] = [];
+  if (!input || typeof input !== 'object') {
+    errors.push({ field: '_', message: 'Body wajib berupa object.' });
+    return { ok: false, errors };
+  }
+  const raw = input as Record<string, unknown>;
+
+  if (!isString(raw.jenis) || !isValidJenisHewan(raw.jenis)) {
+    errors.push({ field: 'jenis', message: 'jenis tidak valid (SAPI | KAMBING).' });
+  }
+  if (!isString(raw.kelas) || !isValidKelasHewan(raw.kelas)) {
+    errors.push({ field: 'kelas', message: 'kelas tidak valid (A | B | C | D).' });
+  }
+  if (
+    !Array.isArray(raw.ordered_hewan_ids) ||
+    raw.ordered_hewan_ids.length === 0 ||
+    !raw.ordered_hewan_ids.every((x) => isString(x) && x.trim().length > 0)
+  ) {
+    errors.push({
+      field: 'ordered_hewan_ids',
+      message: 'ordered_hewan_ids wajib berupa array id tidak kosong.',
+    });
+  }
+
+  if (errors.length > 0) return { ok: false, errors };
+  return {
+    ok: true,
+    errors: [],
+    value: {
+      jenis: raw.jenis as string,
+      kelas: raw.kelas as string,
+      ordered_hewan_ids: raw.ordered_hewan_ids as string[],
+    },
+  };
+}
+
+export interface BatchStatusInput {
+  hewan_ids: string[];
+  target_status: 'AKTIF' | 'TERPOTONG' | 'BATAL';
+  tanggal_pemotongan: string;
+  notes: string;
+}
+
+export function validateBatchStatusPayload(
+  input: unknown
+): ValidationResult<BatchStatusInput> {
+  const errors: ValidationError[] = [];
+  if (!input || typeof input !== 'object') {
+    errors.push({ field: '_', message: 'Body wajib berupa object.' });
+    return { ok: false, errors };
+  }
+  const raw = input as Record<string, unknown>;
+
+  if (
+    !Array.isArray(raw.hewan_ids) ||
+    raw.hewan_ids.length === 0 ||
+    !raw.hewan_ids.every((x) => isString(x) && x.trim().length > 0)
+  ) {
+    errors.push({ field: 'hewan_ids', message: 'hewan_ids wajib berupa array id tidak kosong.' });
+  }
+
+  let target: 'AKTIF' | 'TERPOTONG' | 'BATAL' | null = null;
+  if (!isString(raw.target_status) || !(STATUS_HEWAN_TARGET as readonly string[]).includes(raw.target_status)) {
+    errors.push({
+      field: 'target_status',
+      message: 'target_status tidak valid (AKTIF | TERPOTONG | BATAL).',
+    });
+  } else {
+    target = raw.target_status as 'AKTIF' | 'TERPOTONG' | 'BATAL';
+  }
+
+  let tanggal_pemotongan = '';
+  if (target === 'TERPOTONG') {
+    if (!isString(raw.tanggal_pemotongan) || !isValidYmd(raw.tanggal_pemotongan)) {
+      errors.push({
+        field: 'tanggal_pemotongan',
+        message: 'tanggal_pemotongan wajib (format YYYY-MM-DD) saat target_status TERPOTONG.',
+      });
+    } else {
+      tanggal_pemotongan = raw.tanggal_pemotongan;
+    }
+  }
+
+  let notes = '';
+  if (raw.notes !== undefined && raw.notes !== null) {
+    if (!isString(raw.notes)) {
+      errors.push({ field: 'notes', message: 'notes harus berupa string.' });
+    } else {
+      notes = raw.notes;
+    }
+  }
+
+  if (errors.length > 0) return { ok: false, errors };
+  return {
+    ok: true,
+    errors: [],
+    value: {
+      hewan_ids: raw.hewan_ids as string[],
+      target_status: target as 'AKTIF' | 'TERPOTONG' | 'BATAL',
+      tanggal_pemotongan,
+      notes,
+    },
+  };
+}

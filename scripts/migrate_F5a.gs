@@ -75,6 +75,13 @@ function verify_F5a() {
       allOk = false;
       return;
     }
+    // Guard: jumlah kolom — tangkap kolom nyasar atau kurang.
+    var lastCol = sheet.getLastColumn();
+    if (lastCol !== expected.length) {
+      Logger.log('FAIL: "' + sheetName + '" — jumlah kolom ' + lastCol +
+        ', diharapkan ' + expected.length + '.');
+      allOk = false;
+    }
     var actual = sheet.getRange(1, 1, 1, expected.length).getValues()[0];
     var match = JSON.stringify(actual) === JSON.stringify(expected);
     if (match) {
