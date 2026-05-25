@@ -121,6 +121,16 @@ export const SHEET_HEADERS: Record<string, string[]> = {
     'tanggal_pembelian', 'status', 'notes', 'nomor_urut_pemotongan',
     'created_at', 'updated_at', 'created_by',
   ],
+
+  // F4a — Pendaftaran peserta (1 baris = 1 slot). Kolom otoritatif di
+  // `scripts/migrate_F4a.gs`; mapper (Milestone B) di
+  // `lib/qurban/peserta-repo.ts` harus memakai urutan yang sama persis.
+  'qurban_peserta': [
+    'id', 'edisi_id', 'muqorib_id', 'hewan_id', 'slot_number', 'tipe_qurban',
+    'nama_atas_nama', 'keterangan_bagian', 'harga_disepakati', 'kode_bayar',
+    'sumber_pendaftaran', 'status_pendaftaran', 'tanggal_daftar', 'notes',
+    'created_at', 'updated_at', 'created_by',
+  ],
 };
 
 // Default categories to seed

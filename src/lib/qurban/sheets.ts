@@ -14,4 +14,6 @@ export const QURBAN_SHEETS = {
   MASTER_HEWAN: 'qurban_master_hewan',
   // F5a — Inventaris fisik per-ekor
   DAFTAR_HEWAN: 'qurban_daftar_hewan',
+  // F4a — Pendaftaran peserta (1 baris = 1 slot)
+  PESERTA: 'qurban_peserta',
 } as const;

@@ -35,3 +35,18 @@ export function generateMasterHewanId(): Promise<string> {
 export function generateDaftarHewanId(): Promise<string> {
   return generateId('HWN', QURBAN_SHEETS.DAFTAR_HEWAN);
 }
+
+export function generatePesertaId(): Promise<string> {
+  return generateId('PST', QURBAN_SHEETS.PESERTA);
+}
+
+/**
+ * Format `kode_bayar` peserta: `QRB-{tahun}-{NNN}` (mis. `QRB-1448-007`).
+ *
+ * Fungsi murni — `tahun` (tahun Hijriah) dan `urutan` (nomor urut per-edisi)
+ * adalah parameter. Sumber `tahun` (dari edisi) dan komputasi `urutan` adalah
+ * tanggung jawab Milestone B; di sini hanya formatting + pad 3 digit.
+ */
+export function formatKodeBayar(tahun: number | string, urutan: number): string {
+  return `QRB-${tahun}-${String(urutan).padStart(3, '0')}`;
+}
