@@ -1706,6 +1706,174 @@ membuka endpoint `/api/pengaturan/anggota` (SA-only) ke ADMIN_QURBAN.
 
 ---
 
+## Qurban Muqorib Endpoints (Sprint F03 — Milestone B/C)
+
+Muqorib adalah **master jamaah qurban LINTAS-EDISI** — tidak ada `edisi_id`,
+tidak meresolusi edisi via cookie/AKTIF. Soft-delete via `is_active`.
+
+| # | Method | Path | Peran |
+|---|---|---|---|
+| M1 | GET | `/api/qurban/muqorib` | SUPER_ADMIN, BENDAHARA, ADMIN_QURBAN, PENDAFTARAN |
+| M2 | POST | `/api/qurban/muqorib` | SUPER_ADMIN, ADMIN_QURBAN, PENDAFTARAN |
+| M3 | GET | `/api/qurban/muqorib/[id]` | SUPER_ADMIN, BENDAHARA, ADMIN_QURBAN, PENDAFTARAN |
+| M4 | PATCH | `/api/qurban/muqorib/[id]` | SUPER_ADMIN, ADMIN_QURBAN, PENDAFTARAN |
+| M5 | POST | `/api/qurban/muqorib/[id]/deactivate` | SUPER_ADMIN, ADMIN_QURBAN |
+| M6 | POST | `/api/qurban/muqorib/[id]/reactivate` | SUPER_ADMIN, ADMIN_QURBAN |
+| M7 | GET | `/api/qurban/muqorib/lookup` | SUPER_ADMIN, ADMIN_QURBAN, PENDAFTARAN |
+
+**Schema `qurban_muqorib` (11 kolom):** `id` (prefix `MQR-`), `nama_lengkap`,
+`alamat`, `rt` (`001`–`006` | `Lainnya`), `no_hp` (ternormalisasi `628…`),
+`is_active`, `data_induk_ref_1447h`, `notes`, `created_at`, `created_by`,
+`updated_at`.
+
+### M1 — `GET /api/qurban/muqorib`
+
+**Query params:** `page`, `page_size` (maks 200, default 50), `search` (nama /
+no_hp / alamat), `status` (`active` | `inactive` | `all`, default `active`),
+`sort` (`nama_lengkap:asc|desc`, `created_at:asc|desc`, default
+`nama_lengkap:asc`).
+
+**Response 200:**
+```json
+{
+  "ok": true,
+  "data": [ { "id": "MQR-...", "nama_lengkap": "...", "alamat": "...", "rt": "001", "no_hp": "628...", "is_active": true, "data_induk_ref_1447h": "", "notes": "", "created_at": "...", "created_by": "ANG-...", "updated_at": "..." } ],
+  "meta": { "total": 1, "page": 1, "page_size": 50, "has_more": false, "filters_applied": { "status": "active", "sort": "nama_lengkap:asc" } }
+}
+```
+
+### M2 — `POST /api/qurban/muqorib`
+
+**Body:** `{ nama_lengkap, alamat, rt, no_hp, notes? }`. `no_hp` dinormalisasi
+server-side ke `628…`; uniqueness **tidak** di-enforce. **Response 201:** record baru.
+
+### M3 — `GET /api/qurban/muqorib/[id]`
+
+**Response 200:** `{ ok: true, data: { muqorib, history: [] } }`. `history`
+selalu `[]` sampai F04 (`qurban_peserta`). 404 → `NOT_FOUND`.
+
+### M4 — `PATCH /api/qurban/muqorib/[id]`
+
+**Body (subset):** `nama_lengkap`, `alamat`, `rt`, `no_hp`, `notes`. Minimal
+satu field. Idempotent — no-op mengembalikan record apa adanya.
+
+### M5 — `POST /api/qurban/muqorib/[id]/deactivate`
+
+**Body opsional:** `{ notes? }` (maks 200 char, disimpan di audit). Idempotent.
+
+### M6 — `POST /api/qurban/muqorib/[id]/reactivate`
+
+Inverse M5. Tanpa body. Idempotent.
+
+### M7 — `GET /api/qurban/muqorib/lookup`
+
+Smart autocomplete atas muqorib AKTIF (Jaro-Winkler + boost telepon/alamat).
+
+**Query params:** `q` (wajib), `limit` (default 10, maks 25), `min_score`
+(default 0.6, rentang 0–1).
+
+**Response 200:** kandidat ter-skor; `no_hp` di-mask (`628****7890`);
+`has_history` stub `false` sampai F04. `meta: { q, limit, min_score, count }`.
+
+### Error Codes (Muqorib)
+
+| Code | HTTP | Kapan |
+|---|---|---|
+| `VALIDATION_FAILED` | 400/422 | Body/query validation gagal. `details.errors[]` = error per-field. |
+| `FORBIDDEN_ROLE` | 403 | Peran tidak diizinkan untuk method ini. |
+| `NOT_FOUND` | 404 | Muqorib tidak ditemukan. |
+
+### Audit Events (Muqorib)
+
+| `event_type` | Aksi | Sumber |
+|---|---|---|
+| `muqorib.created` | `CREATE` | M2 |
+| `muqorib.updated` | `UPDATE` | M4 (skip kalau no-op) |
+| `muqorib.deactivated` | `UPDATE` | M5 (skip kalau sudah nonaktif) |
+| `muqorib.reactivated` | `UPDATE` | M6 (skip kalau sudah aktif) |
+
+---
+
+## Qurban Master Hewan Endpoints (Sprint F03 — Milestone C)
+
+Master Hewan adalah **katalog tipe hewan qurban PER-EDISI**. `edisi_id` SELALU
+dikirim eksplisit sebagai query param. Natural key `(edisi_id, jenis, kelas)`
+unik. Soft-delete via `is_active`; MH4 (deactivate) + MH6 (reactivate)
+berpasangan.
+
+| # | Method | Path | Peran |
+|---|---|---|---|
+| MH1 | GET | `/api/qurban/master-hewan?edisi_id=EDS-...` | semua peran terautentikasi† |
+| MH2 | POST | `/api/qurban/master-hewan?edisi_id=EDS-...` | SUPER_ADMIN, ADMIN_QURBAN |
+| MH3 | PATCH | `/api/qurban/master-hewan/[id]?edisi_id=EDS-...` | SUPER_ADMIN, ADMIN_QURBAN |
+| MH4 | POST | `/api/qurban/master-hewan/[id]/deactivate?edisi_id=EDS-...` | SUPER_ADMIN, ADMIN_QURBAN |
+| MH5 | POST | `/api/qurban/master-hewan/bulk-upsert?edisi_id=EDS-...` | SUPER_ADMIN, ADMIN_QURBAN |
+| MH6 | POST | `/api/qurban/master-hewan/[id]/reactivate?edisi_id=EDS-...` | SUPER_ADMIN, ADMIN_QURBAN |
+
+`†` = PENDAFTARAN/DISTRIBUSI hanya boleh MH1 untuk edisi `AKTIF`; edisi
+non-AKTIF → `403 FORBIDDEN_EDISI`. Catatan: ini akses **lapisan API**; akses
+**halaman** `/qurban/hewan` di-gate terpisah oleh `path-rules.ts` (SA/BD/AQ/PD).
+
+**Schema `qurban_master_hewan` (11 kolom):** `id` (prefix `MHW-`), `edisi_id`,
+`jenis` (`SAPI` | `KAMBING`), `kelas` (`A`–`D`), `kapasitas_slot` (int > 0),
+`harga_beli` (≥ 0), `harga_bawa_sendiri` (≥ 0), `is_active`, `created_at`,
+`updated_at`, `created_by`.
+
+### MH1 — `GET /api/qurban/master-hewan?edisi_id=EDS-...`
+
+**Query params:** `edisi_id` (wajib), `status` (`active` | `inactive` | `all`,
+default `active`). Diurutkan `jenis` asc lalu `kelas` asc. `meta: { edisi_id, count }`.
+
+### MH2 — `POST /api/qurban/master-hewan?edisi_id=EDS-...`
+
+**Body:** `{ jenis, kelas, kapasitas_slot, harga_beli, harga_bawa_sendiri }`.
+Diizinkan saat edisi `DRAFT`/`AKTIF`; `SELESAI` → `422 BUSINESS_EDISI_LOCKED`.
+Duplikat `(edisi_id, jenis, kelas)` → `422 DUPLICATE_MASTER_HEWAN`. **Response 201.**
+
+### MH3 — `PATCH /api/qurban/master-hewan/[id]?edisi_id=EDS-...`
+
+**Body (subset):** `kapasitas_slot`, `harga_beli`, `harga_bawa_sendiri`.
+`jenis` & `kelas` immutable (kirim → `422 VALIDATION_FAILED`). Idempotent no-op.
+
+### MH4 — `POST /api/qurban/master-hewan/[id]/deactivate?edisi_id=EDS-...`
+
+Soft-delete. `SELESAI` → `422 BUSINESS_EDISI_LOCKED`. Idempotent.
+
+### MH5 — `POST /api/qurban/master-hewan/bulk-upsert?edisi_id=EDS-...`
+
+Bulk create/update tipe dalam satu request (dipakai untuk setup awal /
+clone antar-edisi). **Tidak ada UI di Milestone E** — CRUD per-baris saja.
+
+### MH6 — `POST /api/qurban/master-hewan/[id]/reactivate?edisi_id=EDS-...`
+
+Inverse MH4 — set `is_active` → `TRUE`. `SELESAI` → `422 BUSINESS_EDISI_LOCKED`.
+Idempotent (sudah aktif → no-op sukses). Karena cek duplikat MH2 mencakup baris
+nonaktif, reactivate adalah jalan benar untuk menghidupkan kembali tipe yang
+sempat dinonaktifkan (bukan membuat baris baru).
+
+### Error Codes (Master Hewan)
+
+| Code | HTTP | Kapan |
+|---|---|---|
+| `VALIDATION_REQUIRED` | 400 | `edisi_id` query param kosong. |
+| `VALIDATION_FAILED` | 400/422 | Body validation gagal. `details.errors[]` = error per-field. |
+| `FORBIDDEN_ROLE` | 403 | Peran tidak diizinkan untuk method tulis. |
+| `FORBIDDEN_EDISI` | 403 | PD/DS mengakses MH1 untuk edisi non-AKTIF. |
+| `NOT_FOUND` | 404 | Edisi atau master hewan tidak ditemukan. |
+| `DUPLICATE_MASTER_HEWAN` | 422 | MH2 — `(edisi_id, jenis, kelas)` sudah ada. `details = { existing_id, jenis, kelas }`. |
+| `BUSINESS_EDISI_LOCKED` | 422 | Edisi `SELESAI` — tipe tidak dapat diubah. |
+
+### Audit Events (Master Hewan)
+
+| `event_type` | Aksi | Sumber |
+|---|---|---|
+| `master_hewan.created` | `CREATE` | MH2 |
+| `master_hewan.updated` | `UPDATE` | MH3 (split harga/kapasitas; skip kalau no-op) |
+| `master_hewan.deactivated` | `UPDATE` | MH4 (skip kalau sudah nonaktif) |
+| `master_hewan.reactivated` | `UPDATE` | MH6 (skip kalau sudah aktif) |
+
+---
+
 ## Qurban Public Endpoints
 
 ### `GET /api/publik/qurban`

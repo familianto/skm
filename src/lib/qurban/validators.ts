@@ -7,6 +7,7 @@
  */
 
 import { UserPeran } from '@/types';
+import { jaroWinkler } from './jaro-winkler';
 
 /**
  * Peran yang boleh ditugaskan sebagai panitia.
@@ -42,4 +43,416 @@ export function isValidDistribusiDateRange(start: string, end: string): boolean 
 /** `payment_suffix` is an integer in 0–9 inclusive. */
 export function isValidPaymentSuffix(n: number): boolean {
   return Number.isInteger(n) && n >= 0 && n <= 9;
+}
+
+// ---------------------------------------------------------------------------
+// F03 — Master Qurban (Muqorib + Master Hewan) primitives.
+// ---------------------------------------------------------------------------
+
+/** RT yang valid untuk muqorib (lingkup masjid). */
+export const RT_VALUES = ['001', '002', '003', '004', '005', '006', 'Lainnya'] as const;
+
+/** Jenis hewan qurban yang didukung. */
+export const JENIS_HEWAN = ['SAPI', 'KAMBING'] as const;
+
+/** Kelas/tier hewan qurban (membedakan bobot/harga di dalam satu jenis). */
+export const KELAS_HEWAN = ['A', 'B', 'C', 'D'] as const;
+
+/**
+ * Normalisasi nomor telepon ke format `628xxxxxxxxxx`.
+ *
+ * - Buang semua karakter non-digit.
+ * - `0xxx` → `62xxx`.
+ * - `8xxx` → `628xxx`.
+ * - `62xxx` → biarkan.
+ * - Selain itu → kembalikan apa adanya (biarkan `isValidNoHp` yang menolak).
+ * - String kosong → `''`.
+ */
+export function normalizeNoHp(input: string): string {
+  if (!input) return '';
+  const digits = input.replace(/\D+/g, '');
+  if (!digits) return '';
+  if (digits.startsWith('62')) return digits;
+  if (digits.startsWith('0')) return '62' + digits.slice(1);
+  if (digits.startsWith('8')) return '62' + digits;
+  return digits;
+}
+
+/** `true` kalau cocok pola nomor seluler Indonesia ter-normalisasi. */
+export function isValidNoHp(value: string): boolean {
+  return /^628\d{7,12}$/.test(value);
+}
+
+export function isValidRt(value: string): boolean {
+  return (RT_VALUES as readonly string[]).includes(value);
+}
+
+export function isValidJenisHewan(value: string): boolean {
+  return (JENIS_HEWAN as readonly string[]).includes(value);
+}
+
+export function isValidKelasHewan(value: string): boolean {
+  return (KELAS_HEWAN as readonly string[]).includes(value);
+}
+
+// ---------------------------------------------------------------------------
+// Muqorib — composite payload validators.
+// ---------------------------------------------------------------------------
+
+export interface ValidationError {
+  field: string;
+  message: string;
+}
+
+export interface ValidationResult<T> {
+  ok: boolean;
+  errors: ValidationError[];
+  /** Normalized values (no_hp normalized, strings trimmed). Only set when `ok`. */
+  value?: T;
+}
+
+export interface MuqoribCreateInput {
+  nama_lengkap: string;
+  alamat: string;
+  rt: string;
+  no_hp: string;
+  notes?: string;
+}
+
+export type MuqoribPatchInput = Partial<MuqoribCreateInput>;
+
+function isString(v: unknown): v is string {
+  return typeof v === 'string';
+}
+
+function nonEmptyString(v: unknown): string | null {
+  if (!isString(v)) return null;
+  const trimmed = v.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+function validateField(
+  errors: ValidationError[],
+  field: string,
+  raw: unknown,
+  out: Record<string, string>
+): void {
+  if (field === 'nama_lengkap' || field === 'alamat') {
+    const v = nonEmptyString(raw);
+    if (v === null) {
+      errors.push({ field, message: `${field} wajib diisi.` });
+      return;
+    }
+    out[field] = v;
+    return;
+  }
+  if (field === 'rt') {
+    if (!isString(raw)) {
+      errors.push({ field, message: 'rt wajib diisi.' });
+      return;
+    }
+    if (!isValidRt(raw)) {
+      errors.push({ field, message: 'rt tidak valid.' });
+      return;
+    }
+    out.rt = raw;
+    return;
+  }
+  if (field === 'no_hp') {
+    if (!isString(raw)) {
+      errors.push({ field, message: 'no_hp wajib diisi.' });
+      return;
+    }
+    const normalized = normalizeNoHp(raw);
+    if (!isValidNoHp(normalized)) {
+      errors.push({ field, message: 'no_hp tidak valid (format: 628xxxxxxxxxx).' });
+      return;
+    }
+    out.no_hp = normalized;
+    return;
+  }
+  if (field === 'notes') {
+    if (raw === undefined || raw === null) {
+      out.notes = '';
+      return;
+    }
+    if (!isString(raw)) {
+      errors.push({ field, message: 'notes harus berupa string.' });
+      return;
+    }
+    out.notes = raw;
+    return;
+  }
+}
+
+/**
+ * Validate the create payload for `POST /api/qurban/muqorib`.
+ *
+ * Returns the normalized values (with `no_hp` already in `628...` form and
+ * trimmed strings) so the route handler doesn't have to re-do normalization.
+ */
+export function validateMuqoribCreate(
+  input: unknown
+): ValidationResult<MuqoribCreateInput> {
+  const errors: ValidationError[] = [];
+  if (!input || typeof input !== 'object') {
+    errors.push({ field: '_', message: 'Body wajib berupa object.' });
+    return { ok: false, errors };
+  }
+  const raw = input as Record<string, unknown>;
+  const out: Record<string, string> = {};
+  for (const field of ['nama_lengkap', 'alamat', 'rt', 'no_hp', 'notes'] as const) {
+    if (field === 'notes' && raw[field] === undefined) {
+      out.notes = '';
+      continue;
+    }
+    if (raw[field] === undefined) {
+      errors.push({ field, message: `${field} wajib diisi.` });
+      continue;
+    }
+    validateField(errors, field, raw[field], out);
+  }
+  if (errors.length > 0) return { ok: false, errors };
+  return {
+    ok: true,
+    errors: [],
+    value: {
+      nama_lengkap: out.nama_lengkap,
+      alamat: out.alamat,
+      rt: out.rt,
+      no_hp: out.no_hp,
+      notes: out.notes,
+    },
+  };
+}
+
+const PATCHABLE_FIELDS = ['nama_lengkap', 'alamat', 'rt', 'no_hp', 'notes'] as const;
+
+/**
+ * Validate the patch payload for `PATCH /api/qurban/muqorib/[id]`.
+ *
+ * Requires at least one patchable field; validates only the fields actually
+ * present. Returns the normalized subset.
+ */
+export function validateMuqoribPatch(
+  input: unknown
+): ValidationResult<MuqoribPatchInput> {
+  const errors: ValidationError[] = [];
+  if (!input || typeof input !== 'object') {
+    errors.push({ field: '_', message: 'Body wajib berupa object.' });
+    return { ok: false, errors };
+  }
+  const raw = input as Record<string, unknown>;
+  const present = PATCHABLE_FIELDS.filter((f) => raw[f] !== undefined);
+  if (present.length === 0) {
+    errors.push({ field: '_', message: 'Minimal satu field wajib diberikan untuk update.' });
+    return { ok: false, errors };
+  }
+  const out: Record<string, string> = {};
+  for (const field of present) {
+    validateField(errors, field, raw[field], out);
+  }
+  if (errors.length > 0) return { ok: false, errors };
+  const value: MuqoribPatchInput = {};
+  for (const field of present) {
+    (value as Record<string, string>)[field] = out[field];
+  }
+  return { ok: true, errors: [], value };
+}
+
+// ---------------------------------------------------------------------------
+// Muqorib smart-lookup (M7) — phone masking + scoring.
+// ---------------------------------------------------------------------------
+
+/**
+ * Mask a phone number for autocomplete responses. `6281234567890` →
+ * `628****7890`. Numbers shorter than 7 chars are fully masked.
+ */
+export function maskNoHp(s: string): string {
+  if (s.length >= 7) {
+    return s.slice(0, 3) + '****' + s.slice(-4);
+  }
+  return '*'.repeat(s.length);
+}
+
+/** Minimal shape `scoreLookupCandidate` needs from a muqorib row. */
+export interface LookupCandidate {
+  nama_lengkap: string;
+  no_hp: string;
+  alamat: string;
+  rt: string;
+}
+
+/**
+ * Pure scoring for M7. `q` is the RAW query (digits extracted internally for
+ * the phone boost); `qn` is the pre-normalized `q.trim().toLowerCase()`.
+ *
+ * Base name score (exact 1.0 / substring 0.85 / else Jaro-Winkler), plus a
+ * +0.2 phone last-4 boost and a +0.05 address/RT boost, capped at 1.0.
+ */
+export function scoreLookupCandidate(
+  q: string,
+  qn: string,
+  candidate: LookupCandidate
+): number {
+  const nameL = candidate.nama_lengkap.trim().toLowerCase();
+
+  let base: number;
+  if (nameL === qn) base = 1.0;
+  else if (qn.length > 0 && nameL.includes(qn)) base = 0.85;
+  else base = jaroWinkler(qn, nameL);
+
+  let score = base;
+
+  // Phone last-4 boost.
+  const digits = q.replace(/\D+/g, '');
+  if (digits.length >= 4) {
+    const hpDigits = candidate.no_hp.replace(/\D+/g, '');
+    if (hpDigits.length >= 4 && digits.slice(-4) === hpDigits.slice(-4)) {
+      score += 0.2;
+    }
+  }
+
+  // Address / RT boost.
+  if (
+    qn.length >= 3 &&
+    (candidate.alamat.toLowerCase().includes(qn) ||
+      qn === candidate.rt.toLowerCase())
+  ) {
+    score += 0.05;
+  }
+
+  return Math.min(score, 1.0);
+}
+
+// ---------------------------------------------------------------------------
+// Master Hewan — composite payload validators.
+// ---------------------------------------------------------------------------
+
+export interface MasterHewanCreateInput {
+  jenis: string;
+  kelas: string;
+  kapasitas_slot: number;
+  harga_beli: number;
+  harga_bawa_sendiri: number;
+}
+
+export interface MasterHewanPatchInput {
+  kapasitas_slot?: number;
+  harga_beli?: number;
+  harga_bawa_sendiri?: number;
+}
+
+function isPositiveInt(v: unknown): v is number {
+  return typeof v === 'number' && Number.isInteger(v) && v > 0;
+}
+
+function isNonNegativeNumber(v: unknown): v is number {
+  return typeof v === 'number' && Number.isFinite(v) && v >= 0;
+}
+
+function validateMasterHewanNumericField(
+  errors: ValidationError[],
+  field: 'kapasitas_slot' | 'harga_beli' | 'harga_bawa_sendiri',
+  raw: unknown,
+  out: Record<string, number>
+): void {
+  if (field === 'kapasitas_slot') {
+    if (!isPositiveInt(raw)) {
+      errors.push({ field, message: 'kapasitas_slot harus bilangan bulat > 0.' });
+      return;
+    }
+    out.kapasitas_slot = raw;
+    return;
+  }
+  // harga_beli | harga_bawa_sendiri
+  if (!isNonNegativeNumber(raw)) {
+    errors.push({ field, message: `${field} harus angka ≥ 0.` });
+    return;
+  }
+  out[field] = raw;
+}
+
+export function validateMasterHewanCreate(
+  input: unknown
+): ValidationResult<MasterHewanCreateInput> {
+  const errors: ValidationError[] = [];
+  if (!input || typeof input !== 'object') {
+    errors.push({ field: '_', message: 'Body wajib berupa object.' });
+    return { ok: false, errors };
+  }
+  const raw = input as Record<string, unknown>;
+
+  const strOut: Record<string, string> = {};
+  if (!isString(raw.jenis) || !isValidJenisHewan(raw.jenis)) {
+    errors.push({ field: 'jenis', message: 'jenis tidak valid (SAPI | KAMBING).' });
+  } else {
+    strOut.jenis = raw.jenis;
+  }
+  if (!isString(raw.kelas) || !isValidKelasHewan(raw.kelas)) {
+    errors.push({ field: 'kelas', message: 'kelas tidak valid (A | B | C | D).' });
+  } else {
+    strOut.kelas = raw.kelas;
+  }
+
+  const numOut: Record<string, number> = {};
+  for (const field of ['kapasitas_slot', 'harga_beli', 'harga_bawa_sendiri'] as const) {
+    validateMasterHewanNumericField(errors, field, raw[field], numOut);
+  }
+
+  if (errors.length > 0) return { ok: false, errors };
+  return {
+    ok: true,
+    errors: [],
+    value: {
+      jenis: strOut.jenis,
+      kelas: strOut.kelas,
+      kapasitas_slot: numOut.kapasitas_slot,
+      harga_beli: numOut.harga_beli,
+      harga_bawa_sendiri: numOut.harga_bawa_sendiri,
+    },
+  };
+}
+
+const MASTER_HEWAN_PATCHABLE = [
+  'kapasitas_slot',
+  'harga_beli',
+  'harga_bawa_sendiri',
+] as const;
+
+export function validateMasterHewanPatch(
+  input: unknown
+): ValidationResult<MasterHewanPatchInput> {
+  const errors: ValidationError[] = [];
+  if (!input || typeof input !== 'object') {
+    errors.push({ field: '_', message: 'Body wajib berupa object.' });
+    return { ok: false, errors };
+  }
+  const raw = input as Record<string, unknown>;
+
+  // jenis/kelas are immutable — reject if present at all.
+  for (const immutable of ['jenis', 'kelas'] as const) {
+    if (raw[immutable] !== undefined) {
+      errors.push({ field: immutable, message: `${immutable} tidak dapat diubah.` });
+    }
+  }
+  if (errors.length > 0) return { ok: false, errors };
+
+  const present = MASTER_HEWAN_PATCHABLE.filter((f) => raw[f] !== undefined);
+  if (present.length === 0) {
+    errors.push({ field: '_', message: 'Minimal satu field wajib diberikan untuk update.' });
+    return { ok: false, errors };
+  }
+
+  const numOut: Record<string, number> = {};
+  for (const field of present) {
+    validateMasterHewanNumericField(errors, field, raw[field], numOut);
+  }
+  if (errors.length > 0) return { ok: false, errors };
+
+  const value: MasterHewanPatchInput = {};
+  for (const field of present) {
+    (value as Record<string, number>)[field] = numOut[field];
+  }
+  return { ok: true, errors: [], value };
 }

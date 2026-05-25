@@ -9,4 +9,7 @@ export const QURBAN_SHEETS = {
   EDISI: 'qurban_edisi',
   KONFIGURASI_EDISI: 'qurban_konfigurasi_edisi',
   PANITIA: 'qurban_panitia',
+  // F03 — Master Qurban
+  MUQORIB: 'qurban_muqorib',
+  MASTER_HEWAN: 'qurban_master_hewan',
 } as const;
