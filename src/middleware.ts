@@ -2,16 +2,18 @@ import { NextRequest, NextResponse } from 'next/server';
 import { jwtVerify } from 'jose';
 
 import { isPathAllowedForRole } from '@/lib/api/path-rules';
+import { isQurbanModulePath } from '@/lib/api/qurban-kill-switch';
 
 /**
  * Root middleware — defense-in-depth per Tahap 3.E §2.1.
  *
  * Sequence per request:
  *   1. Static + Next internals (`/_next/*`, `/favicon*`)            → pass
- *   2. Public allow-list (`/login`, `/api/auth/{login,logout}`,
+ *   2. Qurban module kill switch — `/qurban/**` + `/api/qurban/**` +
+ *      `/api/publik/qurban/**` → 404 when `QURBAN_MODULE_ENABLED === 'false'`.
+ *      Runs before the allow-list so killed public endpoints are hidden too.
+ *   3. Public allow-list (`/login`, `/api/auth/{login,logout}`,
  *      `/api/health`, `/publik/*`, `/api/publik/*`, `/mockup`)       → pass
- *   3. Qurban module kill switch — `/qurban/**` + `/api/qurban/**`
- *      treated as 404 when `QURBAN_MODULE_ENABLED === 'false'`       → 404
  *   4. Session check — verify `skm_session` JWT                      → 401 if missing/invalid
  *   5. Strict role gate — `STRICT_PATH_RULES` from path-rules.ts     → 403 if disallowed
  *   6. Inject `x-user-id` + `x-user-peran` request headers           → next()
@@ -113,22 +115,13 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // 2. Public allow-list
-  if (isPublic(pathname)) {
-    return NextResponse.next();
-  }
-
-  // 3. Qurban module kill switch — FAIL-OPEN: only `'false'` (exact string)
+  // 2. Qurban module kill switch — FAIL-OPEN: only `'false'` (exact string)
   //    disables the module. Unset / `'true'` / anything else keeps it on.
   //    When disabled, Qurban paths are surfaced as 404 to hide the module
-  //    from users entirely (per PROMPT_F02 §9.2 Level 2 rollback).
-  if (
-    process.env.QURBAN_MODULE_ENABLED === 'false' &&
-    (pathname === '/qurban' ||
-      pathname.startsWith('/qurban/') ||
-      pathname === '/api/qurban' ||
-      pathname.startsWith('/api/qurban/'))
-  ) {
+  //    from users entirely (per PROMPT_F02 §9.2 Level 2 rollback). Runs BEFORE
+  //    the public allow-list so killed `/api/publik/qurban/*` endpoints (F4b)
+  //    are hidden too — the allow-list would otherwise short-circuit them.
+  if (process.env.QURBAN_MODULE_ENABLED === 'false' && isQurbanModulePath(pathname)) {
     if (pathname.startsWith('/api/')) {
       return NextResponse.json(
         { ok: false, error: { code: 'NOT_FOUND', message: 'Not found.' } },
@@ -136,6 +129,11 @@ export async function middleware(request: NextRequest) {
       );
     }
     return new NextResponse(null, { status: 404 });
+  }
+
+  // 3. Public allow-list
+  if (isPublic(pathname)) {
+    return NextResponse.next();
   }
 
   // 4. Session check

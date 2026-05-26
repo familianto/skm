@@ -5,7 +5,8 @@ import type { QurbanPeserta } from './peserta-types';
 /**
  * Audit emitters for `qurban_peserta` (F4a). Event names:
  *   peserta.created | peserta.updated | peserta.status_changed |
- *   peserta.harga_changed
+ *   peserta.harga_changed | peserta.wa_sent_success | peserta.wa_sent_failed
+ *   (the wa_sent_* pair added F4b-C for the PS2 Fonnte retrofit)
  */
 
 const ENTITAS = 'peserta';
@@ -65,6 +66,38 @@ export function auditPesertaHargaChanged(
     event_type: 'peserta.harga_changed',
     before: { harga_disepakati: from },
     after: { harga_disepakati: to },
+    user_id: actor.user_id,
+    ip_address: actor.ip_address,
+  });
+}
+
+export function auditPesertaWaSent(
+  muqoribId: string,
+  actor: Actor,
+  detail: { kode_bayar: string[]; mock?: boolean }
+): Promise<void> {
+  return writeAuditLog({
+    aksi: AuditAksi.CREATE,
+    entitas: ENTITAS,
+    entitas_id: muqoribId,
+    event_type: 'peserta.wa_sent_success',
+    after: detail,
+    user_id: actor.user_id,
+    ip_address: actor.ip_address,
+  });
+}
+
+export function auditPesertaWaFailed(
+  muqoribId: string,
+  actor: Actor,
+  detail: { reason: string }
+): Promise<void> {
+  return writeAuditLog({
+    aksi: AuditAksi.CREATE,
+    entitas: ENTITAS,
+    entitas_id: muqoribId,
+    event_type: 'peserta.wa_sent_failed',
+    after: detail,
     user_id: actor.user_id,
     ip_address: actor.ip_address,
   });

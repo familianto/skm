@@ -4,9 +4,15 @@ import { success, error } from '@/lib/api/response';
 import { ErrorCodes } from '@/lib/api/errors';
 import { getClientIp } from '@/lib/api/rate-limit';
 import { nowISO } from '@/lib/utils';
+import { sendWhatsApp } from '@/lib/fonnte';
 
 import { checkPublikRateLimit } from '@/lib/qurban/publik-rate-limit';
 import { isHoneypotTriggered } from '@/lib/qurban/publik-honeypot';
+import { maskNoHp } from '@/lib/qurban/publik-masking';
+import {
+  buildPendaftaranPublikMessage,
+  shouldSendPendaftaranWA,
+} from '@/lib/qurban/publik-wa-template';
 import { validatePublikDaftar } from '@/lib/qurban/publik-validators';
 import { findActiveEdisi } from '@/lib/qurban/edisi-repo';
 import { getPendaftaranStatus } from '@/lib/qurban/publik-pendaftaran-window';
@@ -33,6 +39,9 @@ import {
   auditPublikDaftarRateLimited,
   auditMuqoribAutoCreated,
   auditMuqoribDataConflict,
+  auditPublikDaftarMuqoribInactive,
+  auditPublikWaSent,
+  auditPublikWaFailed,
 } from '@/lib/qurban/publik-audit';
 import type { QurbanPeserta } from '@/lib/qurban/peserta-types';
 
@@ -117,6 +126,21 @@ export async function POST(request: NextRequest) {
     } else {
       const data = input.muqorib_data!;
       const existing = findMuqoribByNoHp(await listAllMuqorib(), data.no_hp);
+      // C4: kalau satu-satunya kecocokan no_hp adalah record NONAKTIF, tolak
+      // (konsisten dengan PS2). findMuqoribByNoHp mengutamakan record aktif,
+      // jadi cabang ini hanya kena saat tak ada record aktif dengan no_hp itu.
+      if (existing && !existing.is_active) {
+        await auditPublikDaftarMuqoribInactive(actor, {
+          muqorib_id: existing.id,
+          no_hp_masked: maskNoHp(existing.no_hp),
+        });
+        return error(
+          ErrorCodes.VALIDATION_FAILED,
+          'Nomor WhatsApp Anda terdaftar pada data jamaah yang nonaktif. Mohon hubungi panitia masjid untuk mengaktifkannya kembali sebelum mendaftar.',
+          422,
+          { field: 'muqorib_data.no_hp' }
+        );
+      }
       if (existing) {
         if (muqoribDataDiffers(existing, data)) {
           await auditMuqoribDataConflict(actor, {
@@ -220,10 +244,38 @@ export async function POST(request: NextRequest) {
       jumlah_slot: input.jumlah_slot,
     });
 
-    // 12. Payment payload (WA dikirim di Milestone C, bukan di sini).
+    // 12. Payment payload + notifikasi WA (Fonnte).
     const konfig = await findKonfigurasiByEdisiId(edisi.id);
     const pembayaran = computePembayaran(harga.harga_disepakati, input.jumlah_slot, konfig?.payment_suffix ?? 0);
     const rekening = await listRekeningPublik();
+
+    // Gated `wa_send_on_pendaftaran`. Di-await (agar tuntas di lifetime serverless)
+    // tetapi error ditangkap — kegagalan WA TIDAK menggagalkan response.
+    if (shouldSendPendaftaranWA(konfig, muqorib.no_hp)) {
+      try {
+        const waRes = await sendWhatsApp({
+          target: muqorib.no_hp,
+          message: buildPendaftaranPublikMessage({
+            nama: muqorib.nama_lengkap,
+            tahun_hijriah: edisi.tahun_hijriah,
+            hewan_label: `${harga.master.jenis} Kelas ${harga.master.kelas}`,
+            tipe_qurban: input.tipe_qurban,
+            jumlah_slot: input.jumlah_slot,
+            kode_bayar: kodes,
+            total_harga: pembayaran.total_harga,
+            nominal_transfer: pembayaran.nominal_transfer,
+            rekening,
+          }),
+        });
+        if (waRes.success) {
+          await auditPublikWaSent(actor, { muqorib_id: muqorib.id, kode_bayar: kodes, mock: waRes.mock });
+        } else {
+          await auditPublikWaFailed(actor, { muqorib_id: muqorib.id, reason: waRes.detail });
+        }
+      } catch (e) {
+        await auditPublikWaFailed(actor, { muqorib_id: muqorib.id, reason: e instanceof Error ? e.message : 'unknown' });
+      }
+    }
 
     return success(
       {

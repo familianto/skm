@@ -41,6 +41,13 @@ test('findMuqoribByNoHp returns null for no match / empty input', () => {
   assert.equal(findMuqoribByNoHp([mk({})], ''), null);
 });
 
+test('findMuqoribByNoHp returns the inactive record when it is the only match (PB3 C4 rejects it)', () => {
+  const list = [mk({ id: 'OLD', no_hp: '628226083451', is_active: false })];
+  const found = findMuqoribByNoHp(list, '628226083451');
+  assert.equal(found?.id, 'OLD');
+  assert.equal(found?.is_active, false);
+});
+
 const submitted: MuqoribCreateInput = {
   nama_lengkap: 'Hopy Familianto',
   alamat: 'Jl. Mawar 1',

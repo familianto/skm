@@ -2120,6 +2120,99 @@ slots[] }`, tiap slot `{ hewan_id, nomor_urut, slot_number }` (hanya hewan
 | `peserta.updated` | `UPDATE` | PS4 (skip kalau no-op) |
 | `peserta.status_changed` | `UPDATE` | PS5 (`TERDAFTAR → BATAL`) |
 | `peserta.harga_changed` | `UPDATE` | PS7 (skip kalau harga sama) |
+| `peserta.wa_sent_success` | `CREATE` | PS2 (retrofit Fonnte F4b-C; gated `wa_send_on_pendaftaran`) |
+| `peserta.wa_sent_failed` | `CREATE` | PS2 (kirim WA gagal; tidak menggagalkan response) |
+
+---
+
+## Qurban Public Pendaftaran Endpoints (Sprint F4b) — PB1–PB4
+
+Endpoint **publik tanpa-auth** untuk pendaftaran qurban dari sisi jamaah.
+Lolos middleware lewat allow-list `/api/publik/*`; ikut mati saat kill-switch
+`QURBAN_MODULE_ENABLED='false'` (mencakup `/api/publik/qurban/*` sejak F4b-C).
+Format envelope sama (`{ ok, data | error }`). Semua menarget **edisi AKTIF**
+(`findActiveEdisi`); PB1–PB3 di-gate window pendaftaran, **PB4 tidak**.
+
+| # | Method | Path | Rate limit (per-IP) |
+|---|---|---|---|
+| PB1 | GET | `/api/publik/qurban/options` | 30/menit |
+| PB2 | POST | `/api/publik/qurban/daftar/lookup` | 20/menit |
+| PB3 | POST | `/api/publik/qurban/daftar` | 5/menit · 20/jam · 50/hari |
+| PB4 | GET | `/api/publik/qurban/cek-status` | 30/menit |
+
+**Pengaman publik (Milestone A):** rate-limit *cascading* per-IP per-endpoint
+(harus lolos SEMUA window; di atas `checkRateLimit` F1), honeypot (field `email`
+— wajib kosong; terisi = bot, ditolak generik), masking (`maskNama`, `maskNoHp`).
+Lampaui limit → `429 RATE_LIMITED` + header `Retry-After`.
+
+**Status pendaftaran (3-keadaan, `getPendaftaranStatus`):** `BELUM_BUKA` (sebelum
+`tanggal_pendaftaran_buka`), `BUKA` (dalam window **dan** edisi `AKTIF`), `TUTUP`
+(setelah `tanggal_pendaftaran_tutup`, atau edisi non-AKTIF). Tanggal dibanding
+sebagai `YYYY-MM-DD` WIB.
+
+### PB1 — `GET /api/publik/qurban/options`
+
+Info edisi + `status_pendaftaran`. Saat `BUKA`: `options` memuat `tipe_hewan`
+(kombinasi master×tipe yang `slot_tersedia > 0`, `harga_per_slot`) + `rekening`
+(bank aktif). Selain `BUKA` atau tanpa edisi AKTIF → `options: null`.
+
+### PB2 — `POST /api/publik/qurban/daftar/lookup`
+
+Body `{ nama_lengkap, no_hp }` (keduanya wajib, `422` bila kurang). **Exact match**
+(bukan fuzzy) ke `qurban_muqorib` pada nama (lower+trim) + `no_hp` (ternormalisasi
+`628…`), hanya record `is_active`. Hanya dilayani saat `BUKA`. Response:
+`{ matched: true, muqorib: { id, nama_lengkap, alamat, rt, no_hp (di-mask) } }`
+atau `{ matched: false }`.
+
+### PB3 — `POST /api/publik/qurban/daftar`
+
+Body: `muqorib_id` (dari PB2) **atau** `muqorib_data {nama_lengkap, alamat, rt,
+no_hp}`; `master_hewan_id`, `tipe_qurban`, `jumlah_slot` (≤ 50), `nama_atas_nama?`,
+`keterangan_bagian?`, + field honeypot `email`.
+
+Alur: rate-limit → honeypot → audit `attempted` → validasi + gate `BUKA` →
+resolusi muqorib (id aktif / match `no_hp` / **auto-create**; **muqorib nonaktif
+ditolak**, konsisten PS2) → duplikat Layer 1 (`409 DUPLICATE_PESERTA`, arahkan ke
+cek-status) → freeze harga → auto-assign slot (`409 BUSINESS_INSUFFICIENT_SLOTS`)
+→ generate `kode_bayar` → insert batch (`sumber_pendaftaran=PUBLIK`) → audit per
+peserta + `succeeded` → **WA Fonnte** (gated `wa_send_on_pendaftaran`). Response
+`201`: `{ edisi, muqorib, peserta[], pembayaran{ total_harga, payment_suffix,
+nominal_transfer, rekening[] } }`. **Nominal-ber-suffix** dihitung **sekali pada
+total** (`total + payment_suffix`); pencocokan peserta lewat `kode_bayar` di berita.
+
+### PB4 — `GET /api/publik/qurban/cek-status?kode_bayar=… | ?no_hp=…`
+
+Salah satu query wajib (`kode_bayar` diprioritaskan). **Tidak di-gate window**.
+Pencarian lintas-edisi. Response: array entri `{ kode_bayar, nama (di-mask),
+tipe_qurban, hewan_id, slot_number, harga_disepakati, status_pendaftaran }`.
+**`no_hp` tidak pernah dikembalikan.**
+
+### Error Codes (Publik)
+
+| Code | HTTP | Kapan |
+|---|---|---|
+| `RATE_LIMITED` | 429 | Window rate-limit terlampaui (detail `limit`). |
+| `VALIDATION_FAILED` | 422/400 | Payload/lookup invalid; honeypot terpicu (generik); muqorib nonaktif. |
+| `BUSINESS_EDISI_NOT_AKTIF` | 422 | Pendaftaran tidak `BUKA` / tak ada edisi AKTIF (PB2/PB3). |
+| `DUPLICATE_PESERTA` | 409 | Muqorib sudah `TERDAFTAR` di edisi (PB3). |
+| `BUSINESS_INSUFFICIENT_SLOTS` | 409 | Slot tersedia < diminta (PB3). |
+
+### Audit Events (Publik)
+
+| `event_type` | Sumber |
+|---|---|
+| `publik.daftar_attempted` / `_succeeded` | PB3 |
+| `publik.daftar_duplicate_detected` | PB3 (duplikat) |
+| `publik.daftar_captcha_failed` | PB3 (honeypot) |
+| `publik.daftar_rate_limited` | PB3 (429) |
+| `publik.daftar_muqorib_inactive` | PB3 (tolak muqorib nonaktif) |
+| `publik.wa_sent_success` / `_failed` | PB3 (Fonnte) |
+| `muqorib.auto_created_from_publik` | PB3 (auto-create) |
+| `muqorib.data_conflict_detected` | PB3 (data form ≠ record; record dipertahankan) |
+
+> **Keterbatasan rate-limit:** counter `Map` in-memory **per-proses** (serverless
+> per-instance, bukan global) — memadai sebagai friksi-abuse MVP; pengerasan keras
+> = ganti store ke Upstash Redis (item masa depan).
 
 ---
 

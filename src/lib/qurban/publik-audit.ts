@@ -16,8 +16,9 @@ import type { QurbanMuqorib } from './muqorib-repo';
  *
  * Events: publik.daftar_attempted | publik.daftar_succeeded |
  *   publik.daftar_duplicate_detected | publik.daftar_captcha_failed |
- *   publik.daftar_rate_limited | muqorib.auto_created_from_publik |
- *   muqorib.data_conflict_detected
+ *   publik.daftar_rate_limited | publik.daftar_muqorib_inactive |
+ *   publik.wa_sent_success | publik.wa_sent_failed |
+ *   muqorib.auto_created_from_publik | muqorib.data_conflict_detected
  */
 
 const PUBLIK_USER_ID = 'PUBLIK';
@@ -79,6 +80,27 @@ export function auditPublikDaftarRateLimited(
   detail: { endpoint: string; limit?: string }
 ): Promise<void> {
   return emit({ entitas: 'publik', entitas_id: '—', event_type: 'publik.daftar_rate_limited', actor, after: detail });
+}
+
+export function auditPublikDaftarMuqoribInactive(
+  actor: PublikActor,
+  detail: { muqorib_id: string; no_hp_masked?: string }
+): Promise<void> {
+  return emit({ entitas: 'publik', entitas_id: detail.muqorib_id, event_type: 'publik.daftar_muqorib_inactive', actor, after: detail });
+}
+
+export function auditPublikWaSent(
+  actor: PublikActor,
+  detail: { muqorib_id: string; kode_bayar: string[]; mock?: boolean }
+): Promise<void> {
+  return emit({ entitas: 'publik', entitas_id: detail.muqorib_id, event_type: 'publik.wa_sent_success', actor, after: detail });
+}
+
+export function auditPublikWaFailed(
+  actor: PublikActor,
+  detail: { muqorib_id: string; reason: string }
+): Promise<void> {
+  return emit({ entitas: 'publik', entitas_id: detail.muqorib_id, event_type: 'publik.wa_sent_failed', actor, after: detail });
 }
 
 export function auditMuqoribAutoCreated(actor: PublikActor, muqorib: QurbanMuqorib): Promise<void> {
