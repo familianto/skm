@@ -5,14 +5,10 @@
 
 /**
  * Mask a word: keep the first 2 letters, replace the rest with `*`. Words of
- * length ≤ 3 are left untouched.
- *
- * The provided F4b examples (`Pak Budi` → `Pak Bu**`) keep the 3-letter word
- * "Pak" intact, so the effective cutoff is length > 3 — a deliberate deviation
- * from the prose "> 2" wording. Examples win (they are the acceptance cases).
+ * length ≤ 2 are left untouched (nothing meaningful to hide).
  */
 function maskWord(word: string): string {
-  if (word.length <= 3) return word;
+  if (word.length <= 2) return word;
   return word.slice(0, 2) + '*'.repeat(word.length - 2);
 }
 
@@ -20,7 +16,7 @@ function maskWord(word: string): string {
  * Per-word name masking, re-joined with single spaces.
  *   "Hopy Familianto" → "Ho** Fa********"
  *   "Ahmad Fauzi"     → "Ah*** Fa***"
- *   "Pak Budi"        → "Pak Bu**"
+ *   "Pak Budi"        → "Pa* Bu**"
  */
 export function maskNama(nama: string): string {
   return String(nama ?? '')

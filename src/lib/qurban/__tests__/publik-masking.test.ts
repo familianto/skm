@@ -6,11 +6,11 @@ import { maskNama, maskNoHp } from '@/lib/qurban/publik-masking';
 test('maskNama — provided F4b examples', () => {
   assert.equal(maskNama('Hopy Familianto'), 'Ho** Fa********');
   assert.equal(maskNama('Ahmad Fauzi'), 'Ah*** Fa***');
-  assert.equal(maskNama('Pak Budi'), 'Pak Bu**');
+  assert.equal(maskNama('Pak Budi'), 'Pa* Bu**');
 });
 
-test('maskNama — words of length ≤ 3 stay intact', () => {
-  assert.equal(maskNama('Ali'), 'Ali');
+test('maskNama — words of length > 2 are masked, ≤ 2 stay intact', () => {
+  assert.equal(maskNama('Ali'), 'Al*');
   assert.equal(maskNama('Bu'), 'Bu');
   assert.equal(maskNama('A'), 'A');
 });
