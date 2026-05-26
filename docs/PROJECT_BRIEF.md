@@ -469,6 +469,38 @@ slot Sapi → 3 baris). **Backend-only**; UI menyusul F4c, pendaftaran publik F4
 Detail lengkap: `HANDOFF_SPRINT_F4a.md`, `docs/API_REFERENCE.md`
 (section Qurban Peserta PS1–PS8).
 
+### Sprint F4b — Pendaftaran Publik + Integrasi Fonnte
+
+Endpoint **publik tanpa-auth** (PB1–PB4) agar jamaah mendaftar qurban sendiri,
+plus notifikasi WhatsApp. **Backend-only**; UI menyusul F4c. **Tanpa migrasi**
+(config edisi sudah memuat `payment_suffix`, `wa_send_on_pendaftaran`,
+`wa_send_on_pembayaran_confirmed` sejak F02).
+
+**Kemampuan modul (delivered):**
+
+- **Endpoint publik (PB1–PB4):** `options` (info edisi + status pendaftaran +
+  tipe hewan bookable + rekening), `daftar/lookup` (exact match muqorib by
+  nama+no_hp), `daftar` (submit; analog publik PS2 + auto-create muqorib),
+  `cek-status` (by `kode_bayar`/`no_hp`, lintas-edisi, tak di-gate window).
+- **Pengaman publik:** rate-limit *cascading* per-IP per-endpoint (di atas
+  `checkRateLimit` F1), honeypot (field `email`), masking nama/no_hp. Window
+  pendaftaran 3-keadaan (`BELUM_BUKA`/`BUKA`/`TUTUP`) dari tanggal edisi.
+- **Nominal-ber-suffix:** `nominal = total_harga + payment_suffix` (dihitung
+  sekali pada total) — sinyal kategorisasi transaksi; pencocokan peserta lewat
+  `kode_bayar` di berita transfer (bukan suffix).
+- **Fonnte WhatsApp:** dua template (`pendaftaran_publik` untuk PB3,
+  `pendaftaran_panitia` retrofit ke PS2), gated `wa_send_on_pendaftaran`,
+  di-await-tapi-error-ditangkap (gagal-WA ≠ gagal-response), audit `wa_sent_*`.
+  Klien `@/lib/fonnte` dipakai ulang (env `FONNTE_API_TOKEN`; tanpa token →
+  mock graceful).
+- **Polish:** PB3 menolak muqorib nonaktif (konsisten PS2); kill-switch
+  `QURBAN_MODULE_ENABLED` kini mencakup `/api/publik/qurban/*`.
+- **Keterbatasan jujur:** rate-limit `Map` in-memory (per-instance serverless,
+  bukan global) — friksi-abuse MVP; pengerasan = Upstash Redis (backlog).
+
+Detail lengkap: `HANDOFF_SPRINT_F4b.md`, `docs/API_REFERENCE.md`
+(section Qurban Public Pendaftaran PB1–PB4).
+
 ## 9. Saran Fitur Masa Depan (Backlog)
 
 Fitur-fitur berikut **tidak termasuk** dalam scope v2.1, tapi bisa ditambahkan di versi selanjutnya:

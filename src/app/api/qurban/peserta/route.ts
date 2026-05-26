@@ -5,6 +5,7 @@ import { ErrorCodes } from '@/lib/api/errors';
 import { requireRole } from '@/lib/api/guards';
 import { getClientIp } from '@/lib/api/rate-limit';
 import { PERAN } from '@/lib/api/permissions';
+import { sendWhatsApp } from '@/lib/fonnte';
 
 import { resolveEdisiForPeserta } from '@/lib/qurban/peserta-context';
 import {
@@ -24,7 +25,10 @@ import { lookupHargaDisepakati } from '@/lib/qurban/peserta-pricing';
 import { autoAssignSlots } from '@/lib/qurban/peserta-slot-assignment';
 import { nextKodeBayarSequence } from '@/lib/qurban/peserta-kode-bayar';
 import { generatePesertaIds } from '@/lib/qurban/id-generator';
-import { auditPesertaCreated } from '@/lib/qurban/peserta-audit';
+import { auditPesertaCreated, auditPesertaWaSent, auditPesertaWaFailed } from '@/lib/qurban/peserta-audit';
+import { findKonfigurasiByEdisiId } from '@/lib/qurban/konfigurasi-repo';
+import { computePembayaran, listRekeningPublik } from '@/lib/qurban/publik-pembayaran';
+import { buildPendaftaranPanitiaMessage, shouldSendPendaftaranWA } from '@/lib/qurban/publik-wa-template';
 import type { QurbanPeserta, SumberPendaftaran, StatusPendaftaran, TipeQurban } from '@/lib/qurban/peserta-types';
 
 const READ_ROLES = [PERAN.SUPER_ADMIN, PERAN.BENDAHARA, PERAN.ADMIN_QURBAN, PERAN.PENDAFTARAN];
@@ -192,6 +196,37 @@ export async function POST(request: NextRequest) {
     const isAdditional = dup.length > 0 && input.allow_additional_qurban;
     for (const rec of records) {
       await auditPesertaCreated(rec, actor, { is_additional_qurban: isAdditional });
+    }
+
+    // F4b-C: notifikasi WA panitia (gated `wa_send_on_pendaftaran`). Di-await
+    // tetapi error ditangkap — kegagalan WA TIDAK menggagalkan response PS2.
+    const konfig = await findKonfigurasiByEdisiId(edisi.id);
+    if (shouldSendPendaftaranWA(konfig, muqorib.no_hp)) {
+      try {
+        const pembayaran = computePembayaran(harga.harga_disepakati, input.jumlah_slot, konfig?.payment_suffix ?? 0);
+        const rekening = await listRekeningPublik();
+        const waRes = await sendWhatsApp({
+          target: muqorib.no_hp,
+          message: buildPendaftaranPanitiaMessage({
+            nama: muqorib.nama_lengkap,
+            tahun_hijriah: edisi.tahun_hijriah,
+            hewan_label: `${harga.master.jenis} Kelas ${harga.master.kelas}`,
+            tipe_qurban: input.tipe_qurban,
+            jumlah_slot: input.jumlah_slot,
+            kode_bayar: kodes,
+            total_harga: pembayaran.total_harga,
+            nominal_transfer: pembayaran.nominal_transfer,
+            rekening,
+          }),
+        });
+        if (waRes.success) {
+          await auditPesertaWaSent(muqorib.id, actor, { kode_bayar: kodes, mock: waRes.mock });
+        } else {
+          await auditPesertaWaFailed(muqorib.id, actor, { reason: waRes.detail });
+        }
+      } catch (e) {
+        await auditPesertaWaFailed(muqorib.id, actor, { reason: e instanceof Error ? e.message : 'unknown' });
+      }
     }
 
     return success(records, { total: records.length }, { status: 201 });

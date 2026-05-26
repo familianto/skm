@@ -32,9 +32,9 @@ export interface RateLimitResult {
 export function checkRateLimit(
   key: string,
   limit: number,
-  windowMs: number
+  windowMs: number,
+  now: number = Date.now()
 ): RateLimitResult {
-  const now = Date.now();
   const bucket = buckets.get(key);
 
   if (!bucket || now > bucket.resetAt) {
