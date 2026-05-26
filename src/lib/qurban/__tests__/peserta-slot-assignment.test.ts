@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { computeSlotAssignment, type AssignableHewan } from '../peserta-slot-assignment';
+import { computeSlotAssignment, enumerateEmptySlots, type AssignableHewan } from '../peserta-slot-assignment';
 
 const sapi = (id: string, nomor_urut: number): AssignableHewan => ({ id, nomor_urut, kapasitas_slot: 7 });
 
@@ -72,4 +72,24 @@ test('kambing kapasitas 1: tepat satu slot per ekor', () => {
       { hewan_id: 'K-2', slot_number: 1 },
     ]);
   }
+});
+
+// PS8 — enumerateEmptySlots: SEMUA slot kosong, urut nomor_urut ASC lalu slot ASC.
+test('enumerateEmptySlots: rincian lengkap dengan nomor_urut, lewati terisi', () => {
+  const occupied = new Map([['HWN-2', new Set([1, 2])]]);
+  const slots = enumerateEmptySlots([sapi('HWN-5', 5), sapi('HWN-2', 2)], occupied);
+  // HWN-2 (urut 2) dulu: slot 3..7 (5), lalu HWN-5 (urut 5): slot 1..7 (7) = 12.
+  assert.equal(slots.length, 12);
+  assert.deepEqual(slots[0], { hewan_id: 'HWN-2', nomor_urut: 2, slot_number: 3 });
+  assert.deepEqual(slots[4], { hewan_id: 'HWN-2', nomor_urut: 2, slot_number: 7 });
+  assert.deepEqual(slots[5], { hewan_id: 'HWN-5', nomor_urut: 5, slot_number: 1 });
+});
+
+test('enumerateEmptySlots: hewan penuh → tidak menyumbang slot', () => {
+  const occupied = new Map([['HWN-1', new Set([1, 2, 3, 4, 5, 6, 7])]]);
+  assert.deepEqual(enumerateEmptySlots([sapi('HWN-1', 1)], occupied), []);
+});
+
+test('enumerateEmptySlots: list kosong → []', () => {
+  assert.deepEqual(enumerateEmptySlots([], new Map()), []);
 });

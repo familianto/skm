@@ -4,7 +4,8 @@ import type { QurbanPeserta } from './peserta-types';
 
 /**
  * Audit emitters for `qurban_peserta` (F4a). Event names:
- *   peserta.created | peserta.updated | peserta.status_changed
+ *   peserta.created | peserta.updated | peserta.status_changed |
+ *   peserta.harga_changed
  */
 
 const ENTITAS = 'peserta';
@@ -46,6 +47,24 @@ export function auditPesertaUpdated(
     event_type: 'peserta.updated',
     before,
     after,
+    user_id: actor.user_id,
+    ip_address: actor.ip_address,
+  });
+}
+
+export function auditPesertaHargaChanged(
+  id: string,
+  from: number,
+  to: number,
+  actor: Actor
+): Promise<void> {
+  return writeAuditLog({
+    aksi: AuditAksi.UPDATE,
+    entitas: ENTITAS,
+    entitas_id: id,
+    event_type: 'peserta.harga_changed',
+    before: { harga_disepakati: from },
+    after: { harga_disepakati: to },
     user_id: actor.user_id,
     ip_address: actor.ip_address,
   });

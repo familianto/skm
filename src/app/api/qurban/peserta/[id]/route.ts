@@ -7,7 +7,7 @@ import { getClientIp } from '@/lib/api/rate-limit';
 import { PERAN } from '@/lib/api/permissions';
 
 import { resolveEdisiForPeserta } from '@/lib/qurban/peserta-context';
-import { getPesertaById, getPesertaRecordById, updatePesertaAt } from '@/lib/qurban/peserta-repo';
+import { getPesertaById, getPesertaRecordById, updatePesertaAt, STATUS_BATAL } from '@/lib/qurban/peserta-repo';
 import { validatePesertaPatch } from '@/lib/qurban/peserta-validators';
 import { auditPesertaUpdated } from '@/lib/qurban/peserta-audit';
 import type { QurbanPeserta } from '@/lib/qurban/peserta-types';
@@ -65,6 +65,17 @@ export async function PATCH(
       return error(ErrorCodes.NOT_FOUND, 'Peserta tidak ditemukan.', 404);
     }
     const current = rec.peserta;
+
+    // Peserta BATAL = catatan historis, tidak boleh diubah (mirror H4 terminal
+    // → 422 BUSINESS_*). PS5 yang menangani perubahan status.
+    if (current.status_pendaftaran === STATUS_BATAL) {
+      return error(
+        ErrorCodes.BUSINESS_PESERTA_NOT_TERDAFTAR,
+        'Peserta berstatus BATAL tidak dapat diubah.',
+        422,
+        { status_pendaftaran: current.status_pendaftaran }
+      );
+    }
 
     const body = await request.json().catch(() => ({}));
     const parsed = validatePesertaPatch(body);

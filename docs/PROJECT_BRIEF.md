@@ -439,6 +439,36 @@ penanganan defensif `qurban_peserta` (sheet belum ada hingga F4a → slot `0`).
 Detail lengkap: `HANDOFF_SPRINT_F5a.md`, `docs/API_REFERENCE.md`
 (section Qurban Daftar Hewan H1–H7).
 
+### Sprint F4a — Pendaftaran Peserta (Backend)
+
+Modul **Pendaftaran** peserta qurban — lapisan di atas inventaris F5a. Tabel
+`qurban_peserta` dengan pendekatan **"1 baris = 1 slot"** (1 muqorib ambil 3
+slot Sapi → 3 baris). **Backend-only**; UI menyusul F4c, pendaftaran publik F4b.
+
+**Kemampuan modul (delivered):**
+
+- **CRUD peserta** (PS1–PS5): list per edisi (filter status/hewan/muqorib/tipe/
+  sumber), create **multi-slot** (auto-assign slot + freeze harga + generate
+  `kode_bayar` + deteksi duplikat Layer 1), detail, update field non-slot
+  (`nama_atas_nama`/`keterangan_bagian`/`notes`), cancel (`TERDAFTAR → BATAL`).
+- **Helper pra-daftar** (PS6–PS8): check-duplicate (informasional), refresh-harga
+  (terapkan harga master terkini), available-slots (slot kosong per edisi).
+- **Keputusan harga:** `harga_disepakati = master ÷ kapasitas_slot` —
+  `BELI`=`harga_beli`, `BAWA_SENDIRI`=`harga_bawa_sendiri` (keduanya per-ekor).
+  `kode_bayar` = `QRB-{tahun_hijriah}-{NNN}`, urutan lintas-status per edisi
+  (BATAL tak membebaskan kode). PS2 wajib edisi `AKTIF`; peserta `BATAL`
+  immutable.
+- **Role-gating** (di handler): baca = SA/BD/AQ/PD; tulis create/patch = SA/AQ/PD;
+  cancel/refresh-harga = SA/AQ. Edisi `SELESAI` mengunci tulis.
+- **Perbaikan okupansi F5a:** `peserta-occupancy.ts` kini membaca
+  `status_pendaftaran=TERDAFTAR` + resolusi nama (`nama_atas_nama`/`muqorib_id`)
+  — slot_terisi/occupants F5a (H1/H3/H7) jadi **nyata**.
+- **1 sheet baru:** `qurban_peserta` (17 kolom). Migrasi via Apps Script
+  `migrate_F4a` (idempoten, `verify_F4a` dengan guard jumlah kolom).
+
+Detail lengkap: `HANDOFF_SPRINT_F4a.md`, `docs/API_REFERENCE.md`
+(section Qurban Peserta PS1–PS8).
+
 ## 9. Saran Fitur Masa Depan (Backlog)
 
 Fitur-fitur berikut **tidak termasuk** dalam scope v2.1, tapi bisa ditambahkan di versi selanjutnya:

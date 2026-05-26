@@ -118,10 +118,13 @@ export async function POST(request: NextRequest) {
     }
     const input = parsed.value;
 
-    // FK muqorib harus ada.
+    // FK muqorib harus ada & aktif (soft-delete via is_active).
     const muqorib = await getMuqoribById(input.muqorib_id);
     if (!muqorib) {
       return error(ErrorCodes.VALIDATION_FAILED, 'muqorib_id tidak ditemukan.', 422, { field: 'muqorib_id' });
+    }
+    if (!muqorib.is_active) {
+      return error(ErrorCodes.VALIDATION_FAILED, 'muqorib nonaktif tidak dapat didaftarkan.', 422, { field: 'muqorib_id' });
     }
 
     // Deteksi duplikat (Layer 1).

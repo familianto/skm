@@ -1989,6 +1989,140 @@ direkam di audit (Opsi A).
 
 ---
 
+## Qurban Peserta (Pendaftaran) — PS1–PS8 (Sprint F4a)
+
+Pendaftaran peserta qurban, pendekatan **"1 baris = 1 slot"** (1 muqorib ambil
+3 slot Sapi → 3 baris `qurban_peserta`). **PER-EDISI**: `edisi_id` dikirim
+sebagai query param (`?edisi_id=EDS-...`) — kecuali PS6 yang menerimanya di
+body (lihat di bawah). Backend-only (F4a); UI menyusul di F4c, pendaftaran
+publik di F4b.
+
+| # | Method | Path | Peran |
+|---|---|---|---|
+| PS1 | GET | `/api/qurban/peserta?edisi_id=EDS-...` | SUPER_ADMIN, BENDAHARA, ADMIN_QURBAN, PENDAFTARAN |
+| PS2 | POST | `/api/qurban/peserta?edisi_id=EDS-...` | SUPER_ADMIN, ADMIN_QURBAN, PENDAFTARAN |
+| PS3 | GET | `/api/qurban/peserta/[id]?edisi_id=EDS-...` | SUPER_ADMIN, BENDAHARA, ADMIN_QURBAN, PENDAFTARAN |
+| PS4 | PATCH | `/api/qurban/peserta/[id]?edisi_id=EDS-...` | SUPER_ADMIN, ADMIN_QURBAN, PENDAFTARAN |
+| PS5 | POST | `/api/qurban/peserta/[id]/cancel?edisi_id=EDS-...` | SUPER_ADMIN, ADMIN_QURBAN |
+| PS6 | POST | `/api/qurban/peserta/check-duplicate` | SUPER_ADMIN, ADMIN_QURBAN, PENDAFTARAN |
+| PS7 | POST | `/api/qurban/peserta/[id]/refresh-harga?edisi_id=EDS-...` | SUPER_ADMIN, ADMIN_QURBAN |
+| PS8 | GET | `/api/qurban/peserta/available-slots?edisi_id=EDS-...` | SUPER_ADMIN, ADMIN_QURBAN, PENDAFTARAN |
+
+PENDAFTARAN (panitia) hanya boleh edisi `AKTIF` (edisi lain → `403
+FORBIDDEN_EDISI`). **PS2 mewajibkan edisi `AKTIF` untuk SEMUA peran** (DRAFT/
+SELESAI → `422 BUSINESS_EDISI_NOT_AKTIF`). PS4/PS5/PS7 menolak edisi `SELESAI`
+→ `422 BUSINESS_EDISI_LOCKED`. Tidak ada konsep "pendaftaran dibuka/ditutup"
+terpisah dari status edisi (kolom `tanggal_pendaftaran_*` belum dipakai untuk
+gating).
+
+**Schema `qurban_peserta` (17 kolom):** `id` (prefix `PST-`), `edisi_id`,
+`muqorib_id` (FK lintas-edisi), `hewan_id` (FK — **mutable**, Pemetaan F5b),
+`slot_number` (1..`kapasitas_slot` — **mutable**), `tipe_qurban`
+(`BELI`|`BAWA_SENDIRI`, snapshot dari hewan), `nama_atas_nama` (opsional; kosong
+→ pakai nama muqorib), `keterangan_bagian`, `harga_disepakati` (**frozen** saat
+daftar), `kode_bayar` (`QRB-{tahun}-{NNN}`, unik per edisi, **immutable**),
+`sumber_pendaftaran` (`PUBLIK`|`PANITIA`|`IMPORT_1447H`), `status_pendaftaran`
+(`TERDAFTAR`|`BATAL`), `tanggal_daftar`, `notes`, `created_at`, `updated_at`,
+`created_by`. **Tidak ada kolom `is_active`** — soft-delete via
+`status_pendaftaran = BATAL`. **Tidak ada kolom `nama`** — label via
+`nama_atas_nama` lalu `muqorib.nama_lengkap`.
+
+**Harga per slot (frozen):** `harga_disepakati = master ÷ kapasitas_slot` —
+`BELI` pakai `harga_beli`, `BAWA_SENDIRI` pakai `harga_bawa_sendiri` (keduanya
+nilai per-ekor). Dibulatkan ke Rupiah integer (`Math.round`).
+
+### PS1 — `GET /api/qurban/peserta?edisi_id=EDS-...`
+
+**Query:** `edisi_id` (wajib), filter opsional `status_pendaftaran`, `hewan_id`,
+`muqorib_id`, `tipe_qurban`, `sumber_pendaftaran`. Diurutkan `tanggal_daftar`
+ASC (tiebreak `id`). `meta: { total, filters_applied }`.
+
+### PS2 — `POST /api/qurban/peserta?edisi_id=EDS-...`
+
+**Body:** `{ muqorib_id, master_hewan_id, tipe_qurban, jumlah_slot,
+nama_atas_nama_per_slot?, keterangan_bagian?, allow_additional_qurban? }`.
+`nama_atas_nama_per_slot` (kalau diisi) panjangnya harus = `jumlah_slot`.
+
+**Alur:** (1) validasi + `muqorib_id` harus ada & **aktif** (`is_active`);
+(2) deteksi duplikat Layer 1 — bila muqorib sudah punya peserta `TERDAFTAR` di
+edisi & `allow_additional_qurban=false` → `409 DUPLICATE_PESERTA` (body memuat
+`existing[]`); (3) bekukan `harga_disepakati` dari master; (4) **auto-assign
+slot** (hewan `AKTIF` cocok `master_hewan_id`+`tipe`, urut `nomor_urut` ASC,
+slot kosong terkecil dulu, auto-split antar hewan) — kurang dari diminta →
+`409 BUSINESS_INSUFFICIENT_SLOTS` (`{available, needed}`); (5) generate
+`kode_bayar` berurutan per slot; (6) insert N baris (batch) dengan
+`sumber_pendaftaran=PANITIA`, `status_pendaftaran=TERDAFTAR`. **Response 201**
+(array N peserta). Audit `peserta.created` per baris (flag
+`is_additional_qurban` bila berlaku).
+
+### PS3 — `GET /api/qurban/peserta/[id]?edisi_id=EDS-...`
+
+Detail satu peserta. `404` bila id tidak ditemukan / beda edisi.
+
+### PS4 — `PATCH /api/qurban/peserta/[id]?edisi_id=EDS-...`
+
+**Body (subset):** `nama_atas_nama`, `keterangan_bagian`, `notes`. Field lain
+(`hewan_id`/`slot_number` → Pemetaan F5b, `status_pendaftaran` → PS5,
+`harga_disepakati` → PS7, `kode_bayar` immutable) ditolak. Peserta `BATAL` →
+`422 BUSINESS_PESERTA_NOT_TERDAFTAR` (catatan historis, tidak boleh diubah).
+Idempotent no-op bila tak ada perubahan.
+
+### PS5 — `POST /api/qurban/peserta/[id]/cancel?edisi_id=EDS-...`
+
+**Body:** `{ alasan?, refund_handling? }`. `TERDAFTAR → BATAL` (sudah `BATAL` →
+`422 BUSINESS_PESERTA_NOT_TERDAFTAR`). Slot otomatis kosong (computed via
+okupansi). Pembayaran existing TIDAK dinonaktifkan; bila sheet `qurban_pembayaran`
+(F6) ada & peserta punya pembayaran, response menyertakan `meta.warning`.
+Audit `peserta.status_changed`.
+
+### PS6 — `POST /api/qurban/peserta/check-duplicate`
+
+**Body:** `{ muqorib_id, edisi_id }` (keduanya di body). Bungkus
+`findDuplikatTerdaftar`. Response `{ has_duplicate, existing[] }`.
+**Informasional** — tidak memblokir (pemblokiran sebenarnya di PS2). Dipakai UI
+F4c pra-submit.
+
+### PS7 — `POST /api/qurban/peserta/[id]/refresh-harga?edisi_id=EDS-...`
+
+Terapkan harga master saat ini ke `harga_disepakati` (master diturunkan dari
+`hewan_id` → `master_hewan_id`). Hanya `TERDAFTAR` (`BATAL` →
+`422 BUSINESS_PESERTA_NOT_TERDAFTAR`). `kode_bayar` tidak disentuh. Harga sama →
+no-op sukses tanpa audit; berubah → audit `peserta.harga_changed` + bump
+`updated_at`. Response `{ peserta, harga_lama, harga_baru }`.
+
+### PS8 — `GET /api/qurban/peserta/available-slots?edisi_id=EDS-...`
+
+**Query:** `edisi_id` (wajib), `master_hewan_id` & `tipe_qurban` (opsional —
+batasi ke kombinasi itu; tanpa keduanya = seluruh edisi). Response `{ total,
+slots[] }`, tiap slot `{ hewan_id, nomor_urut, slot_number }` (hanya hewan
+`AKTIF`, slot belum ditempati peserta `TERDAFTAR`).
+
+### Error Codes (Peserta)
+
+| Code | HTTP | Kapan |
+|---|---|---|
+| `VALIDATION_REQUIRED` | 400 | `edisi_id` (query/body) atau `muqorib_id` (PS6) kosong. |
+| `VALIDATION_FAILED` | 400/422 | Body validation gagal / master/muqorib tidak valid / muqorib nonaktif. |
+| `FORBIDDEN_ROLE` | 403 | Peran tidak diizinkan untuk endpoint. |
+| `FORBIDDEN_EDISI` | 403 | PENDAFTARAN mengakses edisi non-AKTIF. |
+| `NOT_FOUND` | 404 | Edisi / peserta tidak ditemukan. |
+| `DUPLICATE_PESERTA` | 409 | PS2 — muqorib sudah `TERDAFTAR` & `allow_additional_qurban=false`. |
+| `BUSINESS_INSUFFICIENT_SLOTS` | 409 | PS2 — slot tersedia < `jumlah_slot`. |
+| `BUSINESS_EDISI_NOT_AKTIF` | 422 | PS2 — edisi bukan `AKTIF`. |
+| `BUSINESS_EDISI_LOCKED` | 422 | PS4/PS5/PS7 — edisi `SELESAI`. |
+| `BUSINESS_PESERTA_NOT_TERDAFTAR` | 422 | PS4/PS5/PS7 — peserta tidak berstatus `TERDAFTAR`. |
+
+### Audit Events (Peserta)
+
+| `event_type` | Aksi | Sumber |
+|---|---|---|
+| `peserta.created` | `CREATE` | PS2 (per baris; flag `is_additional_qurban`) |
+| `peserta.updated` | `UPDATE` | PS4 (skip kalau no-op) |
+| `peserta.status_changed` | `UPDATE` | PS5 (`TERDAFTAR → BATAL`) |
+| `peserta.harga_changed` | `UPDATE` | PS7 (skip kalau harga sama) |
+
+---
+
 ## Qurban Public Endpoints
 
 ### `GET /api/publik/qurban`
