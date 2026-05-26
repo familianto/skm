@@ -1,4 +1,4 @@
-import { generateId } from '@/lib/api/id-gen';
+import { generateId, generateIds } from '@/lib/api/id-gen';
 import { QURBAN_SHEETS } from './sheets';
 
 /**
@@ -38,6 +38,11 @@ export function generateDaftarHewanId(): Promise<string> {
 
 export function generatePesertaId(): Promise<string> {
   return generateId('PST', QURBAN_SHEETS.PESERTA);
+}
+
+/** N id PST- berurutan dalam satu read — untuk batch insert PS2 multi-slot. */
+export function generatePesertaIds(count: number): Promise<string[]> {
+  return generateIds('PST', QURBAN_SHEETS.PESERTA, count);
 }
 
 /**

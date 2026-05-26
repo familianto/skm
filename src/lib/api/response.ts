@@ -18,6 +18,8 @@ export type ApiSuccess<T> = {
     page_size?: number;
     has_more?: boolean;
     filters_applied?: Record<string, unknown>;
+    /** Non-fatal advisory (e.g. PS5 cancel: peserta masih punya pembayaran). */
+    warning?: string;
   };
 };
 

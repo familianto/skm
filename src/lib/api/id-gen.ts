@@ -29,6 +29,24 @@ export function getTodayWIB(): string {
  * retry-on-duplicate around this.
  */
 export async function generateId(prefix: string, sheetName: string): Promise<string> {
+  const [id] = await generateIds(prefix, sheetName, 1);
+  return id;
+}
+
+/**
+ * Generate `count` sequential IDs for `prefix` in ONE read of `sheetName`.
+ *
+ * Needed for batch inserts (e.g. PS2 multi-slot): calling `generateId` in a
+ * loop would return the SAME id N times because nothing is appended between
+ * calls. This reads `max(existing for today)` once and hands out a contiguous
+ * block.
+ */
+export async function generateIds(
+  prefix: string,
+  sheetName: string,
+  count: number
+): Promise<string[]> {
+  if (count <= 0) return [];
   const today = getTodayWIB();
   const prefixPattern = `${prefix}-${today}-`;
 
@@ -41,5 +59,8 @@ export async function generateId(prefix: string, sheetName: string): Promise<str
       if (!isNaN(counter) && counter > maxCounter) maxCounter = counter;
     }
   }
-  return `${prefixPattern}${String(maxCounter + 1).padStart(4, '0')}`;
+  return Array.from(
+    { length: count },
+    (_, i) => `${prefixPattern}${String(maxCounter + 1 + i).padStart(4, '0')}`
+  );
 }
