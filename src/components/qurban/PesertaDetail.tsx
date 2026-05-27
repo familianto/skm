@@ -7,8 +7,14 @@ import { PageTitle } from '@/components/layout/page-title';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Loading } from '@/components/ui/loading';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
+import { useToast } from '@/components/ui/toast';
+import { useMe } from '@/hooks/use-me';
 import { formatRupiah, formatTimestamp } from '@/lib/utils';
 import {
+  canManagePesertaStatus,
+  canWritePeserta,
+  extractCancelAlasan,
   formatPesertaDateID,
   hewanSlotLabel,
   pesertaDisplayNama,
@@ -21,13 +27,16 @@ import {
 } from '@/lib/qurban/peserta-display';
 import type { AuditEntry } from '@/lib/api/audit-read';
 import { AuditTimeline } from '@/components/qurban/AuditTimeline';
+import { PesertaCancelModal } from '@/components/qurban/PesertaCancelModal';
 
 /**
- * F4c-A — /qurban/peserta/[id] detail view (PS3, read-only).
+ * /qurban/peserta/[id] detail view (PS3).
  *
  * Enriches the raw PS3 row with muqorib identity (M3) and the hewan label (H3),
- * then groups the fields like the Muqorib detail page. Includes the A3 audit
- * timeline (PS-AUDIT). No Edit/Batal actions — those are Milestone B.
+ * then groups the fields like the Muqorib detail page, with the A3 audit
+ * timeline (PS-AUDIT). F4c-D adds role-gated write actions: Edit (SA·AQ·PD →
+ * PS4), Tandai BATAL & Refresh Harga (SA·AQ → PS5/PS7), shown only while the
+ * row is TERDAFTAR.
  */
 
 interface Props {
@@ -36,6 +45,9 @@ interface Props {
 }
 
 export function PesertaDetail({ edisiId, pesertaId }: Props) {
+  const { me } = useMe();
+  const { toast } = useToast();
+
   const [peserta, setPeserta] = useState<QurbanPeserta | null>(null);
   const [muqoribNama, setMuqoribNama] = useState('');
   const [muqoribNoHp, setMuqoribNoHp] = useState('');
@@ -46,6 +58,10 @@ export function PesertaDetail({ edisiId, pesertaId }: Props) {
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [notFound, setNotFound] = useState(false);
+
+  const [showCancel, setShowCancel] = useState(false);
+  const [showRefresh, setShowRefresh] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
   const listHref = `/qurban/peserta?edisi=${encodeURIComponent(edisiId)}`;
   const edisiParam = `edisi_id=${encodeURIComponent(edisiId)}`;
@@ -105,6 +121,36 @@ export function PesertaDetail({ edisiId, pesertaId }: Props) {
     fetchDetail();
   }, [fetchDetail]);
 
+  const handleRefreshHarga = async () => {
+    setRefreshing(true);
+    try {
+      const res = await fetch(
+        `/api/qurban/peserta/${pesertaId}/refresh-harga?${edisiParam}`,
+        { method: 'POST' }
+      );
+      const json = await res.json().catch(() => ({}));
+      if (res.ok && json?.ok) {
+        const { harga_lama, harga_baru } = json.data as { harga_lama: number; harga_baru: number };
+        toast(
+          harga_baru === harga_lama
+            ? 'Harga sudah sesuai master — tidak ada perubahan.'
+            : `Harga diperbarui: ${formatRupiah(harga_lama)} → ${formatRupiah(harga_baru)}.`,
+          'success'
+        );
+        setShowRefresh(false);
+        fetchDetail();
+      } else {
+        toast(json?.error?.message || 'Gagal me-refresh harga.', 'error');
+        setShowRefresh(false);
+      }
+    } catch {
+      toast('Tidak dapat terhubung ke server.', 'error');
+      setShowRefresh(false);
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
   if (loading) return <Loading className="my-8" />;
 
   if (notFound) {
@@ -147,6 +193,11 @@ export function PesertaDetail({ edisiId, pesertaId }: Props) {
   }
 
   const displayNama = pesertaDisplayNama(peserta.nama_atas_nama, muqoribNama);
+  const isTerdaftar = peserta.status_pendaftaran === 'TERDAFTAR';
+  const isBatal = peserta.status_pendaftaran === 'BATAL';
+  const canEdit = canWritePeserta(me?.user.peran) && isTerdaftar;
+  const canStatus = canManagePesertaStatus(me?.user.peran) && isTerdaftar;
+  const cancelAlasan = isBatal ? extractCancelAlasan(audit) : '';
 
   return (
     <div className="max-w-2xl mx-auto">
@@ -208,8 +259,48 @@ export function PesertaDetail({ edisiId, pesertaId }: Props) {
           }
         />
         <Row label="Tanggal Daftar" value={formatPesertaDateID(peserta.tanggal_daftar)} />
+        {isBatal && (
+          <Row
+            label="Alasan Pembatalan"
+            value={<span className="text-red-700">{cancelAlasan || '—'}</span>}
+          />
+        )}
         {peserta.notes && <Row label="Catatan" value={peserta.notes} />}
       </Section>
+
+      {/* Aksi (D2) */}
+      {(canEdit || canStatus) && (
+        <Card className="mb-4">
+          <h2 className="text-sm font-semibold text-gray-900 mb-3">Aksi</h2>
+          <div className="flex flex-col sm:flex-row sm:flex-wrap gap-2">
+            {canEdit && (
+              <Link href={`/qurban/peserta/${peserta.id}/edit?edisi=${encodeURIComponent(edisiId)}`}>
+                <Button variant="secondary" className="w-full sm:w-auto">
+                  Edit
+                </Button>
+              </Link>
+            )}
+            {canStatus && (
+              <>
+                <Button
+                  variant="secondary"
+                  onClick={() => setShowRefresh(true)}
+                  className="w-full sm:w-auto"
+                >
+                  Refresh Harga
+                </Button>
+                <Button
+                  variant="danger"
+                  onClick={() => setShowCancel(true)}
+                  className="w-full sm:w-auto"
+                >
+                  Tandai BATAL
+                </Button>
+              </>
+            )}
+          </div>
+        </Card>
+      )}
 
       {/* Metadata */}
       <Section title="Metadata">
@@ -239,6 +330,28 @@ export function PesertaDetail({ edisiId, pesertaId }: Props) {
         </h2>
         <AuditTimeline entries={audit} error={auditError} />
       </Card>
+
+      {/* Aksi tulis (D2) */}
+      <PesertaCancelModal
+        open={showCancel}
+        edisiId={edisiId}
+        pesertaId={peserta.id}
+        onClose={() => setShowCancel(false)}
+        onSuccess={() => {
+          setShowCancel(false);
+          fetchDetail();
+        }}
+      />
+      <ConfirmDialog
+        open={showRefresh}
+        title="Refresh Harga"
+        message="Terapkan harga master terkini ke harga disepakati peserta ini? Nilai yang sudah dibekukan akan diperbarui."
+        confirmLabel="Refresh Harga"
+        variant="primary"
+        loading={refreshing}
+        onConfirm={handleRefreshHarga}
+        onCancel={() => setShowRefresh(false)}
+      />
     </div>
   );
 }

@@ -2,6 +2,9 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
+  canManagePesertaStatus,
+  canWritePeserta,
+  extractCancelAlasan,
   filterPeserta,
   formatPesertaDateID,
   hewanSlotLabel,
@@ -118,4 +121,43 @@ test('filterPeserta combines status + search', () => {
   ];
   const out = filterPeserta(rows, { status: 'TERDAFTAR', search: 'budi' });
   assert.deepEqual(out.map((r) => r.id), ['a']);
+});
+
+// ── Write/status role gates (D3) ──────────────────────────────────────────────
+
+test('canWritePeserta allows SA/AQ/PD, denies BENDAHARA/VIEWER', () => {
+  for (const r of ['SUPER_ADMIN', 'ADMIN_QURBAN', 'PENDAFTARAN']) {
+    assert.equal(canWritePeserta(r), true, r);
+  }
+  assert.equal(canWritePeserta('BENDAHARA'), false);
+  assert.equal(canWritePeserta('DISTRIBUSI'), false);
+  assert.equal(canWritePeserta(undefined), false);
+});
+
+test('canManagePesertaStatus is SA/AQ only (BATAL & Refresh Harga)', () => {
+  assert.equal(canManagePesertaStatus('SUPER_ADMIN'), true);
+  assert.equal(canManagePesertaStatus('ADMIN_QURBAN'), true);
+  assert.equal(canManagePesertaStatus('PENDAFTARAN'), false);
+  assert.equal(canManagePesertaStatus('BENDAHARA'), false);
+  assert.equal(canManagePesertaStatus(undefined), false);
+});
+
+// ── extractCancelAlasan (D4) ──────────────────────────────────────────────────
+
+test('extractCancelAlasan reads the latest status_changed → BATAL alasan', () => {
+  // Newest-first ordering (audit endpoint sorts desc).
+  const entries = [
+    { event_type: 'peserta.status_changed', after: { status_pendaftaran: 'BATAL', alasan: 'permintaan muqorib' } },
+    { event_type: 'peserta.created', after: { status_pendaftaran: 'TERDAFTAR' } },
+  ];
+  assert.equal(extractCancelAlasan(entries), 'permintaan muqorib');
+});
+
+test('extractCancelAlasan returns empty when no cancel event / no alasan', () => {
+  assert.equal(extractCancelAlasan([{ event_type: 'peserta.created', after: {} }]), '');
+  assert.equal(
+    extractCancelAlasan([{ event_type: 'peserta.status_changed', after: { status_pendaftaran: 'BATAL' } }]),
+    ''
+  );
+  assert.equal(extractCancelAlasan([]), '');
 });

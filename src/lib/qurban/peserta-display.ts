@@ -41,6 +41,8 @@ export const PESERTA_READ_ROLES = [
   'PENDAFTARAN',
 ] as const;
 export const PESERTA_WRITE_ROLES = ['SUPER_ADMIN', 'ADMIN_QURBAN', 'PENDAFTARAN'] as const;
+/** Status ops (BATAL PS5, Refresh Harga PS7) are admin-only — mirror PS5/PS7 guards. */
+export const PESERTA_STATUS_ROLES = ['SUPER_ADMIN', 'ADMIN_QURBAN'] as const;
 
 export function canReadPeserta(peran: string | undefined): boolean {
   return !!peran && (PESERTA_READ_ROLES as readonly string[]).includes(peran);
@@ -49,6 +51,18 @@ export function canReadPeserta(peran: string | undefined): boolean {
 export function canWritePeserta(peran: string | undefined): boolean {
   return !!peran && (PESERTA_WRITE_ROLES as readonly string[]).includes(peran);
 }
+
+export function canManagePesertaStatus(peran: string | undefined): boolean {
+  return !!peran && (PESERTA_STATUS_ROLES as readonly string[]).includes(peran);
+}
+
+/** Suggested refund-handling options for the cancel dialog (PS5 accepts free text). */
+export const REFUND_HANDLING_OPTIONS = [
+  'Belum ada pembayaran',
+  'Dana dikembalikan penuh',
+  'Tanpa pengembalian dana',
+  'Dialihkan ke pendaftaran lain',
+] as const;
 
 const BADGE_BASE =
   'inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ring-inset';
@@ -175,6 +189,23 @@ export function filterPeserta(
       r.kode_bayar.toLowerCase().includes(q)
     );
   });
+}
+
+/**
+ * Pull the cancellation reason from audit entries (newest-first): the latest
+ * `peserta.status_changed` → BATAL event's `after.alasan`. Empty if none.
+ */
+export function extractCancelAlasan(
+  entries: { event_type: string; after: unknown }[]
+): string {
+  for (const e of entries) {
+    if (e.event_type !== 'peserta.status_changed') continue;
+    const after = e.after && typeof e.after === 'object' ? (e.after as Record<string, unknown>) : null;
+    if (after && after.status_pendaftaran === 'BATAL') {
+      return typeof after.alasan === 'string' ? after.alasan : '';
+    }
+  }
+  return '';
 }
 
 // Re-export the underlying enum types for convenience in client components.
