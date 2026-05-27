@@ -4,6 +4,9 @@ import assert from 'node:assert/strict';
 import {
   validateMasterHewanCreate,
   validateMasterHewanPatch,
+  kapasitasSlotForJenis,
+  isKapasitasSlotValidForJenis,
+  KAPASITAS_SLOT_BY_JENIS,
   maskNoHp,
   scoreLookupCandidate,
   type LookupCandidate,
@@ -81,6 +84,69 @@ test('validateMasterHewanCreate rejects string harga', () => {
 test('validateMasterHewanCreate rejects non-object body', () => {
   assert.equal(validateMasterHewanCreate(null).ok, false);
   assert.equal(validateMasterHewanCreate('x').ok, false);
+});
+
+test('validateMasterHewanCreate rejects kapasitas_slot not matching jenis (KAMBING≠1)', () => {
+  const r = validateMasterHewanCreate({ ...validCreate, jenis: 'KAMBING', kelas: 'A', kapasitas_slot: 7 });
+  assert.equal(r.ok, false);
+  assert.ok(r.errors.some((e) => e.field === 'kapasitas_slot'));
+});
+
+test('validateMasterHewanCreate rejects kapasitas_slot not matching jenis (SAPI≠7)', () => {
+  const r = validateMasterHewanCreate({ ...validCreate, jenis: 'SAPI', kapasitas_slot: 1 });
+  assert.equal(r.ok, false);
+  assert.ok(r.errors.some((e) => e.field === 'kapasitas_slot'));
+});
+
+test('validateMasterHewanCreate accepts KAMBING with kapasitas_slot 1', () => {
+  const r = validateMasterHewanCreate({ ...validCreate, jenis: 'KAMBING', kelas: 'A', kapasitas_slot: 1 });
+  assert.equal(r.ok, true);
+});
+
+test('validateMasterHewanCreate accepts SAPI with kapasitas_slot 7', () => {
+  const r = validateMasterHewanCreate({ ...validCreate, jenis: 'SAPI', kapasitas_slot: 7 });
+  assert.equal(r.ok, true);
+});
+
+test('validateMasterHewanCreate skips jenis cross-check when jenis invalid', () => {
+  // Unknown jenis fails on its own; we should not also assert a kapasitas error.
+  const r = validateMasterHewanCreate({ ...validCreate, jenis: 'DOMBA', kapasitas_slot: 99 });
+  assert.equal(r.ok, false);
+  assert.ok(r.errors.some((e) => e.field === 'jenis'));
+});
+
+// ---------------------------------------------------------------------------
+// Kapasitas slot ↔ jenis mapping + cross-field guard
+// ---------------------------------------------------------------------------
+
+test('kapasitasSlotForJenis returns the fiqh constants', () => {
+  assert.equal(kapasitasSlotForJenis('KAMBING'), 1);
+  assert.equal(kapasitasSlotForJenis('SAPI'), 7);
+});
+
+test('kapasitasSlotForJenis returns undefined for unknown jenis', () => {
+  assert.equal(kapasitasSlotForJenis('DOMBA'), undefined);
+  assert.equal(kapasitasSlotForJenis(''), undefined);
+});
+
+test('KAPASITAS_SLOT_BY_JENIS covers every supported jenis', () => {
+  assert.deepEqual(KAPASITAS_SLOT_BY_JENIS, { KAMBING: 1, SAPI: 7 });
+});
+
+test('isKapasitasSlotValidForJenis accepts matching pairs', () => {
+  assert.equal(isKapasitasSlotValidForJenis('KAMBING', 1), true);
+  assert.equal(isKapasitasSlotValidForJenis('SAPI', 7), true);
+});
+
+test('isKapasitasSlotValidForJenis rejects mismatched pairs', () => {
+  assert.equal(isKapasitasSlotValidForJenis('KAMBING', 2), false);
+  assert.equal(isKapasitasSlotValidForJenis('KAMBING', 9), false);
+  assert.equal(isKapasitasSlotValidForJenis('SAPI', 1), false);
+});
+
+test('isKapasitasSlotValidForJenis rejects unknown jenis regardless of value', () => {
+  assert.equal(isKapasitasSlotValidForJenis('DOMBA', 1), false);
+  assert.equal(isKapasitasSlotValidForJenis('', 7), false);
 });
 
 // ---------------------------------------------------------------------------
