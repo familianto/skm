@@ -15,6 +15,7 @@ import {
   masterHewanStatusLabel,
   type MasterHewan,
 } from '@/lib/qurban/master-hewan-display';
+import { kapasitasSlotForJenis } from '@/lib/qurban/validators';
 
 type EdisiStatus = 'DRAFT' | 'AKTIF' | 'SELESAI';
 
@@ -81,8 +82,11 @@ export function MasterTipeTab({ edisiId, edisiStatus, canEdit }: Props) {
 
   const startEdit = (m: MasterHewan) => {
     setEditingId(m.id);
+    // Kapasitas slot dikunci ke jenis (Kambing 1, Sapi 7). Tampilkan nilai baku
+    // dari jenis — baris lama yang terlanjur salah akan terkoreksi saat disimpan.
+    const kapasitasBaku = kapasitasSlotForJenis(m.jenis) ?? m.kapasitas_slot;
     setEdit({
-      kapasitas: String(m.kapasitas_slot),
+      kapasitas: String(kapasitasBaku),
       hargaBeli: m.harga_beli,
       hargaBawa: m.harga_bawa_sendiri,
     });
@@ -268,13 +272,13 @@ export function MasterTipeTab({ edisiId, edisiStatus, canEdit }: Props) {
                       {isEditing ? (
                         <input
                           type="text"
-                          inputMode="numeric"
                           value={edit.kapasitas}
-                          onChange={(e) =>
-                            setEdit((s) => ({ ...s, kapasitas: e.target.value.replace(/\D/g, '') }))
-                          }
-                          className="w-20 rounded-lg border border-gray-300 px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                          aria-label="Kapasitas slot"
+                          readOnly
+                          disabled
+                          aria-readonly="true"
+                          title="Kapasitas slot terkunci ke jenis (Kambing 1, Sapi 7)."
+                          className="w-20 rounded-lg border border-gray-300 bg-gray-100 px-2 py-1 text-sm text-gray-700 cursor-not-allowed"
+                          aria-label="Kapasitas slot (terkunci)"
                         />
                       ) : (
                         m.kapasitas_slot
@@ -399,13 +403,15 @@ export function MasterTipeTab({ edisiId, edisiStatus, canEdit }: Props) {
                     <label className="block text-xs text-gray-500 mb-1">Kapasitas Slot</label>
                     <input
                       type="text"
-                      inputMode="numeric"
                       value={edit.kapasitas}
-                      onChange={(e) =>
-                        setEdit((s) => ({ ...s, kapasitas: e.target.value.replace(/\D/g, '') }))
-                      }
-                      className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                      readOnly
+                      disabled
+                      aria-readonly="true"
+                      className="w-full rounded-lg border border-gray-300 bg-gray-100 px-3 py-2 text-sm text-gray-700 cursor-not-allowed"
                     />
+                    <p className="mt-1 text-xs text-gray-500">
+                      Terkunci dari jenis &mdash; Kambing 1, Sapi 7.
+                    </p>
                   </div>
                   <CurrencyInput
                     label="Harga Beli"

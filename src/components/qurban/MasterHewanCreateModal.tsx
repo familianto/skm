@@ -8,6 +8,7 @@ import { CurrencyInput } from '@/components/ui/currency-input';
 import { useToast } from '@/components/ui/toast';
 import { cn } from '@/lib/utils';
 import { JENIS_OPTIONS, KELAS_OPTIONS } from '@/lib/qurban/master-hewan-display';
+import { kapasitasSlotForJenis } from '@/lib/qurban/validators';
 
 /**
  * MasterHewanCreateModal — "Tambah Tipe" for the Master Tipe tab (MH2).
@@ -54,16 +55,18 @@ export function MasterHewanCreateModal({ open, edisiId, onSuccess, onClose }: Pr
   const { toast } = useToast();
   const [jenis, setJenis] = useState('');
   const [kelas, setKelas] = useState('');
-  const [kapasitas, setKapasitas] = useState('');
   const [hargaBeli, setHargaBeli] = useState<number | null>(null);
   const [hargaBawa, setHargaBawa] = useState<number | null>(null);
   const [errors, setErrors] = useState<FormErrors>({});
   const [submitting, setSubmitting] = useState(false);
 
+  // Kapasitas slot adalah konstanta yang diturunkan dari jenis (Kambing 1,
+  // Sapi 7) — read-only, tidak diisi manual.
+  const kapasitasSlot = jenis ? kapasitasSlotForJenis(jenis) ?? null : null;
+
   const reset = () => {
     setJenis('');
     setKelas('');
-    setKapasitas('');
     setHargaBeli(null);
     setHargaBawa(null);
     setErrors({});
@@ -127,9 +130,8 @@ export function MasterHewanCreateModal({ open, edisiId, onSuccess, onClose }: Pr
     const newErrors: FormErrors = {};
     if (!jenis) newErrors.jenis = 'Jenis wajib dipilih.';
     if (!kelas) newErrors.kelas = 'Kelas wajib dipilih.';
-    const kapasitasNum = parseInt(kapasitas, 10);
-    if (!kapasitas || !Number.isInteger(kapasitasNum) || kapasitasNum < 1) {
-      newErrors.kapasitas_slot = 'Kapasitas slot harus bilangan bulat ≥ 1.';
+    if (jenis && kapasitasSlot == null) {
+      newErrors.jenis = 'Jenis tidak dikenal — kapasitas slot tidak dapat ditentukan.';
     }
     if (hargaBeli == null || hargaBeli < 0) {
       newErrors.harga_beli = 'Harga beli wajib diisi (≥ 0).';
@@ -151,7 +153,7 @@ export function MasterHewanCreateModal({ open, edisiId, onSuccess, onClose }: Pr
           body: JSON.stringify({
             jenis,
             kelas,
-            kapasitas_slot: kapasitasNum,
+            kapasitas_slot: kapasitasSlot,
             harga_beli: hargaBeli,
             harga_bawa_sendiri: hargaBawa,
           }),
@@ -198,6 +200,7 @@ export function MasterHewanCreateModal({ open, edisiId, onSuccess, onClose }: Pr
               onChange={(e) => {
                 setJenis(e.target.value);
                 clearError('jenis');
+                clearError('kapasitas_slot');
               }}
               disabled={submitting}
               required
@@ -240,7 +243,7 @@ export function MasterHewanCreateModal({ open, edisiId, onSuccess, onClose }: Pr
           </div>
         </div>
 
-        {/* Kapasitas slot */}
+        {/* Kapasitas slot — terkunci, diturunkan dari jenis (Kambing 1, Sapi 7) */}
         <div>
           <label htmlFor="mh-kapasitas" className="block text-sm font-medium text-gray-700 mb-1">
             Kapasitas Slot
@@ -248,23 +251,19 @@ export function MasterHewanCreateModal({ open, edisiId, onSuccess, onClose }: Pr
           <input
             id="mh-kapasitas"
             type="text"
-            inputMode="numeric"
-            value={kapasitas}
-            onChange={(e) => {
-              setKapasitas(e.target.value.replace(/\D/g, ''));
-              clearError('kapasitas_slot');
-            }}
-            placeholder="mis. 7 (sapi) atau 1 (kambing)"
-            disabled={submitting}
-            required
+            value={kapasitasSlot ?? ''}
+            readOnly
+            disabled
+            aria-readonly="true"
+            placeholder="Pilih jenis dahulu"
             className={cn(
-              'block w-full rounded-lg border px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400',
-              'focus:outline-none focus:ring-2',
-              errors.kapasitas_slot
-                ? 'border-red-300 focus:ring-red-500 focus:border-red-500'
-                : 'border-gray-300 focus:ring-emerald-500 focus:border-emerald-500'
+              'block w-full rounded-lg border border-gray-300 bg-gray-100 px-3 py-2 text-sm',
+              'text-gray-700 placeholder:text-gray-400 cursor-not-allowed'
             )}
           />
+          <p className="mt-1 text-xs text-gray-500">
+            Otomatis dari jenis &mdash; Kambing 1, Sapi 7. Tidak dapat diubah.
+          </p>
           {errors.kapasitas_slot && (
             <p className="mt-1 text-sm text-red-600">{errors.kapasitas_slot}</p>
           )}

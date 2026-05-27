@@ -14,7 +14,11 @@ import {
   type QurbanMasterHewan,
 } from '@/lib/qurban/master-hewan-repo';
 import { auditMasterHewanUpdate } from '@/lib/qurban/master-hewan-audit';
-import { validateMasterHewanPatch } from '@/lib/qurban/validators';
+import {
+  validateMasterHewanPatch,
+  isKapasitasSlotValidForJenis,
+  kapasitasSlotForJenis,
+} from '@/lib/qurban/validators';
 
 const WRITE_ROLES = [PERAN.SUPER_ADMIN, PERAN.ADMIN_QURBAN];
 
@@ -76,6 +80,29 @@ export async function PATCH(
       );
     }
     const patch = parsed.value;
+
+    // Kapasitas slot dikunci ke jenis (Kambing 1, Sapi 7). jenis immutable, jadi
+    // diambil dari record saat ini. Tolak kapasitas yang tidak sesuai jenis.
+    if (
+      patch.kapasitas_slot !== undefined &&
+      !isKapasitasSlotValidForJenis(current.jenis, patch.kapasitas_slot)
+    ) {
+      const expected = kapasitasSlotForJenis(current.jenis);
+      return error(
+        ErrorCodes.VALIDATION_FAILED,
+        `kapasitas_slot untuk ${current.jenis} harus ${expected}.`,
+        422,
+        {
+          field: 'kapasitas_slot',
+          errors: [
+            {
+              field: 'kapasitas_slot',
+              message: `kapasitas_slot untuk ${current.jenis} harus ${expected}.`,
+            },
+          ],
+        }
+      );
+    }
 
     const merged: QurbanMasterHewan = {
       ...current,
