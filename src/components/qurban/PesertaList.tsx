@@ -8,9 +8,11 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Loading } from '@/components/ui/loading';
+import { useMe } from '@/hooks/use-me';
 import { formatRupiah } from '@/lib/utils';
 import { cn } from '@/lib/utils';
 import {
+  canWritePeserta,
   filterPeserta,
   formatPesertaDateID,
   hewanSlotLabel,
@@ -79,6 +81,8 @@ async function fetchMuqoribMap(): Promise<Map<string, string>> {
 
 export function PesertaList({ edisiId }: Props) {
   const router = useRouter();
+  const { me } = useMe();
+  const canWrite = canWritePeserta(me?.user.peran);
 
   const [rows, setRows] = useState<PesertaListRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -147,6 +151,20 @@ export function PesertaList({ edisiId }: Props) {
 
   return (
     <div>
+      {canWrite && (
+        <div className="flex justify-end mb-4">
+          <Link href={`/qurban/peserta/baru?edisi=${encodeURIComponent(edisiId)}`}>
+            <Button>
+              <svg className="w-4 h-4 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+              <span className="hidden sm:inline">Tambah Peserta</span>
+              <span className="sm:hidden">Tambah</span>
+            </Button>
+          </Link>
+        </div>
+      )}
+
       {/* Search + status filter */}
       <Card className="mb-4">
         <div className="flex flex-col gap-3">

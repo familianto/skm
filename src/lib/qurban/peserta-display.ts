@@ -31,17 +31,23 @@ export interface PesertaListRow extends QurbanPeserta {
   hewan_label: string;
 }
 
-// Role sets — mirror the PS1/PS3 READ_ROLES guards. Write actions (Tambah /
-// Edit / Batal) are Milestone B, so no write/status sets are exposed here.
+// Role sets — mirror the peserta route guards. READ = PS1/PS3; WRITE = PS2/PS4
+// create/patch (Tambah here in F4c-B; Edit/Batal reuse it in F4c-C). BENDAHARA
+// is read-only (in READ but not WRITE).
 export const PESERTA_READ_ROLES = [
   'SUPER_ADMIN',
   'BENDAHARA',
   'ADMIN_QURBAN',
   'PENDAFTARAN',
 ] as const;
+export const PESERTA_WRITE_ROLES = ['SUPER_ADMIN', 'ADMIN_QURBAN', 'PENDAFTARAN'] as const;
 
 export function canReadPeserta(peran: string | undefined): boolean {
   return !!peran && (PESERTA_READ_ROLES as readonly string[]).includes(peran);
+}
+
+export function canWritePeserta(peran: string | undefined): boolean {
+  return !!peran && (PESERTA_WRITE_ROLES as readonly string[]).includes(peran);
 }
 
 const BADGE_BASE =
