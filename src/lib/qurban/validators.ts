@@ -55,6 +55,30 @@ export const RT_VALUES = ['001', '002', '003', '004', '005', '006', 'Lainnya'] a
 /** Jenis hewan qurban yang didukung. */
 export const JENIS_HEWAN = ['SAPI', 'KAMBING'] as const;
 
+/**
+ * Kapasitas slot per jenis hewan — KONSTANTA fiqh qurban, bukan bebas-input.
+ *
+ * Kambing = 1 (perseorangan); Sapi = 7 (patungan). Inilah satu-satunya sumber
+ * kebenaran untuk kapasitas slot: form menurunkan & mengunci nilai dari sini,
+ * dan guard backend menolak nilai yang tidak cocok. Untuk menambah jenis baru
+ * nanti, cukup tambahkan satu baris (mis. `DOMBA: 1`, `KERBAU: 7`).
+ */
+export const KAPASITAS_SLOT_BY_JENIS: Readonly<Record<string, number>> = {
+  KAMBING: 1,
+  SAPI: 7,
+};
+
+/** Kapasitas slot baku untuk `jenis`, atau `undefined` bila jenis tak dikenal. */
+export function kapasitasSlotForJenis(jenis: string): number | undefined {
+  return KAPASITAS_SLOT_BY_JENIS[jenis];
+}
+
+/** `true` bila `kapasitas` cocok dengan kapasitas baku untuk `jenis`. */
+export function isKapasitasSlotValidForJenis(jenis: string, kapasitas: number): boolean {
+  const expected = KAPASITAS_SLOT_BY_JENIS[jenis];
+  return expected !== undefined && kapasitas === expected;
+}
+
 /** Kelas/tier hewan qurban (membedakan bobot/harga di dalam satu jenis). */
 export const KELAS_HEWAN = ['A', 'B', 'C', 'D'] as const;
 
@@ -398,6 +422,18 @@ export function validateMasterHewanCreate(
   const numOut: Record<string, number> = {};
   for (const field of ['kapasitas_slot', 'harga_beli', 'harga_bawa_sendiri'] as const) {
     validateMasterHewanNumericField(errors, field, raw[field], numOut);
+  }
+
+  // Kapasitas slot dikunci ke jenis (Kambing 1, Sapi 7) — tolak yang tidak cocok.
+  // Hanya cek silang saat jenis & kapasitas masing-masing sudah valid.
+  if (strOut.jenis !== undefined && numOut.kapasitas_slot !== undefined) {
+    const expected = kapasitasSlotForJenis(strOut.jenis);
+    if (expected !== undefined && numOut.kapasitas_slot !== expected) {
+      errors.push({
+        field: 'kapasitas_slot',
+        message: `kapasitas_slot untuk ${strOut.jenis} harus ${expected}.`,
+      });
+    }
   }
 
   if (errors.length > 0) return { ok: false, errors };
