@@ -21,7 +21,8 @@ export interface PendaftaranWAData {
   hewan_label: string; // mis. "Sapi Kelas A"
   tipe_qurban: TipeQurban;
   jumlah_slot: number;
-  kode_bayar: string[];
+  /** F4c-C: satu pendaftaran = satu kode bayar (semua slot berbagi kode ini). */
+  kode_bayar: string;
   total_harga: number;
   /** total_harga + payment_suffix — nominal yang harus ditransfer. */
   nominal_transfer: number;
@@ -43,9 +44,8 @@ function tipeLabel(t: TipeQurban): string {
   return t === 'BAWA_SENDIRI' ? 'Bawa Sendiri' : 'Beli (disediakan panitia)';
 }
 
-function kodeBayarBlock(kode: string[]): string {
-  if (kode.length <= 1) return `Kode Bayar: *${kode[0] ?? '-'}*\n`;
-  return 'Kode Bayar:\n' + kode.map((k) => `• *${k}*`).join('\n') + '\n';
+function kodeBayarBlock(kode: string): string {
+  return `Kode Bayar: *${kode || '-'}*\n`;
 }
 
 function rekeningBlock(rek: RekeningInfo[]): string {

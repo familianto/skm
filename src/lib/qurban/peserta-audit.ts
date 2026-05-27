@@ -74,7 +74,7 @@ export function auditPesertaHargaChanged(
 export function auditPesertaWaSent(
   muqoribId: string,
   actor: Actor,
-  detail: { kode_bayar: string[]; mock?: boolean }
+  detail: { kode_bayar: string; mock?: boolean }
 ): Promise<void> {
   return writeAuditLog({
     aksi: AuditAksi.CREATE,

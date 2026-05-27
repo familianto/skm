@@ -144,8 +144,63 @@ export function validatePesertaForm(input: PesertaFormValidationInput): FormErro
   return errors;
 }
 
-/** Build the `nama_atas_nama_per_slot` array PS2 expects (length = jumlahSlot). */
-export function buildNamaAtasNamaPerSlot(atasNama: string, jumlahSlot: number): string[] {
-  const v = atasNama.trim();
-  return new Array(Math.max(0, jumlahSlot)).fill(v);
+/**
+ * Build the `nama_atas_nama_per_slot` array PS2 expects (length = jumlahSlot).
+ *
+ * `sameForAll` → fill every slot with the one shared name (single-slot also uses
+ * this path). Otherwise take the per-slot entries, trimmed and padded/truncated
+ * to exactly `jumlahSlot`. Empty entries mean "pakai nama muqorib".
+ */
+export function resolveAtasNamaPerSlot(opts: {
+  jumlahSlot: number;
+  sameForAll: boolean;
+  sharedNama: string;
+  perSlot: string[];
+}): string[] {
+  const n = Math.max(0, opts.jumlahSlot);
+  if (opts.sameForAll) return new Array(n).fill(opts.sharedNama.trim());
+  return Array.from({ length: n }, (_, i) => (opts.perSlot[i] ?? '').trim());
+}
+
+// ── Context-smart jumlah_slot field (C3) ─────────────────────────────────────
+
+export interface SlotFieldConfig {
+  /** Field is read-only (Kambing → 1; Sapi BAWA_SENDIRI → kapasitas penuh). */
+  locked: boolean;
+  /** Forced value when `locked`. */
+  lockedValue: number | null;
+  min: number;
+  max: number;
+  hint: string;
+}
+
+/**
+ * Slot rules (dikonfirmasi pemilik produk):
+ *   Kambing (apa pun tipe)  → terkunci 1.
+ *   Sapi BAWA_SENDIRI       → terkunci kapasitas penuh (1 ekor utuh).
+ *   Sapi BELI               → editable 1..kapasitas.
+ * Tanpa jenis/tipe → default editable 1..kapasitas (atau 1).
+ */
+export function slotFieldConfig(
+  jenis: string,
+  tipe: TipeQurban | '',
+  kapasitasSlot: number
+): SlotFieldConfig {
+  const cap = Math.max(1, kapasitasSlot || 1);
+  if (jenis === 'KAMBING') {
+    return { locked: true, lockedValue: 1, min: 1, max: 1, hint: 'Kambing = 1 slot per ekor.' };
+  }
+  if (jenis === 'SAPI' && tipe === 'BAWA_SENDIRI') {
+    return {
+      locked: true,
+      lockedValue: cap,
+      min: cap,
+      max: cap,
+      hint: `Sapi Bawa Sendiri = 1 ekor utuh (${cap} slot).`,
+    };
+  }
+  if (jenis === 'SAPI' && tipe === 'BELI') {
+    return { locked: false, lockedValue: null, min: 1, max: cap, hint: `${cap} = 1 ekor sapi utuh.` };
+  }
+  return { locked: false, lockedValue: null, min: 1, max: cap, hint: '' };
 }

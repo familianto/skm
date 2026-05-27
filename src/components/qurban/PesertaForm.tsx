@@ -19,15 +19,17 @@ import {
   type QurbanPeserta,
 } from '@/lib/qurban/peserta-display';
 import {
-  buildNamaAtasNamaPerSlot,
   classifyDuplicate,
   computeHargaPreview,
   findMaster,
   jenisOptions,
   kelasOptionsForJenis,
+  resolveAtasNamaPerSlot,
+  slotFieldConfig,
   validatePesertaForm,
   TIPE_QURBAN_OPTIONS,
   type DuplicateKind,
+  type SlotFieldConfig,
 } from '@/lib/qurban/peserta-form';
 import type { TipeQurban } from '@/lib/qurban/peserta-types';
 import { MuqoribLookup, type MuqoribCandidate } from '@/components/qurban/MuqoribLookup';
@@ -36,10 +38,11 @@ import { MuqoribLookup, type MuqoribCandidate } from '@/components/qurban/Muqori
  * F4c-B — /qurban/peserta/baru panitia registration form (PS2 create).
  *
  * Four sections: (1) pick hewan + price preview, (2) muqorib smart-lookup /
- * create-new, (3) registration detail, (4) confirm + submit. Layer-1 duplicate
- * detection (PS6 + a BATAL probe via PS1) shows an inline banner and a blocking
- * 3-option modal. Multi-slot → PS2 returns N peserta (N kode_bayar). PS2 freezes
- * the authoritative price and auto-assigns physical slots.
+ * create-new, (3) registration detail (atas-nama per slot), (4) confirm +
+ * submit. Layer-1 duplicate detection (PS6 + a BATAL probe via PS1) shows an
+ * inline banner and a blocking 3-option modal. F4c-C: one registration = one
+ * `kode_bayar` (shared across all N rows); jumlah_slot is context-locked per
+ * jenis/tipe and capped at one ekor. PS2 freezes the authoritative price.
  */
 
 interface Props {
@@ -48,7 +51,8 @@ interface Props {
 
 interface CreatedResult {
   pesertaIds: string[];
-  kodeBayar: string[];
+  kodeBayar: string;
+  slotCount: number;
 }
 
 const NEW_MUQORIB_FIELDS = ['nama_lengkap', 'alamat', 'rt', 'no_hp'] as const;
@@ -65,11 +69,12 @@ export function PesertaForm({ edisiId }: Props) {
   const [bootLoading, setBootLoading] = useState(true);
   const [bootError, setBootError] = useState<string | null>(null);
 
-  // Bagian 1 — hewan selection.
+  // Bagian 1 — hewan selection. jumlah_slot is a string so the field can be
+  // cleared/retyped (fixes the "1"+"7"→"17" bug); the numeric value is derived.
   const [jenis, setJenis] = useState('');
   const [kelas, setKelas] = useState('');
   const [tipe, setTipe] = useState<TipeQurban | ''>('');
-  const [jumlahSlot, setJumlahSlot] = useState(1);
+  const [jumlahSlotStr, setJumlahSlotStr] = useState('1');
   const [availableSlots, setAvailableSlots] = useState<number | null>(null);
   const [slotsLoading, setSlotsLoading] = useState(false);
 
@@ -91,8 +96,10 @@ export function PesertaForm({ edisiId }: Props) {
   const [allowAdditional, setAllowAdditional] = useState(false);
   const [showDupModal, setShowDupModal] = useState(false);
 
-  // Bagian 3 — detail.
-  const [namaAtasNama, setNamaAtasNama] = useState('');
+  // Bagian 3 — detail. Atas-nama per slot (C2): one shared name or N per-slot.
+  const [atasNamaShared, setAtasNamaShared] = useState('');
+  const [atasNamaList, setAtasNamaList] = useState<string[]>([]);
+  const [sameForAll, setSameForAll] = useState(false);
   const [keteranganBagian, setKeteranganBagian] = useState('');
   const [notes, setNotes] = useState('');
 
@@ -107,10 +114,20 @@ export function PesertaForm({ edisiId }: Props) {
     () => (jenis && kelas ? findMaster(masters, jenis, kelas) ?? null : null),
     [masters, jenis, kelas]
   );
+  const jumlahSlot = parseInt(jumlahSlotStr, 10) || 0;
+  const slotCfg: SlotFieldConfig | null =
+    master && tipe ? slotFieldConfig(master.jenis, tipe, master.kapasitas_slot) : null;
   const hargaPreview = useMemo(
     () => computeHargaPreview(master, tipe, jumlahSlot),
     [master, tipe, jumlahSlot]
   );
+  const effectiveSameForAll = jumlahSlot <= 1 ? true : sameForAll;
+  const atasNamaResolved = resolveAtasNamaPerSlot({
+    jumlahSlot,
+    sameForAll: effectiveSameForAll,
+    sharedNama: atasNamaShared,
+    perSlot: atasNamaList,
+  });
 
   // ── Boot: load master hewan + hewan labels for the edisi ────────────────────
   useEffect(() => {
@@ -150,34 +167,42 @@ export function PesertaForm({ edisiId }: Props) {
     };
   }, [edisiParam]);
 
-  // ── Slot availability whenever (master, tipe) changes ───────────────────────
+  // ── Slot availability + context-lock whenever (master, tipe) changes ────────
+  const refreshSlots = useCallback(
+    async (m: MasterHewan | null, t: TipeQurban | '') => {
+      if (!m || !t) {
+        setAvailableSlots(null);
+        return;
+      }
+      const cfg = slotFieldConfig(m.jenis, t, m.kapasitas_slot);
+      if (cfg.locked && cfg.lockedValue != null) {
+        setJumlahSlotStr(String(cfg.lockedValue));
+      } else {
+        // Clamp the current value into the editable range (max = one ekor).
+        setJumlahSlotStr((s) => {
+          const n = parseInt(s, 10) || cfg.min;
+          return String(Math.min(Math.max(cfg.min, n), cfg.max));
+        });
+      }
+      setSlotsLoading(true);
+      try {
+        const res = await fetch(
+          `/api/qurban/peserta/available-slots?${edisiParam}&master_hewan_id=${encodeURIComponent(m.id)}&tipe_qurban=${t}`
+        );
+        const json = await res.json().catch(() => ({}));
+        setAvailableSlots(json?.ok ? (json.data?.total ?? 0) : 0);
+      } catch {
+        setAvailableSlots(0);
+      } finally {
+        setSlotsLoading(false);
+      }
+    },
+    [edisiParam]
+  );
+
   useEffect(() => {
-    if (!master || !tipe) {
-      setAvailableSlots(null);
-      return;
-    }
-    let cancelled = false;
-    setSlotsLoading(true);
-    fetch(
-      `/api/qurban/peserta/available-slots?${edisiParam}&master_hewan_id=${encodeURIComponent(master.id)}&tipe_qurban=${tipe}`
-    )
-      .then((res) => res.json().catch(() => ({})))
-      .then((json) => {
-        if (cancelled) return;
-        const total = json?.ok ? (json.data?.total ?? 0) : 0;
-        setAvailableSlots(total);
-        setJumlahSlot((n) => (total > 0 ? Math.min(Math.max(1, n), total) : 1));
-      })
-      .catch(() => {
-        if (!cancelled) setAvailableSlots(0);
-      })
-      .finally(() => {
-        if (!cancelled) setSlotsLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [master, tipe, edisiParam]);
+    refreshSlots(master, tipe);
+  }, [master, tipe, refreshSlots]);
 
   // ── Duplicate check when an existing muqorib is selected ────────────────────
   const runDuplicateCheck = useCallback(
@@ -279,7 +304,12 @@ export function PesertaForm({ edisiId }: Props) {
           master_hewan_id: master.id,
           tipe_qurban: tipe,
           jumlah_slot: jumlahSlot,
-          nama_atas_nama_per_slot: buildNamaAtasNamaPerSlot(namaAtasNama, jumlahSlot),
+          nama_atas_nama_per_slot: resolveAtasNamaPerSlot({
+            jumlahSlot,
+            sameForAll: jumlahSlot <= 1 ? true : sameForAll,
+            sharedNama: atasNamaShared,
+            perSlot: atasNamaList,
+          }),
           keterangan_bagian: keteranganBagian.trim() || undefined,
           allow_additional_qurban: allowAdd,
         }),
@@ -290,13 +320,14 @@ export function PesertaForm({ edisiId }: Props) {
         const records = (json.data as QurbanPeserta[]) || [];
         toast(
           records.length > 1
-            ? `${records.length} peserta berhasil didaftarkan.`
+            ? `${records.length} slot berhasil didaftarkan.`
             : 'Peserta berhasil didaftarkan.',
           'success'
         );
         setCreated({
           pesertaIds: records.map((r) => r.id),
-          kodeBayar: records.map((r) => r.kode_bayar),
+          kodeBayar: records[0]?.kode_bayar ?? '',
+          slotCount: records.length,
         });
         return;
       }
@@ -450,19 +481,24 @@ export function PesertaForm({ edisiId }: Props) {
             <input
               id="jumlah-slot"
               type="number"
-              min={1}
-              max={availableSlots ?? undefined}
-              value={jumlahSlot}
-              onChange={(e) => setJumlahSlot(Math.max(1, parseInt(e.target.value, 10) || 1))}
-              disabled={!master || !tipe || (availableSlots ?? 0) <= 0}
+              inputMode="numeric"
+              min={slotCfg?.min ?? 1}
+              max={slotCfg?.max ?? undefined}
+              value={jumlahSlotStr}
+              onChange={(e) => setJumlahSlotStr(e.target.value)}
+              onBlur={() => setJumlahSlotStr((s) => normalizeSlotInput(s, slotCfg))}
+              readOnly={!!slotCfg?.locked}
+              disabled={!master || !tipe}
               className={cn(
-                'block w-full rounded-lg border px-3 py-2 text-sm text-gray-900 bg-white',
+                'block w-full rounded-lg border px-3 py-2 text-sm bg-white',
                 'focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500',
+                slotCfg?.locked ? 'text-gray-500 bg-gray-50' : 'text-gray-900',
                 fieldErrors.jumlah_slot ? 'border-red-300' : 'border-gray-300'
               )}
             />
             {master && tipe && (
               <p className="text-xs text-gray-500 mt-1">
+                {slotCfg?.hint && <span className="block">{slotCfg.hint}</span>}
                 {slotsLoading
                   ? 'Mengecek slot…'
                   : availableSlots !== null
@@ -533,12 +569,52 @@ export function PesertaForm({ edisiId }: Props) {
       {/* Bagian 3 — Detail Pendaftaran */}
       <Section step={3} title="Detail Pendaftaran">
         <div className="space-y-3">
-          <Input
-            label="Atas Nama (opsional)"
-            value={namaAtasNama}
-            onChange={(e) => setNamaAtasNama(e.target.value)}
-            placeholder="Kosongkan untuk pakai nama muqorib"
-          />
+          {jumlahSlot <= 1 ? (
+            <Input
+              label="Atas Nama (opsional)"
+              value={atasNamaShared}
+              onChange={(e) => setAtasNamaShared(e.target.value)}
+              placeholder="Kosongkan untuk pakai nama muqorib"
+            />
+          ) : (
+            <div className="space-y-2">
+              <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={sameForAll}
+                  onChange={(e) => setSameForAll(e.target.checked)}
+                  className="rounded border-gray-300 text-emerald-600 focus:ring-emerald-500"
+                />
+                Samakan semua slot dengan satu nama
+              </label>
+              {sameForAll ? (
+                <Input
+                  label="Atas Nama — semua slot (opsional)"
+                  value={atasNamaShared}
+                  onChange={(e) => setAtasNamaShared(e.target.value)}
+                  placeholder="Kosongkan untuk pakai nama muqorib"
+                />
+              ) : (
+                <div className="space-y-2">
+                  {Array.from({ length: jumlahSlot }).map((_, i) => (
+                    <Input
+                      key={i}
+                      label={`Atas Nama — Slot ${i + 1} (opsional)`}
+                      value={atasNamaList[i] ?? ''}
+                      onChange={(e) =>
+                        setAtasNamaList((prev) => {
+                          const next = [...prev];
+                          next[i] = e.target.value;
+                          return next;
+                        })
+                      }
+                      placeholder="Kosongkan untuk pakai nama muqorib"
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
           <Input
             label="Keterangan Bagian (opsional)"
             value={keteranganBagian}
@@ -572,7 +648,25 @@ export function PesertaForm({ edisiId }: Props) {
             label="Muqorib"
             value={selectedMuqorib?.nama_lengkap || (creatingMuqorib && newMuqorib.nama_lengkap) || '—'}
           />
-          <SummaryRow label="Atas Nama" value={namaAtasNama.trim() || '(pakai nama muqorib)'} />
+          {jumlahSlot > 1 && !effectiveSameForAll ? (
+            <SummaryRow
+              label="Atas Nama"
+              value={
+                <ul className="space-y-0.5">
+                  {atasNamaResolved.map((nm, i) => (
+                    <li key={i}>
+                      Slot {i + 1}: {nm || '(pakai nama muqorib)'}
+                    </li>
+                  ))}
+                </ul>
+              }
+            />
+          ) : (
+            <SummaryRow
+              label="Atas Nama"
+              value={(atasNamaResolved[0] ?? '').trim() || '(pakai nama muqorib)'}
+            />
+          )}
         </dl>
 
         <label className="flex items-start gap-2 mt-4 cursor-pointer">
@@ -650,6 +744,15 @@ export function PesertaForm({ edisiId }: Props) {
 
 function titleCase(s: string): string {
   return s ? s.charAt(0).toUpperCase() + s.slice(1).toLowerCase() : s;
+}
+
+/** Clamp the raw slot input into the editable range on blur (default = min). */
+function normalizeSlotInput(raw: string, cfg: SlotFieldConfig | null): string {
+  const min = cfg?.min ?? 1;
+  const max = cfg?.max ?? 99;
+  const n = parseInt(raw, 10);
+  if (!Number.isFinite(n)) return String(min);
+  return String(Math.min(Math.max(min, n), max));
 }
 
 function PageHeading() {
@@ -884,17 +987,18 @@ function DuplicateBanner({
   );
 }
 
-function SummaryRow({ label, value }: { label: string; value: string }) {
+function SummaryRow({ label, value }: { label: string; value: React.ReactNode }) {
   return (
-    <div className="flex items-center justify-between py-2 gap-2">
-      <dt className="text-gray-500">{label}</dt>
+    <div className="flex items-start justify-between py-2 gap-2">
+      <dt className="text-gray-500 shrink-0">{label}</dt>
       <dd className="font-medium text-gray-900 text-right break-words">{value}</dd>
     </div>
   );
 }
 
 function SuccessCard({ edisiId, created }: { edisiId: string; created: CreatedResult }) {
-  const multi = created.kodeBayar.length > 1;
+  const multi = created.slotCount > 1;
+  const single = created.pesertaIds.length === 1;
   return (
     <div className="max-w-md mx-auto">
       <Card>
@@ -906,22 +1010,19 @@ function SuccessCard({ edisiId, created }: { edisiId: string; created: CreatedRe
           </div>
           <h2 className="text-lg font-semibold text-gray-900">Pendaftaran Berhasil</h2>
           <p className="text-sm text-gray-500 mt-1">
-            {multi ? `${created.kodeBayar.length} slot terdaftar.` : 'Peserta telah terdaftar.'}
+            {multi ? `${created.slotCount} slot terdaftar.` : 'Peserta telah terdaftar.'}
           </p>
 
-          <div className="mt-4 rounded-lg bg-gray-50 border border-gray-200 px-3 py-3 text-left">
-            <p className="text-xs text-gray-500 mb-1.5">Kode Bayar</p>
-            <ul className="space-y-1">
-              {created.kodeBayar.map((kode) => (
-                <li key={kode} className="font-mono text-sm text-gray-900">
-                  {kode}
-                </li>
-              ))}
-            </ul>
+          <div className="mt-4 rounded-lg bg-gray-50 border border-gray-200 px-3 py-3">
+            <p className="text-xs text-gray-500 mb-1">Kode Bayar</p>
+            <p className="font-mono text-lg font-semibold text-gray-900">{created.kodeBayar}</p>
+            {multi && (
+              <p className="text-xs text-gray-400 mt-1">Satu kode untuk seluruh {created.slotCount} slot.</p>
+            )}
           </div>
 
           <div className="flex flex-col sm:flex-row sm:justify-center gap-2 mt-5">
-            {!multi && created.pesertaIds[0] && (
+            {single && created.pesertaIds[0] && (
               <Link href={`/qurban/peserta/${created.pesertaIds[0]}?edisi=${encodeURIComponent(edisiId)}`}>
                 <Button className="w-full sm:w-auto">Lihat Detail Peserta</Button>
               </Link>

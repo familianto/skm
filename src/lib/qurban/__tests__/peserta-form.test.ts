@@ -2,7 +2,6 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
-  buildNamaAtasNamaPerSlot,
   classifyDuplicate,
   computeHargaPreview,
   findMaster,
@@ -10,6 +9,8 @@ import {
   hargaPerSlot,
   jenisOptions,
   kelasOptionsForJenis,
+  resolveAtasNamaPerSlot,
+  slotFieldConfig,
   validatePesertaForm,
   type PesertaFormValidationInput,
 } from '@/lib/qurban/peserta-form';
@@ -155,14 +156,60 @@ test('validatePesertaForm requires confirmation', () => {
   assert.ok(validatePesertaForm(validInput({ confirmed: false })).some((e) => e.field === 'confirm'));
 });
 
-// ── nama_atas_nama_per_slot ───────────────────────────────────────────────────
+// ── nama_atas_nama_per_slot (C2) ──────────────────────────────────────────────
 
-test('buildNamaAtasNamaPerSlot fills array of length jumlahSlot', () => {
-  assert.deepEqual(buildNamaAtasNamaPerSlot('Hamba Allah', 3), [
-    'Hamba Allah',
-    'Hamba Allah',
-    'Hamba Allah',
-  ]);
-  assert.deepEqual(buildNamaAtasNamaPerSlot('  ', 2), ['', '']);
-  assert.deepEqual(buildNamaAtasNamaPerSlot('X', 0), []);
+test('resolveAtasNamaPerSlot sameForAll fills every slot with the shared name', () => {
+  assert.deepEqual(
+    resolveAtasNamaPerSlot({ jumlahSlot: 3, sameForAll: true, sharedNama: 'Hamba Allah', perSlot: [] }),
+    ['Hamba Allah', 'Hamba Allah', 'Hamba Allah']
+  );
+  assert.deepEqual(
+    resolveAtasNamaPerSlot({ jumlahSlot: 2, sameForAll: true, sharedNama: '  ', perSlot: ['x', 'y'] }),
+    ['', '']
+  );
+  assert.deepEqual(
+    resolveAtasNamaPerSlot({ jumlahSlot: 0, sameForAll: true, sharedNama: 'X', perSlot: [] }),
+    []
+  );
+});
+
+test('resolveAtasNamaPerSlot per-slot trims, pads, and truncates to jumlahSlot', () => {
+  assert.deepEqual(
+    resolveAtasNamaPerSlot({ jumlahSlot: 3, sameForAll: false, sharedNama: '', perSlot: [' Budi ', 'Siti'] }),
+    ['Budi', 'Siti', '']
+  );
+  assert.deepEqual(
+    resolveAtasNamaPerSlot({ jumlahSlot: 2, sameForAll: false, sharedNama: '', perSlot: ['A', 'B', 'C'] }),
+    ['A', 'B']
+  );
+});
+
+// ── slotFieldConfig (C3) ──────────────────────────────────────────────────────
+
+test('slotFieldConfig locks Kambing to 1', () => {
+  const cfg = slotFieldConfig('KAMBING', 'BELI', 1);
+  assert.equal(cfg.locked, true);
+  assert.equal(cfg.lockedValue, 1);
+  assert.equal(cfg.max, 1);
+});
+
+test('slotFieldConfig locks Sapi Bawa Sendiri to capacity', () => {
+  const cfg = slotFieldConfig('SAPI', 'BAWA_SENDIRI', 7);
+  assert.equal(cfg.locked, true);
+  assert.equal(cfg.lockedValue, 7);
+  assert.equal(cfg.min, 7);
+  assert.equal(cfg.max, 7);
+});
+
+test('slotFieldConfig lets Sapi Beli range 1..capacity', () => {
+  const cfg = slotFieldConfig('SAPI', 'BELI', 7);
+  assert.equal(cfg.locked, false);
+  assert.equal(cfg.min, 1);
+  assert.equal(cfg.max, 7);
+});
+
+test('slotFieldConfig defaults (no tipe) to editable 1..capacity', () => {
+  const cfg = slotFieldConfig('SAPI', '', 7);
+  assert.equal(cfg.locked, false);
+  assert.equal(cfg.max, 7);
 });

@@ -30,6 +30,15 @@ test('nextKodeBayarNumber menghitung kode lintas status (BATAL ikut, tak pakai-u
   assert.equal(nextKodeBayarNumber(['QRB-1448-005']), 6);
 });
 
+test('nextKodeBayarNumber: kode dibagi banyak baris tak menggelembungkan counter (F4c-C)', () => {
+  // Satu pendaftaran 7-slot berbagi SATU kode (QRB-1448-003) di 7 baris →
+  // berikutnya tetap 4 (max+1), bukan 10. Counter naik per pendaftaran.
+  assert.equal(
+    nextKodeBayarNumber(['QRB-1448-003', 'QRB-1448-003', 'QRB-1448-003', 'QRB-1448-003']),
+    4
+  );
+});
+
 test('nextKodeBayarNumber abaikan kode tak terbaca', () => {
   assert.equal(nextKodeBayarNumber(['', 'QRB-1448-002', 'rusak']), 3);
 });

@@ -59,7 +59,7 @@ export function auditPublikDaftarAttempted(
 
 export function auditPublikDaftarSucceeded(
   actor: PublikActor,
-  summary: { muqorib_id: string; edisi_id: string; kode_bayar: string[]; jumlah_slot: number }
+  summary: { muqorib_id: string; edisi_id: string; kode_bayar: string; jumlah_slot: number }
 ): Promise<void> {
   return emit({ entitas: 'publik', entitas_id: summary.muqorib_id, event_type: 'publik.daftar_succeeded', actor, after: summary });
 }
@@ -91,7 +91,7 @@ export function auditPublikDaftarMuqoribInactive(
 
 export function auditPublikWaSent(
   actor: PublikActor,
-  detail: { muqorib_id: string; kode_bayar: string[]; mock?: boolean }
+  detail: { muqorib_id: string; kode_bayar: string; mock?: boolean }
 ): Promise<void> {
   return emit({ entitas: 'publik', entitas_id: detail.muqorib_id, event_type: 'publik.wa_sent_success', actor, after: detail });
 }

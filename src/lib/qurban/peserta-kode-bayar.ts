@@ -3,13 +3,20 @@ import { listPesertaByEdisi } from './peserta-repo';
 import type { Edisi } from './edisi-repo';
 
 /**
- * Urutan `kode_bayar` per edisi (B3.3) — `QRB-{tahun}-{NNN}`.
+ * Urutan `kode_bayar` per edisi — `QRB-{tahun}-{NNN}`.
+ *
+ * **Model F4c-C: satu pendaftaran = satu `kode_bayar`.** Satu pendaftaran
+ * multi-slot (mis. 1 sapi 7-slot oleh satu muqorib) menghasilkan SATU kode yang
+ * dibagi semua barisnya — `kode_bayar` berfungsi sebagai kunci-grup
+ * pendaftaran/pembayaran. Nomor `NNN` bertambah satu per PENDAFTARAN, bukan per
+ * slot, sehingga banyak baris yang berbagi kode tidak menggelembungkan counter
+ * (kita ambil max suffix, bukan jumlah baris).
  *
  * Nomor berikutnya = (urutan tertinggi yang sudah ada di edisi) + 1, MENGHITUNG
  * semua peserta lintas status (termasuk BATAL) — sehingga peserta batal tidak
  * pernah membebaskan kembali kode-nya. `tahun` Hijriah diambil dari
  * `edisi.tahun_hijriah` (digit-run pertama, mis. "1448 H" → "1448"). Format
- * akhir lewat `formatKodeBayar`.
+ * akhir lewat `formatKodeBayar`. Dipakai bersama PS2 (panitia) & PB3 (publik).
  */
 
 /** Ambil nomor urut (NNN) dari sebuah kode_bayar, atau null kalau tak terbaca. */
@@ -36,14 +43,12 @@ export function resolveTahunHijriah(edisi: Edisi): string {
   return m ? m[0] : (edisi.tahun_hijriah ?? '').trim();
 }
 
-/** `count` kode_bayar berurutan untuk edisi, mulai dari nomor berikutnya. */
-export async function nextKodeBayarSequence(
-  edisi: Edisi,
-  count: number
-): Promise<string[]> {
-  if (count <= 0) return [];
+/**
+ * SATU `kode_bayar` untuk satu pendaftaran (dipakai oleh semua barisnya). Nomor
+ * berikutnya diturunkan dari max suffix kode yang sudah ada di edisi, +1.
+ */
+export async function nextKodeBayar(edisi: Edisi): Promise<string> {
   const existing = await listPesertaByEdisi(edisi.id);
-  const start = nextKodeBayarNumber(existing.map((p) => p.kode_bayar));
-  const tahun = resolveTahunHijriah(edisi);
-  return Array.from({ length: count }, (_, i) => formatKodeBayar(tahun, start + i));
+  const next = nextKodeBayarNumber(existing.map((p) => p.kode_bayar));
+  return formatKodeBayar(resolveTahunHijriah(edisi), next);
 }
