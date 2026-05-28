@@ -337,7 +337,7 @@ Lihat detail di `SPRINT_PLAN.md` dan file individual di `sprints/`.
 | F4a | Modul Pendaftaran Peserta — Backend (PS1–PS8) | — | ✅ Done |
 | F4b | Pendaftaran Publik + Integrasi Fonnte (PB1–PB4) | — | ✅ Done |
 | F4c | UI Pendaftaran Qurban (panitia + publik daftar + cek-status) | 6 milestone A–F | ✅ Done |
-| F4d | Phone-primary lookup (PB2 v2) | 2 milestone A–B | 🚧 Milestone A done |
+| F4d | Phone-primary lookup (PB2 v2 + M7 dual-mode) | 2 milestone A–B | ✅ Done |
 | F5b / F6 / F7 | Pemetaan slot · Pembayaran · Hari-H | TBD | ⏳ Planned |
 
 ### Sprint F02 — Qurban Edisi Management
@@ -549,7 +549,14 @@ PB3) atau **"Bukan / nomor salah"** (TIDAK fall-through ke form pendaftar-baru
 dengan HP yang sama — anti diam-diam-attach). HP tidak terdaftar → form
 pendaftar baru. Honeypot `email` dipasang juga pada Step 2.
 
-Milestone B (panitia M7 phone-primary) menyusul di branch yang sama.
+**Milestone B — panitia M7 dual-mode.** Selector pure yang sama
+(`selectActiveMuqoribByPhone` di `lib/qurban/muqorib-lookup.ts`) dipakai
+ulang: M7 mendeteksi `q` HP-like (`isPhoneQuery`) → exact-match HP; selain
+itu → fuzzy nama (perilaku lama). Balasan panitia **PENUH** (tidak di-mask)
+sesuai PII matrix — beda kontrak dari publik yang tetap tersamar. Komponen
+`MuqoribLookup` di `PesertaForm` tetap memakai satu field bebas; HP
+panjang otomatis ditangani server. PS6 dup-check tetap sebagai jaring
+pengaman saat submit. Satu mesin lookup, dua kontrak.
 
 ## 9. Saran Fitur Masa Depan (Backlog)
 

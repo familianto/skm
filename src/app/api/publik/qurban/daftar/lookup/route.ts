@@ -7,7 +7,7 @@ import { checkPublikRateLimit } from '@/lib/qurban/publik-rate-limit';
 
 import { findActiveEdisi } from '@/lib/qurban/edisi-repo';
 import { getPendaftaranStatus } from '@/lib/qurban/publik-pendaftaran-window';
-import { lookupMuqoribByPhone } from '@/lib/qurban/publik-muqorib';
+import { lookupMuqoribByPhone } from '@/lib/qurban/muqorib-lookup';
 import { validatePublikLookup } from '@/lib/qurban/publik-validators';
 import { isHoneypotTriggered } from '@/lib/qurban/publik-honeypot';
 import { maskAlamat, maskNama, maskNoHp } from '@/lib/qurban/publik-masking';

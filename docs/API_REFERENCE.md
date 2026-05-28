@@ -1765,15 +1765,25 @@ satu field. Idempotent — no-op mengembalikan record apa adanya.
 
 Inverse M5. Tanpa body. Idempotent.
 
-### M7 — `GET /api/qurban/muqorib/lookup`
+### M7 — `GET /api/qurban/muqorib/lookup`  (dual-mode sejak F4d-B)
 
-Smart autocomplete atas muqorib AKTIF (Jaro-Winkler + boost telepon/alamat).
+Smart autocomplete atas muqorib AKTIF. Sejak F4d-B, server otomatis memilih
+jalur:
+
+- **HP-exact** — `q` terlihat seperti nomor HP (≥ 7 digit, ≥ 70% non-spasi
+  digit, mentolerir `+`/`-`/spasi). Exact-match via `selectActiveMuqoribByPhone`
+  (1 HP = 1 muqorib grain). Balas paling banyak 1 kandidat, `score: 1.0`.
+- **Name-fuzzy** (default) — Jaro-Winkler + boost telepon (last-4) + boost
+  alamat/RT, persis seperti sebelumnya.
 
 **Query params:** `q` (wajib), `limit` (default 10, maks 25), `min_score`
 (default 0.6, rentang 0–1).
 
-**Response 200:** kandidat ter-skor; `no_hp` di-mask (`628****7890`);
-`has_history` stub `false` sampai F04. `meta: { q, limit, min_score, count }`.
+**Response 200:** kandidat ter-skor (`id, nama_lengkap, alamat, rt, no_hp,
+is_active, score, has_history`). **`no_hp` di-balas PENUH** untuk panitia
+(SA/AQ/PD) sesuai PII matrix — jalur publik (PB2) yang masih menyamarkan
+ada di `/api/publik/qurban/daftar/lookup`. `has_history` stub `false`
+sampai F04. `meta: { q, limit, min_score, count }`.
 
 ### Error Codes (Muqorib)
 

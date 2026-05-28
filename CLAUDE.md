@@ -11,13 +11,11 @@
 
 ## Current Sprint
 
-> **Sprint F4d — Phone-Primary Lookup (PB2 v2)** sedang berjalan. Milestone A
-> (sisi publik + mesin backend bersama) selesai: PB2 di-rewrite jadi HP-dulu
-> dengan response tersamar (`nama_masked` + `alamat_masked` + `rt`); Step 2
-> wizard publik di-reshape jadi HP-only + kartu konfirmasi. Milestone B
-> (panitia M7 phone-primary) menyusul di branch yang sama. Detail:
-> `HANDOFF_SPRINT_F4d.md`. Sprint berikut: F5b (Pemetaan), F6 (Pembayaran),
-> F7 (Hari-H).
+> **Sprint F4d — Phone-Primary Lookup** selesai (A & B). Publik (PB2) HP-dulu
+> + response tersamar; Panitia (M7) HP-exact + fuzzy nama, response penuh.
+> Satu mesin lookup di `lib/qurban/muqorib-lookup.ts`, dua kontrak. Lihat
+> `HANDOFF_SPRINT_F4d.md`. PR #92 Draft, menunggu verifikasi & merge.
+> Sprint berikutnya: F5b (Pemetaan), F6 (Pembayaran), F7 (Hari-H).
 
 Update baris ini setiap kali sprint berganti.
 

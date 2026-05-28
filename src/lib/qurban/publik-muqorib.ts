@@ -1,13 +1,15 @@
-import { isValidNoHp, normalizeNoHp } from './validators';
-import { listAllMuqorib, type QurbanMuqorib } from './muqorib-repo';
+import { normalizeNoHp } from './validators';
+import type { QurbanMuqorib } from './muqorib-repo';
 import type { MuqoribCreateInput } from './validators';
 
 /**
  * Pure helpers for PB3 muqorib resolution (F4b B2). I/O (read/create) stays in
  * the route; these encode the matching + conflict rules so they're unit-testable.
  *
- * F4d adds the thin I/O wrapper `lookupMuqoribByPhone` reused by PB2 (publik
- * lookup) and M7 (panitia smart-lookup, Milestone B).
+ * Shared phone-lookup primitives (`selectActiveMuqoribByPhone`,
+ * `lookupMuqoribByPhone`, `isPhoneQuery`) live in `./muqorib-lookup` since
+ * F4d Milestone B — they are used by BOTH publik (PB2, masked) and panitia
+ * (M7, full).
  */
 
 /**
@@ -42,39 +44,4 @@ export function muqoribDataDiffers(
     norm(existing.alamat) !== norm(submitted.alamat) ||
     norm(existing.rt) !== norm(submitted.rt)
   );
-}
-
-/**
- * F4d — pure variant of the PB2 lookup. Given a pre-fetched muqorib list and
- * a raw `no_hp` (any of `08…`, `8…`, `62…`), returns the active match — or
- * `null` for empty/malformed input, no match, or inactive-only match.
- * Inactive-only matches are treated as "not found" because PB2 must never
- * reveal an inactive record's identity hints. PB3 keeps using
- * `findMuqoribByNoHp` directly so it can detect & reject inactive-only matches
- * with its own error path.
- */
-export function selectActiveMuqoribByPhone(
-  list: readonly QurbanMuqorib[],
-  no_hp: string
-): QurbanMuqorib | null {
-  const target = normalizeNoHp(no_hp);
-  if (!target || !isValidNoHp(target)) return null;
-  const match = findMuqoribByNoHp(list, target);
-  if (!match || !match.is_active) return null;
-  return match;
-}
-
-/**
- * F4d — single entry point for "find ONE muqorib by phone" used by PB2 (and
- * planned for M7 re-use in Milestone B). Thin async I/O wrapper over
- * `selectActiveMuqoribByPhone`.
- */
-export async function lookupMuqoribByPhone(
-  no_hp: string
-): Promise<{ muqorib: QurbanMuqorib } | null> {
-  const target = normalizeNoHp(no_hp);
-  if (!target || !isValidNoHp(target)) return null;
-  const all = await listAllMuqorib();
-  const match = selectActiveMuqoribByPhone(all, target);
-  return match ? { muqorib: match } : null;
 }

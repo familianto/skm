@@ -1,9 +1,9 @@
-# HANDOFF — Sprint F4d · Phone-Primary Lookup (PB2 v2)
+# HANDOFF — Sprint F4d · Phone-Primary Lookup (PB2 v2 + M7 dual-mode)
 
-Branch: `claude/f4d-phone-lookup-publik-I2yxs` · 2 milestone (A–B)
+Branch: `claude/f4d-phone-lookup-publik-I2yxs` · 2 milestone (A–B) · Draft PR #92
 
-**Status:** Milestone A (sisi publik + mesin backend bersama) **selesai**.
-Milestone B (panitia M7 phone-primary) menyusul di branch yang sama.
+**Status:** Milestones A & B **selesai**. Menunggu verifikasi Hopy di preview
++ squash-merge via GitHub UI.
 
 ---
 
@@ -188,15 +188,143 @@ dibersihkan saat ganti HP (`resetLookup`).
 
 ---
 
-## Milestone B — yang menyusul (BELUM dikerjakan)
+## Milestone B — sisi panitia (M7 dual-mode)
 
-- M7 panitia (`GET /api/qurban/muqorib/lookup`) di-reshape jadi
-  phone-primary juga (smart-lookup tetap untuk pencarian nama, tapi
-  prioritaskan HP-exact).
-- Komponen `MuqoribLookup` (form panitia PS2) ikut menyesuaikan: HP-dulu
-  + kartu konfirmasi (tapi panitia boleh lihat PII penuh — beda
-  contract dari publik).
-- Re-use `lookupMuqoribByPhone` yang sudah dibuat di Milestone A.
+Konteks: jamaah lama di seed 196 muqorib sering diketik ulang dengan
+ejaan-nama variatif → terbentuk duplikat. Panitia butuh jalur cepat
+"kenal jamaah ini sudah ada di sistem **via HP**" agar pakai-ulang
+muqorib existing (mencegah duplikat **sebelum** terbentuk, melengkapi
+PS6 yang menangkap setelah submit).
+
+### Apa yang berubah
+
+1. **Shared selector dipromosi** ke modul netral
+   `src/lib/qurban/muqorib-lookup.ts` (semula tinggal di
+   `publik-muqorib.ts`). Sekarang dipakai dua endpoint tanpa duplikasi:
+   - PB2 (`/api/publik/qurban/daftar/lookup`) → response **TERSAMAR**.
+   - M7 (`/api/qurban/muqorib/lookup`) → response **PENUH** (panitia).
+
+2. **M7 dual-mode** — server otomatis memilih jalur berdasarkan `q`:
+   - `isPhoneQuery(q)` true (≥7 digit, ≥70% non-spasi digit; mentolerir
+     `+`/`-`/spasi) → exact-match HP via `selectActiveMuqoribByPhone`;
+     0 atau 1 kandidat, `score: 1.0`.
+   - Selain itu → fuzzy nama Jaro-Winkler seperti sebelumnya.
+
+3. **Drop masking `no_hp`** di response M7. Panitia (SA/AQ/PD) berhak data
+   penuh per PII matrix; publik tetap pakai jalur tersamarnya sendiri.
+
+4. **`MuqoribLookup` (PesertaForm)** — placeholder & komentar di-update.
+   **TIDAK perlu refactor UI** — kontrak query-string M7 tetap sama,
+   server yang routing. User ketik nama → autocomplete; ketik HP penuh
+   → satu kandidat exact muncul, panitia tinggal klik "Pakai data ini"
+   → flow prefill `muqorib_id` lewat `handleSelectMuqorib` yang sudah ada
+   → `runDuplicateCheck` (PS6) jalan otomatis.
+
+### File diubah / ditambah (Milestone B)
+
+| File | Status | Catatan |
+|---|---|---|
+| `src/lib/qurban/muqorib-lookup.ts` | Baru | `selectActiveMuqoribByPhone` + `lookupMuqoribByPhone` + `isPhoneQuery` |
+| `src/lib/qurban/publik-muqorib.ts` | Edit | Helpers HP-lookup dipindahkan; tinggal `findMuqoribByNoHp` + `muqoribDataDiffers` |
+| `src/app/api/publik/qurban/daftar/lookup/route.ts` | Edit | Import path → `muqorib-lookup` |
+| `src/app/api/qurban/muqorib/lookup/route.ts` | Edit | Dual-mode (HP-exact vs fuzzy); drop `maskNoHp` di response |
+| `src/components/qurban/MuqoribLookup.tsx` | Edit | Placeholder + komentar (no behavior change) |
+| `src/lib/qurban/__tests__/muqorib-lookup.test.ts` | Baru | 10 case: `isPhoneQuery` (5) + `selectActiveMuqoribByPhone` (5) |
+| `src/lib/qurban/__tests__/publik-muqorib.test.ts` | Edit | Hapus 5 case yang dipindahkan |
+| `package.json` | Edit | Tambah file test baru ke runner |
+| `docs/API_REFERENCE.md` | Edit | M7 dual-mode + no_hp unmasked |
+| `docs/PROJECT_BRIEF.md` | Edit | Subbagian Milestone B + status sprint = Done |
+
+### Signature baru (Milestone B)
+
+```ts
+// muqorib-lookup.ts — shared antara publik (PB2) & panitia (M7)
+export function isPhoneQuery(q: string): boolean;
+export function selectActiveMuqoribByPhone(
+  list: readonly QurbanMuqorib[],
+  no_hp: string
+): QurbanMuqorib | null;
+export async function lookupMuqoribByPhone(
+  no_hp: string
+): Promise<{ muqorib: QurbanMuqorib } | null>;
+```
+
+### Bagaimana selector dipakai-bersama (lokasi akhir)
+
+```
+src/lib/qurban/muqorib-lookup.ts        ← isPhoneQuery, selectActive…, lookupMuqoribByPhone
+     ↑                              ↑
+     |                              |
+PB2 route (publik)              M7 route (panitia)
+mask response                   full response
+```
+
+`publik-muqorib.ts` tinggal yang khusus PB3 (`findMuqoribByNoHp` yang
+tetap mau mengembalikan inactive supaya PB3 bisa reject eksplisit;
+`muqoribDataDiffers` untuk deteksi konflik field di auto-create).
+
+### Verifikasi Milestone B
+
+- `npm run lint` ✅
+- `npm run type-check` ✅
+- `npm test` ✅ **376 pass, 0 fail** (naik dari 371 di Milestone A).
+- `npm run build` ✅
+
+### Contoh response M7 (HP dummy)
+
+```bash
+# panitia ketik HP penuh (dummy)
+GET /api/qurban/muqorib/lookup?q=08226000001
+# response (1 kandidat, PENUH — tidak di-mask)
+{ "ok": true,
+  "data": [{
+    "id": "MQR-…",
+    "nama_lengkap": "…",
+    "alamat": "…",
+    "rt": "005",
+    "no_hp": "628226000001",   # ⚠️ PENUH untuk panitia
+    "is_active": true,
+    "score": 1.0,
+    "has_history": false
+  }],
+  "meta": { "q": "08226000001", "limit": 10, "min_score": 0.6, "count": 1 }
+}
+
+# panitia ketik nama
+GET /api/qurban/muqorib/lookup?q=hopy
+# response: hasil fuzzy seperti sebelumnya, no_hp juga penuh
+```
+
+### Langkah uji UI (preview / iPad, panitia)
+
+1. `/qurban/peserta/baru` → field "Cari Muqorib" → ketik HP penuh seed
+   staging (`08226…`) → satu kandidat muncul dengan data **penuh**.
+   Klik → terpilih, `runDuplicateCheck` (PS6) jalan.
+2. Ketik nama → autocomplete fuzzy seperti sebelumnya (tetap jalan).
+3. HP asing → 0 kandidat → tombol "+ Buat muqorib baru" tetap tersedia.
+4. **Anti-duplikat end-to-end**: kalau panitia ngetik nama berbeda
+   tapi HP yang sama dengan muqorib existing → PS6 (dup-check pada
+   `muqorib_id`) tetap tidak nyala (karena `muqorib_id`-nya baru),
+   tapi PB3-equivalent (`POST /api/qurban/peserta`) tetap menjalankan
+   guard validasinya. Catatan: pencegahan **utama** duplikat lewat HP
+   sekarang dari panitia adalah dengan **menemukan-via-HP dan
+   pakai-ulang**, bukan dengan membuat baru. PS6 tetap sebagai jaring
+   pengaman pada pendaftaran ulang muqorib yang sama di edisi yang sama.
+
+---
+
+## Penutup sprint
+
+F4d delivers **satu mesin lookup, dua kontrak**:
+
+- **Publik (PB2)** — HP-dulu, response tersamar, audit lengkap,
+  honeypot + rate-limit ketat. Tujuan: mencegah enumeration.
+- **Panitia (M7)** — HP-exact + fuzzy nama, response penuh, gate peran
+  SA/AQ/PD. Tujuan: mempermudah pakai-ulang muqorib existing.
+
+Kedua jalur memakai modul `muqorib-lookup.ts` yang sama → tidak ada
+duplikasi logika. Sprint selesai; tunggu verifikasi Hopy di preview
+iPad lalu squash-merge PR #92.
 
 ---
 
