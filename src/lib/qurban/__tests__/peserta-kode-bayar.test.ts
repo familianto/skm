@@ -48,6 +48,7 @@ function edisi(tahun: string): Edisi {
     id: 'EDS-1', tahun_hijriah: tahun, tahun_masehi: 2026, tanggal_idul_adha: '',
     tanggal_pendaftaran_buka: '', tanggal_pendaftaran_tutup: '', status: 'AKTIF',
     parent_edisi_id: '', cloned_at: '', created_at: '', updated_at: '', created_by: '',
+    pemetaan_version: '',
   };
 }
 

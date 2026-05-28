@@ -11,11 +11,13 @@
 
 ## Current Sprint
 
-> **Sprint F4d — Phone-Primary Lookup** selesai (A & B). Publik (PB2) HP-dulu
-> + response tersamar; Panitia (M7) HP-exact + fuzzy nama, response penuh.
-> Satu mesin lookup di `lib/qurban/muqorib-lookup.ts`, dua kontrak. Lihat
-> `HANDOFF_SPRINT_F4d.md`. PR #92 Draft, menunggu verifikasi & merge.
-> Sprint berikutnya: F5b (Pemetaan), F6 (Pembayaran), F7 (Hari-H).
+> **Sprint F5b — Pemetaan Peserta↔Hewan (drag-drop)** dalam progres.
+> Milestone **A1 selesai**: kolom `qurban_edisi.pemetaan_version` (token
+> concurrency) + endpoint **PM2** `GET /api/qurban/pemetaan/state` (snapshot
+> read-only hewan+slot+peserta+version). Migrasi sheet di
+> `scripts/migrate_F5b_pemetaan_version.gs` (idempoten, DRY_RUN). Lihat
+> `HANDOFF_SPRINT_F5b.md`. PR Draft. Lanjut **A2** (PM1 batch-save) → **B**
+> (UI drag-drop). Sebelumnya: F4d Phone-Primary Lookup ✅.
 
 Update baris ini setiap kali sprint berganti.
 

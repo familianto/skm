@@ -85,6 +85,9 @@ export const SHEET_HEADERS: Record<string, string[]> = {
     'id', 'tahun_hijriah', 'tahun_masehi', 'tanggal_idul_adha',
     'tanggal_pendaftaran_buka', 'tanggal_pendaftaran_tutup', 'status',
     'parent_edisi_id', 'cloned_at', 'created_at', 'updated_at', 'created_by',
+    // F5b: token concurrency Pemetaan, di-bump tiap PM1 batch-save (A2).
+    // Migrasi: `scripts/migrate_F5b_pemetaan_version.gs` (backfill = updated_at).
+    'pemetaan_version',
   ],
   'qurban_konfigurasi_edisi': [
     'id', 'edisi_id', 'bop_per_ekor_sapi', 'bop_per_ekor_kambing',

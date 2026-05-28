@@ -2149,6 +2149,104 @@ slots[] }`, tiap slot `{ hewan_id, nomor_urut, slot_number }` (hanya hewan
 
 ---
 
+## Qurban Pemetaan (Drag-Drop Slot) — PM1–PM2 (Sprint F5b)
+
+Sprint F5b membangun papan pemetaan Peserta↔Hewan dengan simpan-batch aman
+konkurensi. Disusun dalam 3 milestone: **A1 (infra `pemetaan_version` + PM2
+snapshot — ✅ kontrak ini)**, **A2 (PM1 `batch-save`)**, **B (UI drag-drop)**.
+
+### Schema add-on — `qurban_edisi.pemetaan_version`
+
+Kolom ke-13 (terakhir) `pemetaan_version` ditambahkan ke `qurban_edisi`
+sebagai **token concurrency** untuk PM1. Tipe: string ISO-8601 Z.
+
+| Aksi | Nilai `pemetaan_version` |
+|---|---|
+| E2 create edisi | = `created_at` (set di sisi server) |
+| E4 PATCH / E5 activate / E6 close | preserved (spread `...rec.edisi`) |
+| PM1 batch-save (A2) | bumped ke `new Date().toISOString()` setelah write batch sukses |
+| Backfill operator (`migrate_F5b_pemetaan_version.gs`) | = `updated_at` (fallback `created_at` → `now`) |
+
+Migrasi sheet wajib dijalankan operator **sebelum** PM2 dipakai di env tsb;
+tanpa kolom, `edisi-repo.rowToEdisi` fallback ke `updated_at` (toleran),
+tapi PM1 nanti tidak bisa bump nilai yang tidak ada kolomnya.
+
+### PM2 — `GET /api/qurban/pemetaan/state?edisi_id=EDS-...`
+
+**Role:** SUPER_ADMIN, BENDAHARA, ADMIN_QURBAN, PENDAFTARAN, DISTRIBUSI
+(panitia PENDAFTARAN/DISTRIBUSI dibatasi ke edisi `AKTIF` — mirror konvensi
+read PS1/PS3; SA/BD/AQ status apa pun).
+
+**Query:** `edisi_id` (wajib). Edisi tidak ditemukan → `404 NOT_FOUND`;
+panitia menarget non-AKTIF → `403 FORBIDDEN_EDISI`.
+
+**Logika:** baca `qurban_daftar_hewan` (filter edisi, drop non-AKTIF),
+`qurban_peserta` (filter edisi, drop non-TERDAFTAR), `qurban_master_hewan`
+(untuk sintesis `nama_tipe`), `qurban_muqorib` (untuk `muqorib_nama` lintas
+edisi). Transformasi via fungsi murni `buildPemetaanSnapshot` di
+`src/lib/qurban/pemetaan-snapshot.ts`. Tidak ada audit, tidak ada penulisan.
+
+**Response (success 200):**
+
+```jsonc
+{
+  "ok": true,
+  "data": {
+    "edisi_id": "EDS-...",
+    "version": "2026-05-28T13:14:15.000Z",       // qurban_edisi.pemetaan_version
+    "hewan": [
+      {
+        "id": "HWN-...",
+        "nomor_urut": 1,                          // urut ASC
+        "tipe_pembelian": "BELI",                 // BELI | BAWA_SENDIRI
+        "jenis": "SAPI",                          // dari master (fallback hewan row)
+        "kelas": "A",                             // dari master (fallback hewan row)
+        "nama_tipe": "SAPI Kelas A",              // disintesis "<jenis> Kelas <kelas>"
+        "kapasitas_slot": 7,                      // dari hewan row (denormalisasi)
+        "status": "AKTIF",
+        "slots": [
+          {
+            "slot_number": 1,
+            "peserta": {
+              "id": "PST-...",
+              "nama_atas_nama": "Almarhum Bapak",
+              "muqorib_id": "MQR-...",
+              "muqorib_nama": "Hopy Familianto",
+              "harga_disepakati": 3500000,
+              "kode_bayar": "QRB-1448-001",
+              "tipe_qurban": "BELI"
+            }
+          },
+          { "slot_number": 2, "peserta": null }
+        ]
+      }
+    ]
+  }
+}
+```
+
+**Aturan rakit:**
+- Hewan diurut `nomor_urut` ASC.
+- `slots.length === kapasitas_slot` untuk setiap hewan; slot 1..N.
+- Slot tanpa peserta TERDAFTAR → `peserta: null`.
+- Peserta dengan `slot_number` di luar `1..kapasitas_slot` (data korup) →
+  diabaikan, tidak menggelembungkan `slots[]`.
+- `muqorib_nama` lookup miss → string kosong (UI tetap render).
+
+### Error Codes (Pemetaan A1)
+
+| Kode | HTTP | Pemicu |
+|---|---|---|
+| `VALIDATION_REQUIRED` | 400 | `edisi_id` kosong |
+| `FORBIDDEN_ROLE` | 403 | role tidak di whitelist |
+| `FORBIDDEN_EDISI` | 403 | panitia menarget edisi non-AKTIF |
+| `NOT_FOUND` | 404 | edisi_id tidak ditemukan |
+| `INTERNAL_ERROR` | 500 | gagal baca Sheets |
+
+PM1 + harga-decision + version-mismatch → didefinisikan di Milestone A2.
+
+---
+
 ## Qurban Public Pendaftaran Endpoints (Sprint F4b) — PB1–PB4
 
 Endpoint **publik tanpa-auth** untuk pendaftaran qurban dari sisi jamaah.

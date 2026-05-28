@@ -7,10 +7,17 @@ import { EDISI_STATUS, type EdisiStatus } from './edisi-state-machine';
  * findActiveEdisi) shipped with Milestone A; Milestone B adds the write
  * helpers (createEdisi / updateEdisiAt / row<->object mapping).
  *
- * Column order MUST mirror migrate_F02's qurban_edisi sheet (12 cols):
+ * Column order MUST mirror migrate_F02 + migrate_F5b's qurban_edisi sheet
+ * (13 cols):
  *   0:id  1:tahun_hijriah  2:tahun_masehi  3:tanggal_idul_adha
  *   4:tanggal_pendaftaran_buka  5:tanggal_pendaftaran_tutup  6:status
  *   7:parent_edisi_id  8:cloned_at  9:created_at  10:updated_at  11:created_by
+ *   12:pemetaan_version (F5b — token optimistic concurrency Pemetaan).
+ *
+ * `pemetaan_version`: string ISO-8601 Z. Diisi awal saat E2 create
+ * (`= created_at`), di-backfill operator via `migrate_F5b_pemetaan_version.gs`
+ * untuk baris lama (`= updated_at` atau fallback `created_at`). Toleran kosong
+ * saat baca (fallback ke `updated_at` → `created_at` → ''). Bumped di PM1 (A2).
  */
 
 export interface Edisi {
@@ -26,6 +33,8 @@ export interface Edisi {
   created_at: string;
   updated_at: string;
   created_by: string;
+  /** F5b — token optimistic concurrency Pemetaan (ISO-8601 Z). */
+  pemetaan_version: string;
 }
 
 function rowToEdisi(row: string[]): Edisi {
@@ -39,6 +48,12 @@ function rowToEdisi(row: string[]): Edisi {
 
   const tahunMasehi = parseInt(row[2] || '0', 10);
 
+  const created_at = row[9] || '';
+  const updated_at = row[10] || '';
+  // Toleran nilai kosong saat baca: baris pra-migrasi → fallback ke updated_at
+  // lalu created_at. Setelah migrasi F5b semua baris terisi nilai eksplisit.
+  const pemetaan_version = (row[12] || '').trim() || updated_at || created_at;
+
   return {
     id: row[0] || '',
     tahun_hijriah: row[1] || '',
@@ -49,9 +64,10 @@ function rowToEdisi(row: string[]): Edisi {
     status,
     parent_edisi_id: row[7] || '',
     cloned_at: row[8] || '',
-    created_at: row[9] || '',
-    updated_at: row[10] || '',
+    created_at,
+    updated_at,
     created_by: row[11] || '',
+    pemetaan_version,
   };
 }
 
@@ -98,7 +114,7 @@ export function sortEdisiByTahunDesc(list: readonly Edisi[]): Edisi[] {
   return [...list].sort((a, b) => b.tahun_masehi - a.tahun_masehi);
 }
 
-/** Object→row: 12 string cells, ready for appendRow / updateRow. */
+/** Object→row: 13 string cells, ready for appendRow / updateRow. */
 export function edisiToRow(e: Edisi): string[] {
   return [
     e.id,
@@ -113,6 +129,7 @@ export function edisiToRow(e: Edisi): string[] {
     e.created_at,
     e.updated_at,
     e.created_by,
+    e.pemetaan_version,
   ];
 }
 
