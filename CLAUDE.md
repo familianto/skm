@@ -11,10 +11,11 @@
 
 ## Current Sprint
 
-> **Sprint F02 — Qurban Edisi Management** selesai (A–E + 2 hotfix).
-> Lihat `HANDOFF_SPRINT_F02.md` untuk detail; `docs/ACCEPTANCE_F02.md`
-> untuk checklist acceptance manual. Sprint berikutnya: **F03 — Master
-> Muqorib + Master Hewan**.
+> **Sprint F4c — UI Pendaftaran Qurban** selesai (A–F). Modul Qurban kini
+> punya UI pendaftaran lengkap: panitia (list/detail/form/edit/aksi) + publik
+> (daftar wizard + cek-status). Lihat `HANDOFF_SPRINT_F4c.md` untuk detail.
+> Sprint berikutnya: **F4d — phone-primary lookup (PB2 v2)**, lalu F5b
+> (Pemetaan), F6 (Pembayaran), F7 (Hari-H).
 
 Update baris ini setiap kali sprint berganti.
 

@@ -1997,6 +1997,16 @@ sebagai query param (`?edisi_id=EDS-...`) — kecuali PS6 yang menerimanya di
 body (lihat di bawah). Backend-only (F4a); UI menyusul di F4c, pendaftaran
 publik di F4b.
 
+> **REVISI MODEL (F4c-C) — `kode_bayar` per-PENDAFTARAN.** Satu pendaftaran =
+> satu muqorib = satu pembayaran = **satu `kode_bayar`**, dibagi oleh SEMUA baris
+> peserta pendaftaran itu (1 sapi 7-slot oleh satu muqorib → 7 baris berbagi 1
+> kode). `kode_bayar` BUKAN unik per baris — ia kunci-grup pendaftaran/
+> pembayaran. Nomor `NNN` bertambah **satu per pendaftaran** (max suffix +1; baris
+> berbagi kode tidak menggelembungkan counter). Berlaku untuk PS2 (panitia) &
+> PB3 (publik) lewat helper bersama `nextKodeBayar`. Guard F4c-C: `jumlah_slot`
+> satu pendaftaran tidak boleh melebihi kapasitas satu ekor (PS2 & PB3 → `422
+> VALIDATION_FAILED`).
+
 | # | Method | Path | Peran |
 |---|---|---|---|
 | PS1 | GET | `/api/qurban/peserta?edisi_id=EDS-...` | SUPER_ADMIN, BENDAHARA, ADMIN_QURBAN, PENDAFTARAN |
@@ -2020,7 +2030,8 @@ gating).
 `slot_number` (1..`kapasitas_slot` — **mutable**), `tipe_qurban`
 (`BELI`|`BAWA_SENDIRI`, snapshot dari hewan), `nama_atas_nama` (opsional; kosong
 → pakai nama muqorib), `keterangan_bagian`, `harga_disepakati` (**frozen** saat
-daftar), `kode_bayar` (`QRB-{tahun}-{NNN}`, unik per edisi, **immutable**),
+daftar), `kode_bayar` (`QRB-{tahun}-{NNN}`, **immutable**; per-PENDAFTARAN —
+dibagi semua baris satu pendaftaran, lihat revisi F4c-C di atas),
 `sumber_pendaftaran` (`PUBLIK`|`PANITIA`|`IMPORT_1447H`), `status_pendaftaran`
 (`TERDAFTAR`|`BATAL`), `tanggal_daftar`, `notes`, `created_at`, `updated_at`,
 `created_by`. **Tidak ada kolom `is_active`** — soft-delete via
@@ -2088,7 +2099,10 @@ Terapkan harga master saat ini ke `harga_disepakati` (master diturunkan dari
 `hewan_id` → `master_hewan_id`). Hanya `TERDAFTAR` (`BATAL` →
 `422 BUSINESS_PESERTA_NOT_TERDAFTAR`). `kode_bayar` tidak disentuh. Harga sama →
 no-op sukses tanpa audit; berubah → audit `peserta.harga_changed` + bump
-`updated_at`. Response `{ peserta, harga_lama, harga_baru }`.
+`updated_at`. Response `{ peserta, harga_lama, harga_baru }`. **Catatan F4c:**
+PS7 saat ini TIDAK mengecek pembayaran maupun menerbitkan
+`BUSINESS_OVERPAYMENT_AFTER_REFRESH` (sheet `qurban_pembayaran` baru di F6); UI
+F4c-D menampilkan `harga_lama → harga_baru` apa adanya.
 
 ### PS8 — `GET /api/qurban/peserta/available-slots?edisi_id=EDS-...`
 

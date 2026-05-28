@@ -334,7 +334,11 @@ Lihat detail di `SPRINT_PLAN.md` dan file individual di `sprints/`.
 | F02 | Qurban Edisi Management | 5 hari (5 milestone A–E) | ✅ Done |
 | F03 | Master Muqorib + Master Hewan Qurban | 5 milestone A–E | ✅ Done |
 | F5a | Inventaris Hewan Fisik (`qurban_daftar_hewan`) | 4 milestone A–D | ✅ Done |
-| F04 | Pendaftaran Peserta Qurban + Pembayaran | TBD | ⏳ Planned |
+| F4a | Modul Pendaftaran Peserta — Backend (PS1–PS8) | — | ✅ Done |
+| F4b | Pendaftaran Publik + Integrasi Fonnte (PB1–PB4) | — | ✅ Done |
+| F4c | UI Pendaftaran Qurban (panitia + publik daftar + cek-status) | 6 milestone A–F | ✅ Done |
+| F4d | Phone-primary lookup (PB2 v2) | — | ⏳ Planned |
+| F5b / F6 / F7 | Pemetaan slot · Pembayaran · Hari-H | TBD | ⏳ Planned |
 
 ### Sprint F02 — Qurban Edisi Management
 
@@ -500,6 +504,30 @@ plus notifikasi WhatsApp. **Backend-only**; UI menyusul F4c. **Tanpa migrasi**
 
 Detail lengkap: `HANDOFF_SPRINT_F4b.md`, `docs/API_REFERENCE.md`
 (section Qurban Public Pendaftaran PB1–PB4).
+
+### Sprint F4c — UI Pendaftaran Qurban
+
+UI penuh untuk pendaftaran, mengonsumsi endpoint F4a (PS1–PS8) & F4b (PB1–PB4)
+— **tanpa perubahan backend / migrasi**. Modul Qurban kini punya UI lengkap:
+panitia (list/detail/form/edit/aksi) + publik (daftar + cek-status). 6 milestone:
+
+- **A** — `/qurban/peserta` (list) + `/qurban/peserta/[id]` (detail) read-only +
+  timeline audit reusable.
+- **B** — `/qurban/peserta/baru` form panitia (smart-lookup muqorib, deteksi
+  duplikat, multi-slot).
+- **C** — **revisi model**: `kode_bayar` per-pendaftaran (satu kode dibagi N
+  baris), atas-nama per-slot (panitia), aturan slot cerdas-konteks + guard
+  kapasitas, template WA & success satu-kode.
+- **D** — edit peserta (PS4) + aksi Tandai BATAL (PS5) & Refresh Harga (PS7),
+  gate SA·AQ.
+- **E** — `/publik/qurban/daftar` wizard 3-langkah (PB1→PB2→PB3) + halaman sukses
+  (satu kode, instruksi transfer, honeypot `email`).
+- **F** — `/publik/qurban/cek-status` (PB4, nama ter-mask) + polish (copy
+  button, fix stale-error & nav-highlight, CTA "Daftarkan Lagi").
+
+Keputusan in-repo: PB3 menerima **`nama_atas_nama` tunggal** (bukan per-slot —
+beda dari form panitia); honeypot field `email`; **phone-primary lookup (PB2 v2)
+diparkir ke F4d**. Detail lengkap: `HANDOFF_SPRINT_F4c.md`.
 
 ## 9. Saran Fitur Masa Depan (Backlog)
 

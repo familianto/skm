@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
+import { resolveActiveHref } from '@/lib/nav-active';
 import { useMe } from '@/hooks/use-me';
 
 type Peran = 'SUPER_ADMIN' | 'BENDAHARA' | 'ADMIN_QURBAN' | 'PENDAFTARAN' | 'DISTRIBUSI';
@@ -123,6 +124,11 @@ export function Sidebar({ masjidName = 'SKM', logoUrl }: SidebarProps) {
   const { me } = useMe();
   const peran = me?.user.peran as Peran | undefined;
 
+  const activeHref = resolveActiveHref(
+    pathname,
+    navSections.flatMap((s) => s.items.map((i) => i.href))
+  );
+
   const handleLogout = async () => {
     await fetch('/api/auth/logout', { method: 'POST' });
     router.push('/login');
@@ -174,7 +180,7 @@ export function Sidebar({ masjidName = 'SKM', logoUrl }: SidebarProps) {
             </p>
             <div className="space-y-0.5">
               {section.items.map((item) => {
-                const isActive = pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href));
+                const isActive = !!activeHref && item.href === activeHref;
                 const isDisabled = peran ? item.disabledRoles?.includes(peran) : false;
                 const isReadOnly = peran ? item.readOnlyRoles?.includes(peran) : false;
                 const baseClass = cn(

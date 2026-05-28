@@ -173,6 +173,9 @@ export function PublikDaftarWizard() {
     setLookupState('idle');
     setMatchedMuqorib(null);
     setLookupError(null);
+    // F4c-F: a changed identity invalidates any prior submit error (e.g. the
+    // duplicate banner) — clear it so a stale message never lingers.
+    setSubmitError(null);
   };
 
   const runLookup = async () => {
@@ -383,10 +386,16 @@ export function PublikDaftarWizard() {
           </Field>
 
           {lookupState === 'idle' && (
-            <button type="button" onClick={runLookup} disabled={lookupLoading}
-              className="w-full py-2.5 rounded-lg bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-700 disabled:opacity-50">
-              {lookupLoading ? 'Mencari…' : 'Cek Data Saya'}
-            </button>
+            <>
+              <p className="text-xs text-gray-500">
+                Coba ketik nama <strong>lengkap</strong> persis seperti pendaftaran sebelumnya. Bila
+                tetap tidak ketemu, lanjut sebagai pendaftar baru — sistem akan menyamakan via nomor HP.
+              </p>
+              <button type="button" onClick={runLookup} disabled={lookupLoading}
+                className="w-full py-2.5 rounded-lg bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-700 disabled:opacity-50">
+                {lookupLoading ? 'Mencari…' : 'Cek Data Saya'}
+              </button>
+            </>
           )}
           {lookupError && <ErrorText>{lookupError}</ErrorText>}
 
@@ -408,6 +417,10 @@ export function PublikDaftarWizard() {
             <div className="space-y-3">
               <p className="text-sm text-gray-600">
                 Data belum terdaftar — lengkapi sebagai <strong>pendaftar baru</strong>.
+              </p>
+              <p className="text-xs text-sky-800 bg-sky-50 border border-sky-200 rounded-lg px-3 py-2">
+                Catatan: Jika nomor HP Anda sudah pernah terdaftar di edisi sebelumnya, sistem akan
+                otomatis mengenali Anda saat kirim — data Anda tidak akan terduplikasi.
               </p>
               <Field label="Alamat">
                 <input value={newAlamat} onChange={(e) => setNewAlamat(e.target.value)}
@@ -453,7 +466,7 @@ export function PublikDaftarWizard() {
           />
 
           {submitError && <ErrorText>{submitError}</ErrorText>}
-          <NavButtons onBack={() => setStep(2)} onNext={submit}
+          <NavButtons onBack={() => { setSubmitError(null); setStep(2); }} onNext={submit}
             nextLabel={submitting ? 'Mengirim…' : 'Kirim Pendaftaran'} nextDisabled={submitting} />
         </StepCard>
       )}
@@ -628,7 +641,10 @@ function SuccessScreen({ result }: { result: SuccessResult }) {
 
       <div className="rounded-lg bg-gray-50 border border-gray-200 px-3 py-3 text-center">
         <p className="text-xs text-gray-500 mb-1">Kode Bayar</p>
-        <p className="font-mono text-xl font-bold text-gray-900">{result.kode_bayar}</p>
+        <div className="flex items-center justify-center gap-2">
+          <p className="font-mono text-xl font-bold text-gray-900">{result.kode_bayar}</p>
+          <CopyButton text={result.kode_bayar} label="Salin kode bayar" />
+        </div>
         {result.jumlah_slot > 1 && (
           <p className="text-xs text-gray-400 mt-1">Satu kode untuk seluruh {result.jumlah_slot} slot.</p>
         )}
@@ -656,9 +672,14 @@ function SuccessScreen({ result }: { result: SuccessResult }) {
           <ul className="space-y-2">
             {result.rekening.map((r, i) => (
               <li key={i} className="rounded-lg bg-emerald-50/60 border border-emerald-100 px-3 py-2 text-sm">
-                <span className="font-semibold text-gray-900">{r.nama_bank}</span>{' '}
-                <span className="font-mono">{r.nomor_rekening}</span>
-                <div className="text-xs text-gray-500">a.n. {r.atas_nama}</div>
+                <div className="flex items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <span className="font-semibold text-gray-900">{r.nama_bank}</span>{' '}
+                    <span className="font-mono">{r.nomor_rekening}</span>
+                    <div className="text-xs text-gray-500">a.n. {r.atas_nama}</div>
+                  </div>
+                  <CopyButton text={r.nomor_rekening} label={`Salin nomor rekening ${r.nama_bank}`} />
+                </div>
               </li>
             ))}
           </ul>
@@ -669,7 +690,37 @@ function SuccessScreen({ result }: { result: SuccessResult }) {
         ⚠️ Tulis <strong>kode bayar</strong> Anda pada berita/keterangan transfer. Detail & instruksi
         juga dikirim via WhatsApp ke nomor Anda.
       </p>
+
+      <a
+        href="/publik/qurban/cek-status"
+        className="block text-center py-2.5 rounded-lg border border-emerald-200 text-emerald-700 text-sm font-medium hover:bg-emerald-50 transition-colors"
+      >
+        Cek Status Pendaftaran
+      </a>
     </div>
+  );
+}
+
+function CopyButton({ text, label }: { text: string; label: string }) {
+  const [copied, setCopied] = useState(false);
+  const onCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      // Clipboard unavailable (older browser / insecure context) — silent.
+    }
+  };
+  return (
+    <button
+      type="button"
+      onClick={onCopy}
+      aria-label={label}
+      className="shrink-0 inline-flex items-center gap-1 px-2 py-1 rounded-md border border-emerald-200 text-emerald-700 text-xs font-medium hover:bg-emerald-50 transition-colors"
+    >
+      {copied ? '✓ Disalin' : 'Salin'}
+    </button>
   );
 }
 

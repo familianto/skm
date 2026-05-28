@@ -410,11 +410,36 @@ export function PesertaForm({ edisiId }: Props) {
     await createPeserta(muqoribId, allowAdditional);
   };
 
+  // F4c-F: reset to a blank form (stays on the page) for back-to-back entry.
+  const resetForm = () => {
+    setJenis('');
+    setKelas('');
+    setTipe('');
+    setJumlahSlotStr('1');
+    setSelectedMuqorib(null);
+    setCreatingMuqorib(false);
+    setNewMuqorib({ nama_lengkap: '', alamat: '', rt: '', no_hp: '', notes: '' });
+    setNewMuqoribErrors({});
+    setDupKind('none');
+    setDupExisting([]);
+    setAllowAdditional(false);
+    setShowDupModal(false);
+    setAtasNamaShared('');
+    setAtasNamaList([]);
+    setSameForAll(false);
+    setKeteranganBagian('');
+    setNotes('');
+    setConfirmed(false);
+    setFieldErrors({});
+    setFormError(null);
+    setCreated(null);
+  };
+
   // ── Render ──────────────────────────────────────────────────────────────────
   if (bootLoading) return <Loading className="my-8" />;
 
   if (created) {
-    return <SuccessCard edisiId={edisiId} created={created} />;
+    return <SuccessCard edisiId={edisiId} created={created} onReset={resetForm} />;
   }
 
   const jenisOpts = jenisOptions(masters);
@@ -996,7 +1021,15 @@ function SummaryRow({ label, value }: { label: string; value: React.ReactNode })
   );
 }
 
-function SuccessCard({ edisiId, created }: { edisiId: string; created: CreatedResult }) {
+function SuccessCard({
+  edisiId,
+  created,
+  onReset,
+}: {
+  edisiId: string;
+  created: CreatedResult;
+  onReset: () => void;
+}) {
   const multi = created.slotCount > 1;
   const single = created.pesertaIds.length === 1;
   return (
@@ -1022,9 +1055,12 @@ function SuccessCard({ edisiId, created }: { edisiId: string; created: CreatedRe
           </div>
 
           <div className="flex flex-col sm:flex-row sm:justify-center gap-2 mt-5">
+            <Button onClick={onReset} className="w-full sm:w-auto">
+              Daftarkan Lagi
+            </Button>
             {single && created.pesertaIds[0] && (
               <Link href={`/qurban/peserta/${created.pesertaIds[0]}?edisi=${encodeURIComponent(edisiId)}`}>
-                <Button className="w-full sm:w-auto">Lihat Detail Peserta</Button>
+                <Button variant="secondary" className="w-full sm:w-auto">Lihat Detail Peserta</Button>
               </Link>
             )}
             <Link href={`/qurban/peserta?edisi=${encodeURIComponent(edisiId)}`}>
