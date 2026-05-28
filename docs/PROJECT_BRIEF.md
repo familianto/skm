@@ -337,7 +337,7 @@ Lihat detail di `SPRINT_PLAN.md` dan file individual di `sprints/`.
 | F4a | Modul Pendaftaran Peserta — Backend (PS1–PS8) | — | ✅ Done |
 | F4b | Pendaftaran Publik + Integrasi Fonnte (PB1–PB4) | — | ✅ Done |
 | F4c | UI Pendaftaran Qurban (panitia + publik daftar + cek-status) | 6 milestone A–F | ✅ Done |
-| F4d | Phone-primary lookup (PB2 v2) | — | ⏳ Planned |
+| F4d | Phone-primary lookup (PB2 v2) | 2 milestone A–B | 🚧 Milestone A done |
 | F5b / F6 / F7 | Pemetaan slot · Pembayaran · Hari-H | TBD | ⏳ Planned |
 
 ### Sprint F02 — Qurban Edisi Management
@@ -528,6 +528,28 @@ panitia (list/detail/form/edit/aksi) + publik (daftar + cek-status). 6 milestone
 Keputusan in-repo: PB3 menerima **`nama_atas_nama` tunggal** (bukan per-slot —
 beda dari form panitia); honeypot field `email`; **phone-primary lookup (PB2 v2)
 diparkir ke F4d**. Detail lengkap: `HANDOFF_SPRINT_F4c.md`.
+
+### Sprint F4d — Phone-Primary Lookup (PB2 v2) — Milestone A
+
+Pendaftaran publik kini **HP-dulu**: jamaah cukup memasukkan nomor HP untuk
+dikenali (tahan terhadap variasi ejaan nama), dan duplikat dicegah sebelum
+terbentuk. Karena seed 196 muqorib (1447H) ber-grain **1 muqorib per HP**
+(satu keluarga = satu muqorib; nama anggota di `notes`), HP cukup sebagai
+kunci.
+
+**Revisi disengaja PB2** (`POST /api/publik/qurban/daftar/lookup`):
+`{nama_lengkap, no_hp}` strict-match → **`{no_hp, email?}` phone-primary,
+response tersamar**. Identitas penuh tidak pernah dibalas; user mengkonfirmasi
+visual via `nama_masked` + `alamat_masked` + `rt` → 2-faktor baru =
+**HP + pengenalan**. Inactive-only match disembunyikan (silent not-found).
+
+**Frontend Step 2** wizard publik: input HP saja → kartu konfirmasi "Apakah
+ini Anda atau keluarga Anda?" → **"Ya, lanjutkan"** (kirim `muqorib_id` ke
+PB3) atau **"Bukan / nomor salah"** (TIDAK fall-through ke form pendaftar-baru
+dengan HP yang sama — anti diam-diam-attach). HP tidak terdaftar → form
+pendaftar baru. Honeypot `email` dipasang juga pada Step 2.
+
+Milestone B (panitia M7 phone-primary) menyusul di branch yang sama.
 
 ## 9. Saran Fitur Masa Depan (Backlog)
 

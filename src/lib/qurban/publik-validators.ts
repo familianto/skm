@@ -34,23 +34,27 @@ function isPositiveInt(v: unknown): v is number {
   return typeof v === 'number' && Number.isInteger(v) && v > 0;
 }
 
-// --- PB2 lookup -------------------------------------------------------------
+// --- PB2 lookup (F4d phone-primary) -----------------------------------------
 
 export interface PublikLookupInput {
-  nama_lengkap: string;
   no_hp: string; // normalized 628...
 }
 
-/** Validate PB2 lookup — both `nama_lengkap` and `no_hp` required. */
+/**
+ * Validate PB2 lookup payload (F4d revision: phone-only).
+ *
+ * Sebelum F4d kontraknya `{ nama_lengkap, no_hp }` (2-faktor strict-match).
+ * Setelah F4d, lookup pakai `no_hp` saja — kunci 1 HP = 1 muqorib — dan
+ * response-nya identitas TERSAMAR (jadi 2-faktor barunya = HP + pengenalan
+ * visual oleh jamaah). Honeypot field `email` dicek oleh route handler,
+ * BUKAN di sini.
+ */
 export function validatePublikLookup(input: unknown): ValidationResult<PublikLookupInput> {
   const errors: ValidationError[] = [];
   if (!input || typeof input !== 'object') {
     return { ok: false, errors: [{ field: '_', message: 'Body wajib berupa object.' }] };
   }
   const raw = input as Record<string, unknown>;
-
-  const nama = nonEmptyString(raw.nama_lengkap);
-  if (nama === null) errors.push({ field: 'nama_lengkap', message: 'nama_lengkap wajib diisi.' });
 
   let no_hp = '';
   const rawHp = nonEmptyString(raw.no_hp);
@@ -64,7 +68,7 @@ export function validatePublikLookup(input: unknown): ValidationResult<PublikLoo
   }
 
   if (errors.length > 0) return { ok: false, errors };
-  return { ok: true, errors: [], value: { nama_lengkap: nama as string, no_hp } };
+  return { ok: true, errors: [], value: { no_hp } };
 }
 
 // --- PB3 daftar -------------------------------------------------------------

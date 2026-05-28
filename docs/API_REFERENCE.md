@@ -2150,7 +2150,7 @@ Format envelope sama (`{ ok, data | error }`). Semua menarget **edisi AKTIF**
 | # | Method | Path | Rate limit (per-IP) |
 |---|---|---|---|
 | PB1 | GET | `/api/publik/qurban/options` | 30/menit |
-| PB2 | POST | `/api/publik/qurban/daftar/lookup` | 20/menit |
+| PB2 | POST | `/api/publik/qurban/daftar/lookup` | 20/menit · 60/jam (F4d) |
 | PB3 | POST | `/api/publik/qurban/daftar` | 5/menit · 20/jam · 50/hari |
 | PB4 | GET | `/api/publik/qurban/cek-status` | 30/menit |
 
@@ -2170,13 +2170,36 @@ Info edisi + `status_pendaftaran`. Saat `BUKA`: `options` memuat `tipe_hewan`
 (kombinasi master×tipe yang `slot_tersedia > 0`, `harga_per_slot`) + `rekening`
 (bank aktif). Selain `BUKA` atau tanpa edisi AKTIF → `options: null`.
 
-### PB2 — `POST /api/publik/qurban/daftar/lookup`
+### PB2 — `POST /api/publik/qurban/daftar/lookup`  ⚠️ Revisi F4d
 
-Body `{ nama_lengkap, no_hp }` (keduanya wajib, `422` bila kurang). **Exact match**
-(bukan fuzzy) ke `qurban_muqorib` pada nama (lower+trim) + `no_hp` (ternormalisasi
-`628…`), hanya record `is_active`. Hanya dilayani saat `BUKA`. Response:
-`{ matched: true, muqorib: { id, nama_lengkap, alamat, rt, no_hp (di-mask) } }`
-atau `{ matched: false }`.
+> **Perubahan F4d (May 2026):** kontrak diubah dari strict-match `{nama_lengkap,
+> no_hp}` → **phone-primary, masked response**. Alasan: 1 HP = 1 muqorib by
+> grain seed, dan HP-saja lebih lemah dari nama+HP — balasan PII penuh =
+> enumeration. Sekarang request cuma `no_hp` + honeypot, dan response berisi
+> **identitas tersamar** untuk dikonfirmasi visual oleh jamaah ("ini saya /
+> keluarga saya") → 2-faktor baru = **HP + pengenalan**.
+
+Body: `{ no_hp, email? }`. `email` = honeypot — wajib kosong; terisi → balas
+`{ found: false }` (silent, audit `publik.lookup_captcha_failed`). Hanya
+dilayani saat `BUKA`. Lookup `no_hp` ternormalisasi `628…` ke `qurban_muqorib`,
+**hanya record aktif** (inactive-only match disembunyikan sebagai not-found).
+
+Response **TIDAK pernah memuat PII penuh:**
+
+```jsonc
+// ketemu:
+{ "found": true,
+  "muqorib_id": "MQR-...",
+  "nama_masked": "Ho** Fa********",   // maskNama
+  "alamat_masked": "GN. ****",         // maskAlamat (coarse, anti-harvest)
+  "rt": "005" }
+// tidak ketemu / honeypot terpicu:
+{ "found": false }
+```
+
+`rt` ditampilkan apa adanya (kasar, tidak meng-identifikasi sendiri). Audit:
+`publik.lookup_attempted` / `_matched` / `_not_found` / `_rate_limited` /
+`_captcha_failed` (semua `no_hp_masked` saja, tanpa PII mentah).
 
 ### PB3 — `POST /api/publik/qurban/daftar`
 
@@ -2190,8 +2213,10 @@ ditolak**, konsisten PS2) → duplikat Layer 1 (`409 DUPLICATE_PESERTA`, arahkan
 cek-status) → freeze harga → auto-assign slot (`409 BUSINESS_INSUFFICIENT_SLOTS`)
 → generate `kode_bayar` → insert batch (`sumber_pendaftaran=PUBLIK`) → audit per
 peserta + `succeeded` → **WA Fonnte** (gated `wa_send_on_pendaftaran`). Response
-`201`: `{ edisi, muqorib, peserta[], pembayaran{ total_harga, payment_suffix,
-nominal_transfer, rekening[] } }`. **Nominal-ber-suffix** dihitung **sekali pada
+`201`: `{ edisi, muqorib: { id, nama_masked }, peserta[], pembayaran{ total_harga,
+payment_suffix, nominal_transfer, rekening[] } }` — sejak F4d response **tidak
+lagi memuat** `muqorib.nama_lengkap` / `no_hp` penuh (WA tetap dikirim
+server-side dengan PII asli). **Nominal-ber-suffix** dihitung **sekali pada
 total** (`total + payment_suffix`); pencocokan peserta lewat `kode_bayar` di berita.
 
 ### PB4 — `GET /api/publik/qurban/cek-status?kode_bayar=… | ?no_hp=…`
@@ -2221,6 +2246,8 @@ tipe_qurban, hewan_id, slot_number, harga_disepakati, status_pendaftaran }`.
 | `publik.daftar_rate_limited` | PB3 (429) |
 | `publik.daftar_muqorib_inactive` | PB3 (tolak muqorib nonaktif) |
 | `publik.wa_sent_success` / `_failed` | PB3 (Fonnte) |
+| `publik.lookup_attempted` / `_matched` / `_not_found` | PB2 (F4d) |
+| `publik.lookup_rate_limited` / `_captcha_failed` | PB2 (F4d) |
 | `muqorib.auto_created_from_publik` | PB3 (auto-create) |
 | `muqorib.data_conflict_detected` | PB3 (data form ≠ record; record dipertahankan) |
 

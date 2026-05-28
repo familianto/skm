@@ -8,7 +8,7 @@ import { sendWhatsApp } from '@/lib/fonnte';
 
 import { checkPublikRateLimit } from '@/lib/qurban/publik-rate-limit';
 import { isHoneypotTriggered } from '@/lib/qurban/publik-honeypot';
-import { maskNoHp } from '@/lib/qurban/publik-masking';
+import { maskNama, maskNoHp } from '@/lib/qurban/publik-masking';
 import {
   buildPendaftaranPublikMessage,
   shouldSendPendaftaranWA,
@@ -290,7 +290,10 @@ export async function POST(request: NextRequest) {
     return success(
       {
         edisi: { id: edisi.id, tahun_hijriah: edisi.tahun_hijriah, tanggal_idul_adha: edisi.tanggal_idul_adha },
-        muqorib: { id: muqorib.id, nama_lengkap: muqorib.nama_lengkap, no_hp: muqorib.no_hp },
+        // F4d: response TIDAK lagi mengandung nama/no_hp penuh — klien sudah
+        // tahu lewat input sendiri (muqorib_data path) atau via mask (PB2 path);
+        // notifikasi WA tetap dikirim server-side dengan PII asli.
+        muqorib: { id: muqorib.id, nama_masked: maskNama(muqorib.nama_lengkap) },
         peserta: records.map((r) => ({
           id: r.id,
           kode_bayar: r.kode_bayar,

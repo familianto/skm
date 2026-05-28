@@ -38,8 +38,12 @@ export type PublikEndpoint = 'options' | 'lookup' | 'daftar' | 'cek-status';
 export const PUBLIK_RATE_LIMITS: Record<PublikEndpoint, RateLimitWindow[]> = {
   // PB1 GET /api/publik/qurban/options
   options: [{ limit: 30, windowMs: MINUTE_MS, label: '30/menit' }],
-  // PB2 POST /api/publik/qurban/daftar/lookup
-  lookup: [{ limit: 20, windowMs: MINUTE_MS, label: '20/menit' }],
+  // PB2 POST /api/publik/qurban/daftar/lookup — F4d phone-primary. Bertambah
+  // batas per-jam karena HP-saja lebih mudah dienumerasi daripada nama+HP.
+  lookup: [
+    { limit: 20, windowMs: MINUTE_MS, label: '20/menit' },
+    { limit: 60, windowMs: HOUR_MS, label: '60/jam' },
+  ],
   // PB3 POST /api/publik/qurban/daftar — must clear all three
   daftar: [
     { limit: 5, windowMs: MINUTE_MS, label: '5/menit' },

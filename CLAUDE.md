@@ -11,11 +11,13 @@
 
 ## Current Sprint
 
-> **Sprint F4c — UI Pendaftaran Qurban** selesai (A–F). Modul Qurban kini
-> punya UI pendaftaran lengkap: panitia (list/detail/form/edit/aksi) + publik
-> (daftar wizard + cek-status). Lihat `HANDOFF_SPRINT_F4c.md` untuk detail.
-> Sprint berikutnya: **F4d — phone-primary lookup (PB2 v2)**, lalu F5b
-> (Pemetaan), F6 (Pembayaran), F7 (Hari-H).
+> **Sprint F4d — Phone-Primary Lookup (PB2 v2)** sedang berjalan. Milestone A
+> (sisi publik + mesin backend bersama) selesai: PB2 di-rewrite jadi HP-dulu
+> dengan response tersamar (`nama_masked` + `alamat_masked` + `rt`); Step 2
+> wizard publik di-reshape jadi HP-only + kartu konfirmasi. Milestone B
+> (panitia M7 phone-primary) menyusul di branch yang sama. Detail:
+> `HANDOFF_SPRINT_F4d.md`. Sprint berikut: F5b (Pemetaan), F6 (Pembayaran),
+> F7 (Hari-H).
 
 Update baris ini setiap kali sprint berganti.
 

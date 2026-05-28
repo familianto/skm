@@ -1,7 +1,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { findMuqoribByNoHp, muqoribDataDiffers } from '../publik-muqorib';
+import {
+  findMuqoribByNoHp,
+  muqoribDataDiffers,
+  selectActiveMuqoribByPhone,
+} from '../publik-muqorib';
 import type { QurbanMuqorib } from '../muqorib-repo';
 import type { MuqoribCreateInput } from '../validators';
 
@@ -63,4 +67,40 @@ test('muqoribDataDiffers — divergent name/alamat/rt → true', () => {
   assert.equal(muqoribDataDiffers(mk({ nama_lengkap: 'Beda' }), submitted), true);
   assert.equal(muqoribDataDiffers(mk({ alamat: 'Jl. Lain' }), submitted), true);
   assert.equal(muqoribDataDiffers(mk({ rt: '002' }), submitted), true);
+});
+
+// --- selectActiveMuqoribByPhone (F4d, pure core of lookupMuqoribByPhone) ----
+
+test('selectActiveMuqoribByPhone — empty/malformed input → null', () => {
+  const list = [mk({})];
+  assert.equal(selectActiveMuqoribByPhone(list, ''), null);
+  assert.equal(selectActiveMuqoribByPhone(list, '   '), null);
+  assert.equal(selectActiveMuqoribByPhone(list, 'abc'), null);
+  assert.equal(selectActiveMuqoribByPhone(list, '628'), null); // shape invalid
+});
+
+test('selectActiveMuqoribByPhone — returns the active match (normalizes 08… → 628…)', () => {
+  const list = [
+    mk({ id: 'A', no_hp: '628226083451', is_active: true }),
+    mk({ id: 'B', no_hp: '628111111111', is_active: true }),
+  ];
+  assert.equal(selectActiveMuqoribByPhone(list, '08226083451')?.id, 'A');
+});
+
+test('selectActiveMuqoribByPhone — inactive-only match treated as NOT found (PB2 must not leak)', () => {
+  const list = [mk({ id: 'OLD', no_hp: '628226083451', is_active: false })];
+  assert.equal(selectActiveMuqoribByPhone(list, '628226083451'), null);
+});
+
+test('selectActiveMuqoribByPhone — active preferred over inactive with same HP', () => {
+  const list = [
+    mk({ id: 'OLD', no_hp: '628226083451', is_active: false }),
+    mk({ id: 'NEW', no_hp: '628226083451', is_active: true }),
+  ];
+  assert.equal(selectActiveMuqoribByPhone(list, '628226083451')?.id, 'NEW');
+});
+
+test('selectActiveMuqoribByPhone — no match → null', () => {
+  const list = [mk({ id: 'X', no_hp: '628111111111', is_active: true })];
+  assert.equal(selectActiveMuqoribByPhone(list, '628999999999'), null);
 });
