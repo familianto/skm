@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
+import { resolveActiveHref } from '@/lib/nav-active';
 import { useMe } from '@/hooks/use-me';
 
 type Peran = 'SUPER_ADMIN' | 'BENDAHARA' | 'ADMIN_QURBAN' | 'PENDAFTARAN' | 'DISTRIBUSI';
@@ -36,6 +37,9 @@ const QURBAN_MUQORIB_ICON =
 // "Hewan" — cube/catalog glyph
 const QURBAN_HEWAN_ICON =
   'M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4';
+// "Peserta" — clipboard/list glyph
+const QURBAN_PESERTA_ICON =
+  'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4';
 
 const navSections: NavSection[] = [
   {
@@ -78,6 +82,13 @@ const navSections: NavSection[] = [
         visibleRoles: ['SUPER_ADMIN', 'BENDAHARA', 'ADMIN_QURBAN', 'PENDAFTARAN'],
         readOnlyRoles: ['BENDAHARA', 'PENDAFTARAN'],
       },
+      {
+        href: '/qurban/peserta',
+        label: 'Peserta',
+        icon: QURBAN_PESERTA_ICON,
+        visibleRoles: ['SUPER_ADMIN', 'BENDAHARA', 'ADMIN_QURBAN', 'PENDAFTARAN'],
+        readOnlyRoles: ['BENDAHARA'],
+      },
     ],
   },
   {
@@ -112,6 +123,11 @@ export function Sidebar({ masjidName = 'SKM', logoUrl }: SidebarProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const { me } = useMe();
   const peran = me?.user.peran as Peran | undefined;
+
+  const activeHref = resolveActiveHref(
+    pathname,
+    navSections.flatMap((s) => s.items.map((i) => i.href))
+  );
 
   const handleLogout = async () => {
     await fetch('/api/auth/logout', { method: 'POST' });
@@ -164,7 +180,7 @@ export function Sidebar({ masjidName = 'SKM', logoUrl }: SidebarProps) {
             </p>
             <div className="space-y-0.5">
               {section.items.map((item) => {
-                const isActive = pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href));
+                const isActive = !!activeHref && item.href === activeHref;
                 const isDisabled = peran ? item.disabledRoles?.includes(peran) : false;
                 const isReadOnly = peran ? item.readOnlyRoles?.includes(peran) : false;
                 const baseClass = cn(

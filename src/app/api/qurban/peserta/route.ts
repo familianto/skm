@@ -23,7 +23,7 @@ import { isValidTipePembelian } from '@/lib/qurban/validators';
 import { getMuqoribById } from '@/lib/qurban/muqorib-repo';
 import { lookupHargaDisepakati } from '@/lib/qurban/peserta-pricing';
 import { autoAssignSlots } from '@/lib/qurban/peserta-slot-assignment';
-import { nextKodeBayarSequence } from '@/lib/qurban/peserta-kode-bayar';
+import { nextKodeBayar } from '@/lib/qurban/peserta-kode-bayar';
 import { generatePesertaIds } from '@/lib/qurban/id-generator';
 import { auditPesertaCreated, auditPesertaWaSent, auditPesertaWaFailed } from '@/lib/qurban/peserta-audit';
 import { findKonfigurasiByEdisiId } from '@/lib/qurban/konfigurasi-repo';
@@ -153,6 +153,17 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // F4c-C: satu pendaftaran ≤ satu ekor. jumlah_slot tidak boleh melebihi
+    // kapasitas satu hewan (mau lebih → pendaftaran terpisah).
+    if (input.jumlah_slot > harga.master.kapasitas_slot) {
+      return error(
+        ErrorCodes.VALIDATION_FAILED,
+        `Jumlah slot (${input.jumlah_slot}) melebihi kapasitas satu ekor (${harga.master.kapasitas_slot}).`,
+        422,
+        { field: 'jumlah_slot', max: harga.master.kapasitas_slot }
+      );
+    }
+
     // Auto-assign slot.
     const assign = await autoAssignSlots(edisi.id, input.master_hewan_id, input.tipe_qurban, input.jumlah_slot);
     if (!assign.ok) {
@@ -164,9 +175,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // kode_bayar berurutan + N id sekaligus.
-    const [kodes, ids] = await Promise.all([
-      nextKodeBayarSequence(edisi, input.jumlah_slot),
+    // SATU kode_bayar per pendaftaran (dibagi semua baris) + N id sekaligus.
+    const [kode, ids] = await Promise.all([
+      nextKodeBayar(edisi),
       generatePesertaIds(input.jumlah_slot),
     ]);
 
@@ -181,7 +192,7 @@ export async function POST(request: NextRequest) {
       nama_atas_nama: input.nama_atas_nama_per_slot[i] ?? '',
       keterangan_bagian: input.keterangan_bagian,
       harga_disepakati: harga.harga_disepakati,
-      kode_bayar: kodes[i],
+      kode_bayar: kode,
       sumber_pendaftaran: 'PANITIA',
       status_pendaftaran: 'TERDAFTAR',
       tanggal_daftar: now,
@@ -213,14 +224,14 @@ export async function POST(request: NextRequest) {
             hewan_label: `${harga.master.jenis} Kelas ${harga.master.kelas}`,
             tipe_qurban: input.tipe_qurban,
             jumlah_slot: input.jumlah_slot,
-            kode_bayar: kodes,
+            kode_bayar: kode,
             total_harga: pembayaran.total_harga,
             nominal_transfer: pembayaran.nominal_transfer,
             rekening,
           }),
         });
         if (waRes.success) {
-          await auditPesertaWaSent(muqorib.id, actor, { kode_bayar: kodes, mock: waRes.mock });
+          await auditPesertaWaSent(muqorib.id, actor, { kode_bayar: kode, mock: waRes.mock });
         } else {
           await auditPesertaWaFailed(muqorib.id, actor, { reason: waRes.detail });
         }
