@@ -9,8 +9,11 @@ import { Input } from '@/components/ui/input';
  * fires at ≥2 characters, shows scored candidates. Emits the picked candidate
  * to the parent; rendering the selected muqorib + duplicate checks live there.
  *
- * (M7 is the first UI consumer of `/api/qurban/muqorib/lookup`. `no_hp` comes
- * back masked from the server.)
+ * F4d Milestone B: M7 server-side now also handles **HP-exact lookup** when
+ * `q` looks mostly numeric (≥7 digits). Same query param, the server routes:
+ *   - HP-like input → exact-match HP (1 result max, score 1.0).
+ *   - Otherwise → existing Jaro-Winkler name autocomplete.
+ * `no_hp` is returned **unmasked** for panitia (PII matrix).
  */
 
 export interface MuqoribCandidate {
@@ -97,7 +100,7 @@ export function MuqoribLookup({ onSelect, disabled }: Props) {
         onFocus={() => {
           if (results.length > 0) setOpen(true);
         }}
-        placeholder="Ketik nama, alamat, atau no. HP (min. 2 huruf)..."
+        placeholder="Ketik nama atau no. HP lengkap (min. 2 karakter)..."
         disabled={disabled}
         autoComplete="off"
       />

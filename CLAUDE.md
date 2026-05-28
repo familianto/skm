@@ -11,11 +11,11 @@
 
 ## Current Sprint
 
-> **Sprint F4c — UI Pendaftaran Qurban** selesai (A–F). Modul Qurban kini
-> punya UI pendaftaran lengkap: panitia (list/detail/form/edit/aksi) + publik
-> (daftar wizard + cek-status). Lihat `HANDOFF_SPRINT_F4c.md` untuk detail.
-> Sprint berikutnya: **F4d — phone-primary lookup (PB2 v2)**, lalu F5b
-> (Pemetaan), F6 (Pembayaran), F7 (Hari-H).
+> **Sprint F4d — Phone-Primary Lookup** selesai (A & B). Publik (PB2) HP-dulu
+> + response tersamar; Panitia (M7) HP-exact + fuzzy nama, response penuh.
+> Satu mesin lookup di `lib/qurban/muqorib-lookup.ts`, dua kontrak. Lihat
+> `HANDOFF_SPRINT_F4d.md`. PR #92 Draft, menunggu verifikasi & merge.
+> Sprint berikutnya: F5b (Pemetaan), F6 (Pembayaran), F7 (Hari-H).
 
 Update baris ini setiap kali sprint berganti.
 

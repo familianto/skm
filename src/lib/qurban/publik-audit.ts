@@ -18,6 +18,8 @@ import type { QurbanMuqorib } from './muqorib-repo';
  *   publik.daftar_duplicate_detected | publik.daftar_captcha_failed |
  *   publik.daftar_rate_limited | publik.daftar_muqorib_inactive |
  *   publik.wa_sent_success | publik.wa_sent_failed |
+ *   publik.lookup_attempted | publik.lookup_matched | publik.lookup_not_found |
+ *   publik.lookup_rate_limited | publik.lookup_captcha_failed |
  *   muqorib.auto_created_from_publik | muqorib.data_conflict_detected
  */
 
@@ -101,6 +103,41 @@ export function auditPublikWaFailed(
   detail: { muqorib_id: string; reason: string }
 ): Promise<void> {
   return emit({ entitas: 'publik', entitas_id: detail.muqorib_id, event_type: 'publik.wa_sent_failed', actor, after: detail });
+}
+
+// --- F4d — PB2 phone-primary lookup audits ---------------------------------
+
+/** PB2 `attempted` — emitted after rate-limit + honeypot pass, before lookup. */
+export function auditPublikLookupAttempted(
+  actor: PublikActor,
+  detail: { no_hp_masked: string }
+): Promise<void> {
+  return emit({ entitas: 'publik', entitas_id: '—', event_type: 'publik.lookup_attempted', actor, after: detail });
+}
+
+export function auditPublikLookupMatched(
+  actor: PublikActor,
+  detail: { muqorib_id: string; no_hp_masked: string }
+): Promise<void> {
+  return emit({ entitas: 'publik', entitas_id: detail.muqorib_id, event_type: 'publik.lookup_matched', actor, after: detail });
+}
+
+export function auditPublikLookupNotFound(
+  actor: PublikActor,
+  detail: { no_hp_masked: string }
+): Promise<void> {
+  return emit({ entitas: 'publik', entitas_id: '—', event_type: 'publik.lookup_not_found', actor, after: detail });
+}
+
+export function auditPublikLookupRateLimited(
+  actor: PublikActor,
+  detail: { endpoint: string; limit?: string }
+): Promise<void> {
+  return emit({ entitas: 'publik', entitas_id: '—', event_type: 'publik.lookup_rate_limited', actor, after: detail });
+}
+
+export function auditPublikLookupCaptchaFailed(actor: PublikActor): Promise<void> {
+  return emit({ entitas: 'publik', entitas_id: '—', event_type: 'publik.lookup_captcha_failed', actor });
 }
 
 export function auditMuqoribAutoCreated(actor: PublikActor, muqorib: QurbanMuqorib): Promise<void> {

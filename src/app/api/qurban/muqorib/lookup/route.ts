@@ -6,7 +6,8 @@ import { requireRole } from '@/lib/api/guards';
 import { PERAN } from '@/lib/api/permissions';
 
 import { listAllMuqorib } from '@/lib/qurban/muqorib-repo';
-import { maskNoHp, scoreLookupCandidate } from '@/lib/qurban/validators';
+import { scoreLookupCandidate } from '@/lib/qurban/validators';
+import { isPhoneQuery, selectActiveMuqoribByPhone } from '@/lib/qurban/muqorib-lookup';
 
 const LOOKUP_ROLES = [PERAN.SUPER_ADMIN, PERAN.ADMIN_QURBAN, PERAN.PENDAFTARAN];
 
@@ -17,9 +18,17 @@ const DEFAULT_MIN_SCORE = 0.6;
 /**
  * M7 — GET /api/qurban/muqorib/lookup?q=...&limit=...&min_score=...
  *
- * Smart autocomplete over ACTIVE muqorib (lintas-edisi — no edisi-context).
- * Scoring is delegated to the pure `scoreLookupCandidate`; `no_hp` is masked
- * in the response. `has_history` is a stub (always false) until F04.
+ * Smart autocomplete atas muqorib AKTIF (lintas-edisi). Scoring delegated to
+ * `scoreLookupCandidate`. `has_history` stub `false` sampai F04.
+ *
+ * F4d (Milestone B):
+ * - Bila `q` terlihat seperti nomor HP (`isPhoneQuery`) → **exact-match HP**
+ *   via `selectActiveMuqoribByPhone`; balas paling banyak 1 kandidat
+ *   (`score: 1.0`). 1 HP = 1 muqorib (grain seed), jadi tidak ada ambigu.
+ * - Sebaliknya → fuzzy name autocomplete seperti sebelumnya.
+ * - **Response no_hp TIDAK lagi di-mask** — panitia (SA/AQ/PD) berhak data
+ *   penuh (PII matrix). Jalur publik (PB2) tetap memakai jalur tersamarnya
+ *   sendiri di `/api/publik/qurban/daftar/lookup`.
  */
 export async function GET(request: NextRequest) {
   const guard = await requireRole(request, LOOKUP_ROLES);
@@ -67,9 +76,39 @@ export async function GET(request: NextRequest) {
       minScore = parsed;
     }
 
-    const qn = q.toLowerCase();
-
     const all = await listAllMuqorib();
+
+    // Phone-exact branch (F4d M-B). Returns 0 or 1 candidate; min_score is
+    // moot when the match scores 1.0, but we still respect it for symmetry.
+    if (isPhoneQuery(q)) {
+      const match = selectActiveMuqoribByPhone(all, q);
+      const candidates = match
+        ? [
+            {
+              id: match.id,
+              nama_lengkap: match.nama_lengkap,
+              alamat: match.alamat,
+              rt: match.rt,
+              no_hp: match.no_hp,
+              is_active: match.is_active,
+              score: 1.0,
+              // TODO F04: resolve has_history dari qurban_peserta
+              has_history: false,
+            },
+          ]
+        : [];
+      const filtered = candidates.filter((c) => c.score >= minScore).slice(0, limit);
+      const meta = {
+        q,
+        limit,
+        min_score: minScore,
+        count: filtered.length,
+      } as unknown as ApiSuccess<typeof filtered>['meta'];
+      return success(filtered, meta);
+    }
+
+    // Name-fuzzy branch (default).
+    const qn = q.toLowerCase();
     const scored = all
       .filter((m) => m.is_active)
       .map((m) => {
@@ -79,7 +118,7 @@ export async function GET(request: NextRequest) {
           nama_lengkap: m.nama_lengkap,
           alamat: m.alamat,
           rt: m.rt,
-          no_hp: maskNoHp(m.no_hp),
+          no_hp: m.no_hp,
           is_active: m.is_active,
           score,
           // TODO F04: resolve has_history dari qurban_peserta

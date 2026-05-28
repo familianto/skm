@@ -5,6 +5,11 @@ import type { MuqoribCreateInput } from './validators';
 /**
  * Pure helpers for PB3 muqorib resolution (F4b B2). I/O (read/create) stays in
  * the route; these encode the matching + conflict rules so they're unit-testable.
+ *
+ * Shared phone-lookup primitives (`selectActiveMuqoribByPhone`,
+ * `lookupMuqoribByPhone`, `isPhoneQuery`) live in `./muqorib-lookup` since
+ * F4d Milestone B — they are used by BOTH publik (PB2, masked) and panitia
+ * (M7, full).
  */
 
 /**

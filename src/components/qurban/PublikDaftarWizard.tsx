@@ -23,8 +23,15 @@ import {
  *
  * 3 steps over PB1 → PB2 → PB3 (no auth, no sidebar, mobile-first):
  *   1. Pilih Qurban  (PB1 options + slot rules from `slotFieldConfig`)
- *   2. Identitas     (PB2 strict lookup → muqorib_id OR muqorib_data)
+ *   2. Identitas     (F4d phone-primary lookup → muqorib_id OR muqorib_data)
  *   3. Tinjau & Kirim (PB3 + honeypot) → success screen with ONE kode_bayar
+ *
+ * F4d Step 2 (phone-primary):
+ *   - Input cuma `no_hp` + honeypot tersembunyi.
+ *   - HP ketemu → kartu konfirmasi (nama/alamat TERMASK + RT) "Ya, ini saya"
+ *     atau "Bukan / nomor salah". "Bukan" tidak meneruskan ke form pendaftar
+ *     baru dengan HP yang sama (PB3 akan diam-diam attach ke muqorib existing).
+ *   - HP tidak ketemu → form pendaftar baru (nama, alamat, rt, notes).
  * PB3 takes a single `nama_atas_nama` (applied to all slots) — there is no
  * per-slot field in the public contract.
  */
@@ -43,10 +50,9 @@ interface Pb1Data {
 
 interface MatchedMuqorib {
   id: string;
-  nama_lengkap: string;
-  alamat: string;
+  nama_masked: string;
+  alamat_masked: string;
   rt: string;
-  no_hp: string;
 }
 
 interface SuccessResult {
@@ -57,7 +63,15 @@ interface SuccessResult {
   rekening: RekeningInfo[];
 }
 
-type LookupState = 'idle' | 'matched' | 'new';
+/**
+ * - `idle`: belum cek HP (atau HP berubah → reset).
+ * - `confirm`: HP cocok satu muqorib; tampil kartu konfirmasi (Ya / Bukan).
+ * - `rejected`: user menolak ("Bukan / nomor salah") — TIDAK lanjut sebagai
+ *   pendaftar baru dengan HP yang sama (anti diam-diam-attach). User wajib
+ *   ganti HP atau hubungi panitia.
+ * - `new`: HP tidak terdaftar; tampilkan form pendaftar baru.
+ */
+type LookupState = 'idle' | 'confirm' | 'rejected' | 'new';
 
 export function PublikDaftarWizard() {
   const [step, setStep] = useState(1);
@@ -76,13 +90,14 @@ export function PublikDaftarWizard() {
   const [keteranganBagian, setKeteranganBagian] = useState('');
   const [step1Error, setStep1Error] = useState<string | null>(null);
 
-  // Step 2 — identitas
-  const [namaLengkap, setNamaLengkap] = useState('');
+  // Step 2 — identitas (F4d phone-primary)
   const [noHp, setNoHp] = useState('');
   const [lookupLoading, setLookupLoading] = useState(false);
   const [lookupState, setLookupState] = useState<LookupState>('idle');
   const [matchedMuqorib, setMatchedMuqorib] = useState<MatchedMuqorib | null>(null);
   const [lookupError, setLookupError] = useState<string | null>(null);
+  // Form pendaftar baru (lookupState='new' saja)
+  const [newNamaLengkap, setNewNamaLengkap] = useState('');
   const [newAlamat, setNewAlamat] = useState('');
   const [newRt, setNewRt] = useState('');
   const [newNotes, setNewNotes] = useState('');
@@ -173,6 +188,7 @@ export function PublikDaftarWizard() {
     setLookupState('idle');
     setMatchedMuqorib(null);
     setLookupError(null);
+    setStep2Error(null);
     // F4c-F: a changed identity invalidates any prior submit error (e.g. the
     // duplicate banner) — clear it so a stale message never lingers.
     setSubmitError(null);
@@ -180,8 +196,8 @@ export function PublikDaftarWizard() {
 
   const runLookup = async () => {
     setStep2Error(null);
-    if (!namaLengkap.trim() || !noHp.trim()) {
-      setStep2Error('Isi nama lengkap dan nomor HP.');
+    if (!noHp.trim()) {
+      setStep2Error('Isi nomor HP.');
       return;
     }
     setLookupLoading(true);
@@ -190,13 +206,18 @@ export function PublikDaftarWizard() {
       const res = await fetch('/api/publik/qurban/daftar/lookup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ nama_lengkap: namaLengkap.trim(), no_hp: noHp.trim() }),
+        body: JSON.stringify({ no_hp: noHp.trim(), [HONEYPOT_FIELD]: honeypot }),
       });
       const json = await res.json().catch(() => ({}));
       if (res.ok && json?.ok) {
-        if (json.data.matched) {
-          setMatchedMuqorib(json.data.muqorib as MatchedMuqorib);
-          setLookupState('matched');
+        if (json.data.found) {
+          setMatchedMuqorib({
+            id: json.data.muqorib_id,
+            nama_masked: json.data.nama_masked,
+            alamat_masked: json.data.alamat_masked,
+            rt: json.data.rt,
+          });
+          setLookupState('confirm');
         } else {
           setLookupState('new');
         }
@@ -213,12 +234,16 @@ export function PublikDaftarWizard() {
   const goStep3 = () => {
     setStep2Error(null);
     if (lookupState === 'idle') {
-      setStep2Error('Cek data Anda terlebih dahulu.');
+      setStep2Error('Cek nomor HP Anda terlebih dahulu.');
+      return;
+    }
+    if (lookupState === 'rejected') {
+      setStep2Error('Periksa kembali nomor HP Anda, atau hubungi panitia.');
       return;
     }
     if (lookupState === 'new') {
-      if (!newAlamat.trim() || !newRt) {
-        setStep2Error('Lengkapi alamat dan RT.');
+      if (!newNamaLengkap.trim() || !newAlamat.trim() || !newRt) {
+        setStep2Error('Lengkapi nama lengkap, alamat, dan RT.');
         return;
       }
     }
@@ -230,11 +255,11 @@ export function PublikDaftarWizard() {
     setSubmitError(null);
     try {
       const identity =
-        lookupState === 'matched' && matchedMuqorib
+        lookupState === 'confirm' && matchedMuqorib
           ? { muqorib_id: matchedMuqorib.id }
           : {
               muqorib_data: {
-                nama_lengkap: namaLengkap.trim(),
+                nama_lengkap: newNamaLengkap.trim(),
                 alamat: newAlamat.trim(),
                 rt: newRt,
                 no_hp: noHp.trim(),
@@ -376,39 +401,77 @@ export function PublikDaftarWizard() {
 
       {step === 2 && (
         <StepCard title="2. Identitas Pendaftar">
-          <Field label="Nama Lengkap">
-            <input value={namaLengkap} onChange={(e) => { setNamaLengkap(e.target.value); resetLookup(); }}
-              placeholder="Nama sesuai data" className={inputClass(false)} autoComplete="name" />
-          </Field>
           <Field label="Nomor HP (WhatsApp)">
             <input value={noHp} onChange={(e) => { setNoHp(e.target.value); resetLookup(); }}
               placeholder="08xxx atau 628xxx" inputMode="tel" autoComplete="tel" className={inputClass(false)} />
           </Field>
 
+          {/* Honeypot — also placed on PB2 lookup (same field name as PB3). */}
+          <input
+            type="text"
+            name={HONEYPOT_FIELD}
+            value={honeypot}
+            onChange={(e) => setHoneypot(e.target.value)}
+            tabIndex={-1}
+            autoComplete="off"
+            aria-hidden="true"
+            className="hidden"
+          />
+
           {lookupState === 'idle' && (
             <>
               <p className="text-xs text-gray-500">
-                Coba ketik nama <strong>lengkap</strong> persis seperti pendaftaran sebelumnya. Bila
-                tetap tidak ketemu, lanjut sebagai pendaftar baru — sistem akan menyamakan via nomor HP.
+                Masukkan nomor HP/WhatsApp yang sama seperti pendaftaran sebelumnya. Kami akan tampilkan
+                petunjuk samar agar Anda bisa mengenali data sendiri.
               </p>
               <button type="button" onClick={runLookup} disabled={lookupLoading}
                 className="w-full py-2.5 rounded-lg bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-700 disabled:opacity-50">
-                {lookupLoading ? 'Mencari…' : 'Cek Data Saya'}
+                {lookupLoading ? 'Mencari…' : 'Cek Nomor'}
               </button>
             </>
           )}
           {lookupError && <ErrorText>{lookupError}</ErrorText>}
 
-          {lookupState === 'matched' && matchedMuqorib && (
-            <div className="rounded-lg bg-emerald-50 border border-emerald-200 px-3 py-3">
-              <p className="text-sm font-medium text-emerald-900">✓ Data Anda ditemukan</p>
-              <p className="text-sm text-gray-700 mt-1">{matchedMuqorib.nama_lengkap}</p>
-              <p className="text-xs text-gray-500">
-                {matchedMuqorib.alamat ? `${matchedMuqorib.alamat} · ` : ''}RT {matchedMuqorib.rt} ·{' '}
-                <span className="font-mono">{matchedMuqorib.no_hp}</span>
+          {lookupState === 'confirm' && matchedMuqorib && (
+            <div className="rounded-lg bg-emerald-50 border border-emerald-200 px-3 py-3 space-y-3">
+              <div>
+                <p className="text-sm font-semibold text-emerald-900">
+                  Apakah ini Anda atau keluarga Anda?
+                </p>
+                <p className="text-xs text-emerald-800/80 mt-0.5">
+                  Petunjuk samar agar Anda dapat mengenali tanpa data sensitif diumbar.
+                </p>
+              </div>
+              <div className="rounded-md bg-white/60 border border-emerald-100 px-3 py-2 text-sm">
+                <p className="text-gray-700 font-medium">{matchedMuqorib.nama_masked || '—'}</p>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  {matchedMuqorib.alamat_masked ? `${matchedMuqorib.alamat_masked} · ` : ''}
+                  RT {matchedMuqorib.rt}
+                </p>
+              </div>
+              <div className="flex gap-2">
+                <button type="button" onClick={() => setLookupState('rejected')}
+                  className="flex-1 py-2 rounded-lg bg-white border border-gray-300 text-gray-700 text-sm font-medium hover:bg-gray-50">
+                  Bukan / nomor salah
+                </button>
+                <button type="button" onClick={() => setStep(3)}
+                  className="flex-1 py-2 rounded-lg bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-700">
+                  Ya, lanjutkan
+                </button>
+              </div>
+            </div>
+          )}
+
+          {lookupState === 'rejected' && (
+            <div className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-3 space-y-2">
+              <p className="text-sm font-medium text-amber-900">Periksa kembali nomor HP Anda</p>
+              <p className="text-xs text-amber-800/90">
+                Nomor yang Anda masukkan sudah terdaftar atas data lain. Mohon cek ulang nomor HP, atau
+                hubungi panitia masjid untuk membantu pendaftaran Anda.
               </p>
-              <button type="button" onClick={resetLookup} className="text-xs text-emerald-700 underline mt-2">
-                Bukan Anda? Ubah & cari lagi
+              <button type="button" onClick={resetLookup}
+                className="text-xs text-amber-900 font-medium underline">
+                Ubah nomor HP &amp; cek ulang
               </button>
             </div>
           )}
@@ -416,12 +479,12 @@ export function PublikDaftarWizard() {
           {lookupState === 'new' && (
             <div className="space-y-3">
               <p className="text-sm text-gray-600">
-                Data belum terdaftar — lengkapi sebagai <strong>pendaftar baru</strong>.
+                Nomor HP belum terdaftar — lengkapi data berikut sebagai <strong>pendaftar baru</strong>.
               </p>
-              <p className="text-xs text-sky-800 bg-sky-50 border border-sky-200 rounded-lg px-3 py-2">
-                Catatan: Jika nomor HP Anda sudah pernah terdaftar di edisi sebelumnya, sistem akan
-                otomatis mengenali Anda saat kirim — data Anda tidak akan terduplikasi.
-              </p>
+              <Field label="Nama Lengkap">
+                <input value={newNamaLengkap} onChange={(e) => setNewNamaLengkap(e.target.value)}
+                  placeholder="Nama sesuai data" className={inputClass(false)} autoComplete="name" />
+              </Field>
               <Field label="Alamat">
                 <input value={newAlamat} onChange={(e) => setNewAlamat(e.target.value)}
                   placeholder="Alamat tempat tinggal" className={inputClass(false)} />
@@ -438,7 +501,7 @@ export function PublikDaftarWizard() {
 
           {step2Error && <ErrorText>{step2Error}</ErrorText>}
           <NavButtons onBack={() => setStep(1)} onNext={goStep3} nextLabel="Lanjut"
-            nextDisabled={lookupState === 'idle'} />
+            nextDisabled={lookupState === 'idle' || lookupState === 'rejected' || lookupState === 'confirm'} />
         </StepCard>
       )}
 
@@ -449,11 +512,18 @@ export function PublikDaftarWizard() {
             <SummaryRow label="Tipe" value={tipeQurbanLabel(tipeQurban)} />
             <SummaryRow label="Jumlah Slot" value={String(jumlahSlot)} />
             <SummaryRow label="Atas Nama" value={atasNama.trim() || '(pakai nama Anda)'} />
-            <SummaryRow label="Pendaftar" value={namaLengkap.trim()} />
+            <SummaryRow
+              label="Pendaftar"
+              value={
+                lookupState === 'confirm' && matchedMuqorib
+                  ? matchedMuqorib.nama_masked || '(data tersimpan)'
+                  : newNamaLengkap.trim()
+              }
+            />
             <SummaryRow label="Total" value={formatRupiah(totalHarga)} />
           </dl>
 
-          {/* Honeypot — hidden from real users. */}
+          {/* Honeypot — hidden from real users (also placed on Step 2). */}
           <input
             type="text"
             name={HONEYPOT_FIELD}

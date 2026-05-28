@@ -7,23 +7,29 @@ import {
   MAX_PUBLIK_SLOT,
 } from '../publik-validators';
 
-// --- PB2 lookup -------------------------------------------------------------
+// --- PB2 lookup (F4d phone-primary) -----------------------------------------
 
-test('lookup: nama + no_hp required', () => {
+test('lookup (F4d): no_hp required (nama TIDAK lagi dipakai)', () => {
   assert.equal(validatePublikLookup({}).ok, false);
   assert.equal(validatePublikLookup({ nama_lengkap: 'Hopy' }).ok, false);
-  assert.equal(validatePublikLookup({ no_hp: '08123456789' }).ok, false);
 });
 
-test('lookup: normalizes no_hp to 628…', () => {
-  const r = validatePublikLookup({ nama_lengkap: '  Hopy  ', no_hp: '08226083451' });
+test('lookup (F4d): nama_lengkap diabaikan; cukup no_hp', () => {
+  const r = validatePublikLookup({ no_hp: '08226083451' });
   assert.equal(r.ok, true);
   assert.equal(r.value?.no_hp, '628226083451');
-  assert.equal(r.value?.nama_lengkap, 'Hopy');
+  assert.equal((r.value as { nama_lengkap?: string }).nama_lengkap, undefined);
 });
 
-test('lookup: rejects malformed no_hp', () => {
-  assert.equal(validatePublikLookup({ nama_lengkap: 'Hopy', no_hp: '123' }).ok, false);
+test('lookup (F4d): normalizes no_hp to 628…', () => {
+  const r = validatePublikLookup({ no_hp: '  08226083451  ' });
+  assert.equal(r.ok, true);
+  assert.equal(r.value?.no_hp, '628226083451');
+});
+
+test('lookup (F4d): rejects malformed no_hp', () => {
+  assert.equal(validatePublikLookup({ no_hp: '123' }).ok, false);
+  assert.equal(validatePublikLookup({ no_hp: '' }).ok, false);
 });
 
 // --- PB3 daftar -------------------------------------------------------------
