@@ -328,6 +328,20 @@ class GoogleSheetsService {
       },
     });
   }
+
+  /**
+   * @internal TEST-ONLY. Inject a mock googleapis client (or `null` to clear).
+   *
+   * Every method routes through `getClient()`, which short-circuits to the
+   * cached `this.sheets` when set — so injecting here makes the whole service
+   * (and every repo that imports the `sheetsService` singleton) read/write
+   * against the mock without touching real Google APIs. Used by handler-level
+   * integration tests; NEVER called from application code. Prefer the
+   * `__testing__` namespace below over poking the private field directly.
+   */
+  __setClientForTesting(client: SheetsApi | null): void {
+    this.sheets = client;
+  }
 }
 
 /**
@@ -365,3 +379,26 @@ function getSheetNameByPrefix(prefixKey: string): string {
 
 // Singleton instance
 export const sheetsService = new GoogleSheetsService();
+
+/**
+ * TEST-ONLY override hook (F5b polish — handler-level integration tests).
+ *
+ * Stable, non-experimental alternative to `--experimental-test-module-mocks`:
+ * `setClient(mock)` swaps the cached googleapis client on the singleton so a
+ * test can drive the full PM1/PM2 orchestration (parse → resolve edisi →
+ * version check → re-read state → simulate → batch write → audit) against
+ * canned data, then `reset()` clears it in `afterEach` so suites don't leak.
+ *
+ * Public API of `sheetsService` is unchanged — modules that import it keep
+ * working untouched. Production code MUST NOT call this.
+ */
+export const __testing__ = {
+  /** Inject a mock client (typed loosely — tests pass a partial googleapis shape). */
+  setClient(mock: SheetsApi): void {
+    sheetsService.__setClientForTesting(mock);
+  },
+  /** Clear the override; next call lazily re-creates the real authed client. */
+  reset(): void {
+    sheetsService.__setClientForTesting(null);
+  },
+};
