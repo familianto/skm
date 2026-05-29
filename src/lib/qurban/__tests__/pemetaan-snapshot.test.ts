@@ -62,8 +62,10 @@ function mkPeserta(p: Partial<QurbanPeserta>): QurbanPeserta {
 }
 
 const MASTER_MAP = new Map<string, SnapshotMasterInfo>([
-  ['MHW-SAPI-A', { jenis: 'SAPI', kelas: 'A' }],
-  ['MHW-KAMBING-B', { jenis: 'KAMBING', kelas: 'B' }],
+  // harga_beli 24.500.000 ÷ 7 slot = 3.500.000 per slot.
+  ['MHW-SAPI-A', { jenis: 'SAPI', kelas: 'A', harga_beli: 24_500_000, kapasitas_slot: 7 }],
+  // harga_beli 2.500.000 ÷ 1 slot = 2.500.000 per slot.
+  ['MHW-KAMBING-B', { jenis: 'KAMBING', kelas: 'B', harga_beli: 2_500_000, kapasitas_slot: 1 }],
 ]);
 const MUQORIB_MAP = new Map<string, string>([
   ['MQR-1', 'Hopy Familianto'],
@@ -314,6 +316,114 @@ test('peserta menunjuk slot_number melebihi kapasitas → tidak muncul di slots[
   assert.equal(slots[0].peserta, null);
   assert.equal(slots[1].peserta?.id, 'PST-B');
   assert.equal(slots[2].peserta, null);
+});
+
+// ---------------------------------------------------------------------------
+// harga_master_per_slot (F5b polish PM2) — master harga asli, bukan proxy.
+// ---------------------------------------------------------------------------
+
+test('harga_master_per_slot: master harga > 0, kapasitas 7 → harga_beli/7 dibulatkan', () => {
+  const snap = buildPemetaanSnapshot(
+    [mkHewan({ id: 'HWN-1', master_hewan_id: 'MHW-SAPI-A', kapasitas_slot: 7 })],
+    [],
+    MASTER_MAP,
+    MUQORIB_MAP,
+    EDISI,
+    VERSION
+  );
+  // 24.500.000 ÷ 7 = 3.500.000 (exact).
+  assert.equal(snap.hewan[0].harga_master_per_slot, 3_500_000);
+});
+
+test('harga_master_per_slot: kapasitas berbeda (kambing, 1 slot) → harga_beli utuh', () => {
+  const snap = buildPemetaanSnapshot(
+    [mkHewan({ id: 'HWN-1', master_hewan_id: 'MHW-KAMBING-B', jenis: 'KAMBING', kelas: 'B', kapasitas_slot: 1 })],
+    [],
+    MASTER_MAP,
+    MUQORIB_MAP,
+    EDISI,
+    VERSION
+  );
+  assert.equal(snap.hewan[0].harga_master_per_slot, 2_500_000);
+});
+
+test('harga_master_per_slot: pembulatan Math.round konsisten dgn PM1 (harga tak habis dibagi)', () => {
+  const master = new Map<string, SnapshotMasterInfo>([
+    // 10.000.000 ÷ 7 = 1.428.571,42… → Math.round → 1.428.571.
+    ['MHW-SAPI-X', { jenis: 'SAPI', kelas: 'A', harga_beli: 10_000_000, kapasitas_slot: 7 }],
+  ]);
+  const snap = buildPemetaanSnapshot(
+    [mkHewan({ id: 'HWN-1', master_hewan_id: 'MHW-SAPI-X', kapasitas_slot: 7 })],
+    [],
+    master,
+    MUQORIB_MAP,
+    EDISI,
+    VERSION
+  );
+  assert.equal(snap.hewan[0].harga_master_per_slot, Math.round(10_000_000 / 7));
+  assert.equal(snap.hewan[0].harga_master_per_slot, 1_428_571);
+});
+
+test('harga_master_per_slot: master harga 0 (BAWA_SENDIRI) → 0', () => {
+  const master = new Map<string, SnapshotMasterInfo>([
+    ['MHW-KAMBING-BS', { jenis: 'KAMBING', kelas: 'A', harga_beli: 0, kapasitas_slot: 1 }],
+  ]);
+  const snap = buildPemetaanSnapshot(
+    [
+      mkHewan({
+        id: 'HWN-1',
+        master_hewan_id: 'MHW-KAMBING-BS',
+        jenis: 'KAMBING',
+        kelas: 'A',
+        kapasitas_slot: 1,
+        tipe_pembelian: 'BAWA_SENDIRI',
+      }),
+    ],
+    [],
+    master,
+    MUQORIB_MAP,
+    EDISI,
+    VERSION
+  );
+  assert.equal(snap.hewan[0].harga_master_per_slot, 0);
+});
+
+test('harga_master_per_slot: master tak terpetakan → 0 (tidak ada harga master diketahui)', () => {
+  const snap = buildPemetaanSnapshot(
+    [mkHewan({ id: 'HWN-1', master_hewan_id: 'MHW-MISSING' })],
+    [],
+    new Map(),
+    MUQORIB_MAP,
+    EDISI,
+    VERSION
+  );
+  assert.equal(snap.hewan[0].harga_master_per_slot, 0);
+});
+
+test('harga_master_per_slot: ada di SETIAP hewan output', () => {
+  const snap = buildPemetaanSnapshot(
+    [
+      mkHewan({ id: 'HWN-1', master_hewan_id: 'MHW-SAPI-A', nomor_urut: 1 }),
+      mkHewan({
+        id: 'HWN-2',
+        master_hewan_id: 'MHW-KAMBING-B',
+        jenis: 'KAMBING',
+        kelas: 'B',
+        kapasitas_slot: 1,
+        nomor_urut: 2,
+      }),
+    ],
+    [],
+    MASTER_MAP,
+    MUQORIB_MAP,
+    EDISI,
+    VERSION
+  );
+  for (const h of snap.hewan) {
+    assert.equal(typeof h.harga_master_per_slot, 'number');
+  }
+  assert.equal(snap.hewan[0].harga_master_per_slot, 3_500_000);
+  assert.equal(snap.hewan[1].harga_master_per_slot, 2_500_000);
 });
 
 test('version diteruskan apa adanya', () => {

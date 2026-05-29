@@ -63,7 +63,12 @@ export async function GET(request: NextRequest) {
 
     const masterInfo = new Map<string, SnapshotMasterInfo>();
     for (const m of masterRows) {
-      masterInfo.set(m.id, { jenis: m.jenis, kelas: m.kelas });
+      masterInfo.set(m.id, {
+        jenis: m.jenis,
+        kelas: m.kelas,
+        harga_beli: m.harga_beli,
+        kapasitas_slot: m.kapasitas_slot,
+      });
     }
     const muqoribNameById = new Map<string, string>();
     for (const mu of muqoribRows) {

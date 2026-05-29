@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   DndContext,
   DragOverlay,
@@ -395,21 +395,6 @@ export function PemetaanBoard({ edisiId }: Props) {
     setDiscardConfirm(false);
   }
 
-  // Master harga map untuk modal (perkiraan nilai master tujuan).
-  const masterHargaByJenisKelas = useMemo(() => {
-    // Approx: ambil peserta TERDAFTAR pertama di tiap (jenis, kelas, tipe) → harga_disepakati
-    // sebagai proxy harga master "per slot" (sesuai konvensi PM2 PSR2 freeze).
-    const map = new Map<string, number>();
-    for (const h of local) {
-      for (const s of h.slots) {
-        if (!s.peserta) continue;
-        const key = `${h.jenis}|${h.kelas}|${h.tipe_pembelian}`;
-        if (!map.has(key)) map.set(key, s.peserta.harga_disepakati);
-      }
-    }
-    return map;
-  }, [local]);
-
   // ---------------------------------------------------------------------------
   // Render
   // ---------------------------------------------------------------------------
@@ -569,11 +554,7 @@ export function PemetaanBoard({ edisiId }: Props) {
           target={withLabel(hargaModal.targetHewan)}
           pesertaLabel={pesertaDisplayLabel(findPeserta(local, hargaModal.pesertaId)!)}
           hargaLama={hargaModal.hargaLama}
-          hargaTargetMaster={
-            masterHargaByJenisKelas.get(
-              `${hargaModal.targetHewan.jenis}|${hargaModal.targetHewan.kelas}|${hargaModal.targetHewan.tipe_pembelian}`
-            ) ?? null
-          }
+          hargaTargetMaster={hargaModal.targetHewan.harga_master_per_slot}
           onConfirm={onMoveModalConfirm}
           onCancel={() => setHargaModal(null)}
         />

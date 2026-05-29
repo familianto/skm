@@ -15,6 +15,7 @@ import {
 import {
   buildSimulateState,
   simulateBatch,
+  masterHargaPerSlot,
   type MasterIndexEntry,
 } from '@/lib/qurban/pemetaan-engine';
 import {
@@ -132,8 +133,7 @@ export async function POST(request: NextRequest) {
     // di swap tidak butuh master.
     const masterIndex = new Map<string, MasterIndexEntry>();
     for (const m of masterRows) {
-      const denom = m.kapasitas_slot > 0 ? m.kapasitas_slot : 1;
-      masterIndex.set(m.id, { harga: Math.round(m.harga_beli / denom) });
+      masterIndex.set(m.id, { harga: masterHargaPerSlot(m.harga_beli, m.kapasitas_slot) });
     }
 
     // 5. Simulate.

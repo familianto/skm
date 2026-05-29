@@ -41,6 +41,17 @@ export interface MasterIndexEntry {
   harga: number;
 }
 
+/**
+ * Harga master "per slot" = `harga_beli ÷ kapasitas_slot`, dibulatkan ke
+ * integer Rupiah (`Math.round`). Konvensi tunggal PM1/PM2 supaya angka yang
+ * di-display di papan (PM2) identik dengan yang disimpan handler `use_new`
+ * (PM1). `kapasitas_slot ≤ 0` → denom 1 (defensive, hindari div-by-zero).
+ */
+export function masterHargaPerSlot(hargaBeli: number, kapasitasSlot: number): number {
+  const denom = kapasitasSlot > 0 ? kapasitasSlot : 1;
+  return Math.round(hargaBeli / denom);
+}
+
 export interface SimulateState {
   peserta: Map<string, PesertaState>;
   hewan: Map<string, HewanState>;

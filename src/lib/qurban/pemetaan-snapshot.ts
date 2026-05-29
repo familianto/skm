@@ -2,6 +2,7 @@ import type { QurbanDaftarHewan, JenisHewan, KelasHewan, StatusHewan, TipePembel
 import type { QurbanPeserta, TipeQurban } from './peserta-types';
 import { STATUS_TERDAFTAR } from './peserta-repo';
 import { HEWAN_STATUS } from './hewan-state-machine';
+import { masterHargaPerSlot } from './pemetaan-engine';
 
 /**
  * F5b Milestone A1 — Snapshot Pemetaan (PM2).
@@ -17,7 +18,8 @@ import { HEWAN_STATUS } from './hewan-state-machine';
  *     edisi_id, version,
  *     hewan: [
  *       { id, nomor_urut, tipe_pembelian, jenis, kelas, nama_tipe,
- *         kapasitas_slot, status, slots: [{ slot_number, peserta }] }
+ *         kapasitas_slot, status, harga_master_per_slot,
+ *         slots: [{ slot_number, peserta }] }
  *     ]
  *   }
  *
@@ -46,6 +48,10 @@ export interface SnapshotMasterInfo {
   jenis: JenisHewan;
   /** A | B | C | D. */
   kelas: KelasHewan;
+  /** `qurban_master_hewan.harga_beli` — harga 1 ekor utuh (BELI). */
+  harga_beli: number;
+  /** `qurban_master_hewan.kapasitas_slot` — pembagi harga per slot. */
+  kapasitas_slot: number;
 }
 
 export interface SnapshotPesertaSlot {
@@ -72,6 +78,14 @@ export interface SnapshotHewan {
   nama_tipe: string;
   kapasitas_slot: number;
   status: StatusHewan;
+  /**
+   * Harga master "per slot" untuk hewan ini = `master.harga_beli ÷
+   * master.kapasitas_slot`, dibulatkan via `masterHargaPerSlot` (konvensi
+   * tunggal PM1/PM2). Dipakai HargaDecisionModal sebagai "Harga master
+   * tujuan" — identik dengan nilai yang disimpan handler PM1 `use_new`.
+   * Master tidak terpetakan → 0 (tidak ada harga master yang diketahui).
+   */
+  harga_master_per_slot: number;
   slots: SnapshotSlot[];
 }
 
@@ -141,6 +155,11 @@ export function buildPemetaanSnapshot(
     const master = masterInfo.get(h.master_hewan_id);
     const jenis = master?.jenis ?? h.jenis;
     const kelas = master?.kelas ?? h.kelas;
+    // Harga master per slot: pakai master asli (konsisten dgn PM1 use_new).
+    // Master tak terpetakan → 0 (tidak ada harga master yang diketahui).
+    const hargaMasterPerSlot = master
+      ? masterHargaPerSlot(master.harga_beli, master.kapasitas_slot)
+      : 0;
     const slots: SnapshotSlot[] = [];
     for (let n = 1; n <= h.kapasitas_slot; n++) {
       slots.push({
@@ -157,6 +176,7 @@ export function buildPemetaanSnapshot(
       nama_tipe: formatNamaTipe(jenis, kelas),
       kapasitas_slot: h.kapasitas_slot,
       status: h.status,
+      harga_master_per_slot: hargaMasterPerSlot,
       slots,
     };
   });
