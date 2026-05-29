@@ -136,6 +136,7 @@ function makeEdisi(status: EdisiStatus): Edisi {
     created_at: '',
     updated_at: '',
     created_by: '',
+    pemetaan_version: '',
   };
 }
 

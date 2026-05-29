@@ -171,6 +171,8 @@ export async function POST(request: NextRequest) {
       created_at: now,
       updated_at: now,
       created_by: guard.session.user_id,
+      // F5b A1: token awal pemetaan = created_at. Di-bump nanti oleh PM1 (A2).
+      pemetaan_version: now,
     };
 
     await createEdisi(newEdisi);

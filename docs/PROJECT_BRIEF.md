@@ -338,7 +338,8 @@ Lihat detail di `SPRINT_PLAN.md` dan file individual di `sprints/`.
 | F4b | Pendaftaran Publik + Integrasi Fonnte (PB1–PB4) | — | ✅ Done |
 | F4c | UI Pendaftaran Qurban (panitia + publik daftar + cek-status) | 6 milestone A–F | ✅ Done |
 | F4d | Phone-primary lookup (PB2 v2 + M7 dual-mode) | 2 milestone A–B | ✅ Done |
-| F5b / F6 / F7 | Pemetaan slot · Pembayaran · Hari-H | TBD | ⏳ Planned |
+| F5b | Pemetaan Peserta↔Hewan (drag-drop) — A1 infra+PM2, A2 PM1, B UI | 3 milestone A1/A2/B | ✅ Done |
+| F6 / F7 | Pembayaran · Hari-H | TBD | ⏳ Planned |
 
 ### Sprint F02 — Qurban Edisi Management
 

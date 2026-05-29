@@ -11,11 +11,15 @@
 
 ## Current Sprint
 
-> **Sprint F4d — Phone-Primary Lookup** selesai (A & B). Publik (PB2) HP-dulu
-> + response tersamar; Panitia (M7) HP-exact + fuzzy nama, response penuh.
-> Satu mesin lookup di `lib/qurban/muqorib-lookup.ts`, dua kontrak. Lihat
-> `HANDOFF_SPRINT_F4d.md`. PR #92 Draft, menunggu verifikasi & merge.
-> Sprint berikutnya: F5b (Pemetaan), F6 (Pembayaran), F7 (Hari-H).
+> **Sprint F5b — Pemetaan Peserta↔Hewan (drag-drop)** selesai (A1 + A2 + B).
+> A1 = kolom `qurban_edisi.pemetaan_version` + PM2 snapshot. A2 = PM1
+> `batch-save` (atomic `batchUpdateRanges` + optimistic concurrency +
+> simulator cross-op + matriks `harga_decision` + audit). B = halaman
+> `/qurban/pemetaan` papan drag-drop (`@dnd-kit`, TouchSensor delay 200ms
+> iPad-first), modal harga cross-class, sticky save, mode "Atur Urutan
+> Hewan". Lihat `HANDOFF_SPRINT_F5b.md`. PR #93 Draft — menunggu
+> verifikasi screenshot iPad sebelum Hopy flip ke Ready. Sebelumnya:
+> F4d Phone-Primary Lookup ✅.
 
 Update baris ini setiap kali sprint berganti.
 
