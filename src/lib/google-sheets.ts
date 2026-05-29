@@ -124,6 +124,44 @@ class GoogleSheetsService {
   }
 
   /**
+   * Update banyak range dalam SATU HTTP call via `spreadsheets.values.batchUpdate`.
+   * Google Sheets API men-commit semua range secara atomik di sisi server —
+   * tidak ada partial write parsial yang ter-leak ke pembaca lain.
+   *
+   * Dipakai oleh PM1 batch-save (F5b A2) untuk apply move/swap/renumber
+   * peserta+hewan+edisi (bump pemetaan_version) sebagai satu kesatuan.
+   *
+   * Empty updates → no-op (tidak panggil API).
+   */
+  async batchUpdateRanges(
+    updates: Array<{
+      sheetName: string;
+      rowIndex: number; // 1-based, header di row 1
+      values: (string | number | boolean)[];
+    }>
+  ): Promise<void> {
+    if (updates.length === 0) return;
+    const client = await this.getClient();
+
+    const data = updates.map((u) => {
+      const endCol = columnIndexToLetter(u.values.length - 1);
+      const range = `${u.sheetName}!A${u.rowIndex}:${endCol}${u.rowIndex}`;
+      return {
+        range,
+        values: [u.values.map((v) => (v == null ? '' : String(v)))],
+      };
+    });
+
+    await client.spreadsheets.values.batchUpdate({
+      spreadsheetId: this.spreadsheetId,
+      requestBody: {
+        valueInputOption: 'RAW',
+        data,
+      },
+    });
+  }
+
+  /**
    * Generate next sequential ID for a given prefix
    * Format: PREFIX-YYYYMMDD-XXXX
    */

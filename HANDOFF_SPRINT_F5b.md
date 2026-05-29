@@ -5,8 +5,8 @@
 
 | ID | Title | Status |
 |---|---|---|
-| **A1** | Infra `qurban_edisi.pemetaan_version` + endpoint PM2 (`/api/qurban/pemetaan/state`) | ✅ done — kontrak ini |
-| A2 | Endpoint PM1 (`/api/qurban/pemetaan/batch-save`) — validate-first, atomic batch write, harga_decision, version bump | ⏳ next |
+| **A1** | Infra `qurban_edisi.pemetaan_version` + endpoint PM2 (`/api/qurban/pemetaan/state`) | ✅ done |
+| **A2** | Endpoint PM1 (`/api/qurban/pemetaan/batch-save`) — validate-first, atomic batch write, harga_decision, version bump | ✅ done |
 | B  | UI papan pemetaan (drag-drop, harga modal, sticky save) | ⏳ next |
 
 ---
@@ -139,25 +139,150 @@ bump version. UI drag-drop simpan-sekali di akhir.
 
 ---
 
-## Watch-out untuk A2 (PM1 batch-save)
+## Milestone A2 — selesai
 
-- **Atomic batch write**: tambah helper `spreadsheets.values.batchUpdate`
-  ke `google-sheets.ts` (mis. `batchUpdateRanges([{range, values}, ...])`)
-  agar PM1 commit multiple ranges dalam 1 HTTP call. Per-row `updateRow`
-  sequential = tidak atomik.
-- **Cross-op consistency**: simulasikan operasi berurutan terhadap state
-  in-memory yang ter-mutasi (bukan terhadap snapshot original); validate
-  final state, baru tulis.
-- **Bump `pemetaan_version`**: setelah batch write peserta+hewan sukses,
-  tulis ulang baris edisi dengan `pemetaan_version = new Date().toISOString()`.
-  Termasuk di batchUpdateRanges agar atomik dengan write data.
-- **Validator `harga_decision`**: `use_existing_target` hanya valid untuk
-  `swap_peserta`; move tidak boleh pakainya. `use_custom` butuh `harga_override`
-  non-negatif.
-- **Kapasitas guard**: `target_slot_number ∈ [1..target_hewan.kapasitas_slot]`,
-  baca `kapasitas_slot` dari `qurban_daftar_hewan` (bukan refetch master).
-- **PS2/PS5 race**: PM1 cek `expected_version == current` setelah re-read.
-  PS2/PS5 sendiri tidak bump `pemetaan_version` (sengaja); race window di
-  antaranya akan terdeteksi sebagai `409 CONFLICT_VERSION` saat PM1 re-read
-  occupancy dan kondisi target sudah berubah. Pertimbangkan menambah error
-  code baru `BUSINESS_PEMETAAN_INVALID` / `CONFLICT_VERSION` di `errors.ts`.
+### Deliverable A2
+
+1. **Helper `sheetsService.batchUpdateRanges`** di `src/lib/google-sheets.ts` —
+   wrapper `spreadsheets.values.batchUpdate`, 1 HTTP call atomik untuk
+   multi-range update lintas-sheet. `valueInputOption: 'RAW'`, empty updates
+   → no-op. Range A1 dihitung otomatis dari panjang `values` (A..Z, AA, …).
+2. **Schema operasi + request** di `src/lib/qurban/pemetaan-validators.ts`
+   (Zod discriminated union): `move_peserta`, `swap_peserta`, `renumber_hewan`.
+   Skema menolak `use_custom` tanpa override, `use_existing_target` di move,
+   `peserta_a_id == peserta_b_id`, `operations` 0 / > 100, `audit_notes >
+   500 char`.
+3. **Engine simulasi murni** `src/lib/qurban/pemetaan-engine.ts` —
+   `buildSimulateState` + `simulateBatch(state, masterIndex, ops)`. Ops
+   sekuensial terhadap state in-memory ter-mutasi; per-op validasi (peserta
+   ada & TERDAFTAR, hewan ada & AKTIF, kapasitas slot, harga_decision konsisten);
+   final-state validasi (kolisi slot, kapasitas, hewan AKTIF). `initialState`
+   **tidak ter-mutasi** (deep-clone).
+4. **Matriks `harga_decision`**:
+
+   | Op | Decision | Efek |
+   |---|---|---|
+   | move | `use_old` | tetap |
+   | move | `use_new` | = `master[target.master_hewan_id].harga` (per-slot) |
+   | move | `use_custom` | = `harga_override` |
+   | swap | `use_old` | tetap |
+   | swap | `use_new` | A → master harga tujuan A; B → master harga tujuan B |
+   | swap | `use_existing_target` | tukar A↔B |
+   | swap | `use_custom` | A→`harga_override_a`; B→`harga_override_b` |
+
+   `kode_bayar` per-pendaftaran **tidak pernah** berubah di PM1; `nama_atas_nama`
+   per-slot ikut peserta.
+5. **Audit emitter** `src/lib/qurban/pemetaan-audit.ts` — 1 event
+   `pemetaan.batch_save` per PM1 sukses, `detail.after = { version_before,
+   version_after, operations, audit_notes }`. Non-blocking.
+6. **Error codes baru** di `src/lib/api/errors.ts`:
+   - `CONFLICT_VERSION` (HTTP 409) — `expected_version` stale.
+   - `BUSINESS_PEMETAAN_INVALID` (HTTP 422) — op gagal validasi /
+     final-state collision (+ `failed_op_index`, `error_code` internal).
+7. **Handler PM1** `src/app/api/qurban/pemetaan/batch-save/route.ts`:
+   role SA/AQ/PD; edisi gate writable + AKTIF (mirror PS2 create); algoritma
+   `version check → re-read fresh → simulate → batchUpdateRanges → audit`.
+   Response lean: `{ version, applied, affected_peserta_ids, affected_hewan_ids }`.
+8. **Tes baru:**
+   - `pemetaan-validators.test.ts` — 17 cases (move/swap/renumber + matriks
+     harga_decision + body shape).
+   - `pemetaan-engine.test.ts` — 18 cases (happy paths per op + matriks
+     harga 4 case di swap + cross-op consistency + cross-op collision +
+     BATAL/non-AKTIF/out-of-range guards + deep-clone immutability).
+   - `google-sheets.test.ts` — 4 cases untuk `batchUpdateRanges` (empty
+     no-op, 3-update lintas-sheet → 1 call dengan struktur `data[]` benar,
+     numeric coercion ke string, kolom > 26 → notasi AA).
+   - **Baseline `npm test`: 391 → 430 pass (semua hijau).**
+
+### Keputusan yang dikunci di A2
+
+- **`sheetsService.batchUpdateRanges` dipakai langsung di PM1**, satu HTTP
+  call meng-commit peserta-changed + hewan-changed + bump edisi
+  `pemetaan_version`. Atomik di sisi Google Sheets (tidak ada partial write
+  yang ter-leak ke pembaca lain bahkan jika koneksi terputus mid-call).
+- **Edisi gate PM1 = `requireAktif`-style** (DRAFT/SELESAI semuanya 422),
+  bukan `requireWritable` longgar — mirror PS2 create. Pertanyaan ini ada
+  di prompt awal "writable (AKTIF, tidak locked)" — interpretasi PS2-style
+  dipilih karena writes pemetaan adalah operasi produksi (analog dengan
+  pendaftaran) yang tidak masuk akal di DRAFT.
+- **Bump `pemetaan_version` selalu**, bahkan ketika `changes.pesertaIds` &
+  `changes.hewanIds` keduanya kosong (misal renumber no-op atau move yang
+  net-zero). Alasan: request tetap meng-invalidate snapshot client (tag
+  baru), dan biaya tulis 1 baris edisi murah.
+- **Race dengan PS2/PS5 ditangani re-read segar di langkah 4**, bukan
+  via PS2/PS5 yang ikut bump `pemetaan_version`. Trade-off: panitia bisa
+  dapat 422 collision walaupun version cocok di langkah 3. Pertukaran ini
+  dipilih supaya PS2/PS5 (panas) tidak punya I/O tambahan, sementara PM1
+  (jarang) menelan biaya re-read penuh.
+- **`renumber_hewan` tidak menegakkan urutan jenis** (BAWA_SENDIRI vs
+  BELI) — paritas dengan H5 reorder. Penegakan = keputusan produk masa
+  depan.
+- **Master index `harga`** = `master.harga_beli / kapasitas_slot` (per-slot,
+  dibulatkan). PM1 `use_new` memakai harga ini. `BAWA_SENDIRI` punya
+  `harga_bawa_sendiri` yang berbeda; PM1 saat ini tidak membedakan tipe
+  pembelian peserta saat re-pricing — kasus pindah ke hewan `BAWA_SENDIRI`
+  + `use_new` akan tetap memakai `harga_beli / kapasitas`. Kalau dukungan
+  cross-tipe penting di UI, B (Milestone) bisa men-default ke `use_custom`
+  untuk cross-tipe move. Catat sebagai watch-out untuk B.
+- **Audit 1 event per request** (bukan per-op) — sesuai docs 3.E §9.4 dan
+  konsisten dengan pola batch-update lain di repo.
+
+### Hal yang sengaja TIDAK dilakukan di A2
+
+- Tidak menyentuh PS2/PS4/PS5/PS7/PS8 — race dijaga re-read.
+- Tidak ada migrasi `.gs` baru — kolom `pemetaan_version` sudah ada dari A1.
+- Tidak ada UI / lib drag-drop — itu B.
+- Tidak ada handler-level integration test penuh (would need `node:test`
+  `--experimental-test-module-mocks` + ESM module-mocking yang fragile).
+  Coverage handler dijaga lewat: schema (Zod tests), engine (cross-op
+  tests), `batchUpdateRanges` (mocked client tests), error codes
+  terdefinisi. Handler glue verified manual via `npm run build` (route
+  terdaftar) dan code review.
+
+### Files (A2)
+
+**Lib:**
+- `src/lib/google-sheets.ts` — `batchUpdateRanges` ditambahkan.
+- `src/lib/api/errors.ts` — `CONFLICT_VERSION` + `BUSINESS_PEMETAAN_INVALID`.
+- `src/lib/qurban/pemetaan-validators.ts` (baru) — Zod schema.
+- `src/lib/qurban/pemetaan-engine.ts` (baru) — simulator murni.
+- `src/lib/qurban/pemetaan-audit.ts` (baru) — emitter `pemetaan.batch_save`.
+- `src/lib/qurban/pemetaan-context.ts` — tambahkan `resolveEdisiRecordForPemetaanWrite`.
+- `src/lib/qurban/peserta-repo.ts` — tambah `listPesertaRecordsByEdisi` (return rowIndex).
+
+**Route:**
+- `src/app/api/qurban/pemetaan/batch-save/route.ts` (baru) — handler PM1.
+
+**Test:**
+- `src/lib/qurban/__tests__/pemetaan-validators.test.ts` (baru).
+- `src/lib/qurban/__tests__/pemetaan-engine.test.ts` (baru).
+- `src/lib/__tests__/google-sheets.test.ts` (baru).
+- `package.json` — daftarkan 3 test baru.
+
+**Docs:**
+- `docs/API_REFERENCE.md` — section PM1 lengkap + matriks `harga_decision`
+  + error codes + audit events Pemetaan.
+- `HANDOFF_SPRINT_F5b.md` (file ini).
+
+---
+
+## Watch-out untuk B (UI drag-drop)
+
+- **Pasang lib drag-drop** — rekomendasi `@dnd-kit/core` + `@dnd-kit/sortable`
+  (tree-shakable, headless, a11y support React 19).
+- **Refresh-after-save**: setelah PM1 sukses, klien WAJIB refetch PM2
+  (`version` baru dari response). Jangan apply changes optimistically
+  tanpa re-fetch.
+- **Modal harga**: tampilkan saat drop cross-class atau cross-tipe (BELI ↔
+  BAWA_SENDIRI). Default radio: `use_old`. `use_custom` butuh input number
+  ≥ 0.
+- **Sticky save bar**: kumpulkan operasi lokal dulu, kirim sekali di akhir.
+  Konfirmasi sebelum diskard saat user navigate away.
+- **Handle 409 CONFLICT_VERSION**: tampilkan "Papan sudah diperbarui pihak
+  lain. Muat ulang untuk menyimpan ulang." + tombol refresh.
+- **Handle 422 BUSINESS_PEMETAAN_INVALID**: highlight op yang gagal pakai
+  `failed_op_index`; tampilkan pesan engine.
+- **Master harga cross-tipe**: lihat catatan di "Keputusan yang dikunci"
+  — UI sebaiknya pakai `use_custom` (atau force `use_existing_target`/
+  `use_old`) untuk cross-tipe move agar tidak salah-charge ke harga BELI
+  saat peserta dipindah ke hewan BAWA_SENDIRI atau sebaliknya.

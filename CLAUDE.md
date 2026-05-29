@@ -12,12 +12,13 @@
 ## Current Sprint
 
 > **Sprint F5b — Pemetaan Peserta↔Hewan (drag-drop)** dalam progres.
-> Milestone **A1 selesai**: kolom `qurban_edisi.pemetaan_version` (token
-> concurrency) + endpoint **PM2** `GET /api/qurban/pemetaan/state` (snapshot
-> read-only hewan+slot+peserta+version). Migrasi sheet di
-> `scripts/migrate_F5b_pemetaan_version.gs` (idempoten, DRY_RUN). Lihat
-> `HANDOFF_SPRINT_F5b.md`. PR Draft. Lanjut **A2** (PM1 batch-save) → **B**
-> (UI drag-drop). Sebelumnya: F4d Phone-Primary Lookup ✅.
+> Milestone **A1 + A2 selesai**: A1 = kolom `qurban_edisi.pemetaan_version`
+> + endpoint **PM2** `GET /api/qurban/pemetaan/state`. A2 = endpoint **PM1**
+> `POST /api/qurban/pemetaan/batch-save` (atomic `batchUpdateRanges` +
+> optimistic concurrency `expected_version` + simulator cross-op + matriks
+> `harga_decision` + audit `pemetaan.batch_save`). Lihat
+> `HANDOFF_SPRINT_F5b.md`. PR Draft. Lanjut **B** (UI drag-drop).
+> Sebelumnya: F4d Phone-Primary Lookup ✅.
 
 Update baris ini setiap kali sprint berganti.
 

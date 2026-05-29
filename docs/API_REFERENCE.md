@@ -2153,7 +2153,7 @@ slots[] }`, tiap slot `{ hewan_id, nomor_urut, slot_number }` (hanya hewan
 
 Sprint F5b membangun papan pemetaan Peserta↔Hewan dengan simpan-batch aman
 konkurensi. Disusun dalam 3 milestone: **A1 (infra `pemetaan_version` + PM2
-snapshot — ✅ kontrak ini)**, **A2 (PM1 `batch-save`)**, **B (UI drag-drop)**.
+snapshot — ✅)**, **A2 (PM1 `batch-save` — ✅)**, **B (UI drag-drop — ⏳)**.
 
 ### Schema add-on — `qurban_edisi.pemetaan_version`
 
@@ -2233,17 +2233,125 @@ edisi). Transformasi via fungsi murni `buildPemetaanSnapshot` di
   diabaikan, tidak menggelembungkan `slots[]`.
 - `muqorib_nama` lookup miss → string kosong (UI tetap render).
 
-### Error Codes (Pemetaan A1)
+### PM1 — `POST /api/qurban/pemetaan/batch-save`
+
+**Role:** SUPER_ADMIN, ADMIN_QURBAN, PENDAFTARAN (BENDAHARA & DISTRIBUSI
+tidak boleh menulis → 403).
+
+**Edisi gate:** edisi WAJIB `AKTIF` untuk SEMUA peran (mirror PS2 create).
+DRAFT → `422 BUSINESS_EDISI_NOT_AKTIF`; SELESAI → `422 BUSINESS_EDISI_LOCKED`.
+
+**Request body:**
+
+```jsonc
+{
+  "edisi_id": "EDS-...",
+  "expected_version": "2026-05-28T13:14:15.000Z",   // dari PM2 snapshot
+  "operations": [
+    {
+      "type": "move_peserta",
+      "peserta_id": "PST-...",
+      "target_hewan_id": "HWN-...",
+      "target_slot_number": 2,
+      "harga_decision": "use_old",                  // use_old | use_new | use_custom
+      "harga_override": 1500000                     // wajib jika use_custom
+    },
+    {
+      "type": "swap_peserta",
+      "peserta_a_id": "PST-A",
+      "peserta_b_id": "PST-B",
+      "harga_decision": "use_old"                   // use_old | use_new | use_existing_target | use_custom
+    },
+    {
+      "type": "renumber_hewan",
+      "hewan_id": "HWN-...",
+      "new_nomor_urut": 3
+    }
+  ],
+  "audit_notes": "..."                              // opsional, max 500 char
+}
+```
+
+`operations`: 1..100 per request. Operasi dieksekusi sekuensial terhadap
+state in-memory yang ter-mutasi — tiap op melihat hasil op sebelumnya.
+
+**Matriks `harga_decision`** (efek pada `peserta.harga_disepakati`):
+
+| Op | Decision | Efek |
+|---|---|---|
+| move | `use_old` | tidak berubah |
+| move | `use_new` | = `master[target_hewan.master_hewan_id].harga` (per-slot) |
+| move | `use_custom` | = `harga_override` |
+| swap | `use_old` | A & B tetap |
+| swap | `use_new` | A → master harga hewan tujuan A (= asal B); B → master harga tujuan B (= asal A) |
+| swap | `use_existing_target` | A & B **tukar** `harga_disepakati` |
+| swap | `use_custom` | A → `harga_override_a`; B → `harga_override_b` |
+
+`nama_atas_nama` per-slot ikut peserta (tidak diubah operasi pemetaan).
+`kode_bayar` per-pendaftaran **TIDAK PERNAH** berubah di PM1.
+`renumber_hewan` **TIDAK menegakkan urutan jenis** (paritas dengan H5 reorder).
+
+**Algoritma handler:**
+1. Validasi schema Zod.
+2. Resolve edisi (writable + AKTIF).
+3. Cek `qurban_edisi.pemetaan_version === expected_version`. Mismatch →
+   `409 CONFLICT_VERSION` **tanpa penulisan**.
+4. **Re-read state SEGAR** (peserta TERDAFTAR + hewan AKTIF + master harga
+   per-edisi). Bukan dari snapshot client — penting untuk menangkap perubahan
+   via PS2/PS5 yang tidak bump `pemetaan_version`.
+5. Simulasi via fungsi murni `simulateBatch` (lihat `src/lib/qurban/pemetaan-engine.ts`):
+   per-op validasi (peserta ada & TERDAFTAR, hewan ada & AKTIF, slot dalam
+   kapasitas, harga_decision konsisten) + final-state collision check (tidak
+   ada dua peserta TERDAFTAR di `(hewan_id, slot_number)` sama). Gagal →
+   `422 BUSINESS_PEMETAAN_INVALID` (+ `failed_op_index`, `error_code` internal).
+6. Susun update lintas-sheet: peserta-changed + hewan-changed + edisi (bump
+   `pemetaan_version = new Date().toISOString()` + `updated_at`).
+7. `sheetsService.batchUpdateRanges(...)` — **1 HTTP call ke
+   `spreadsheets.values.batchUpdate`, atomik di sisi Google**.
+8. Audit `pemetaan.batch_save` (1 event per request, `operations[]` di
+   `detail.after`; non-blocking).
+9. Response sukses 200 (lean):
+
+```jsonc
+{
+  "ok": true,
+  "data": {
+    "version": "2026-05-28T13:14:16.000Z",      // baru
+    "applied": 3,                                // jumlah operasi
+    "affected_peserta_ids": ["PST-1", "PST-2"],
+    "affected_hewan_ids": ["HWN-3"]
+  }
+}
+```
+
+Klien refetch PM2 untuk merefresh papan dengan `version` baru.
+
+**Race PS2/PS5:** PM1 tidak menyentuh PS2/PS4/PS5/PS7/PS8. Race window
+(snapshot stale antara load PM2 dan save PM1 walaupun `version` masih cocok,
+karena PS2/PS5 tidak bump `pemetaan_version`) dijaga oleh re-read state segar
+di langkah 4 — kalau slot target ternyata sudah keisi peserta baru via PS2,
+simulator menolak op tsb → 422 atomik, tidak ada partial write.
+
+### Error Codes (Pemetaan)
 
 | Kode | HTTP | Pemicu |
 |---|---|---|
 | `VALIDATION_REQUIRED` | 400 | `edisi_id` kosong |
-| `FORBIDDEN_ROLE` | 403 | role tidak di whitelist |
-| `FORBIDDEN_EDISI` | 403 | panitia menarget edisi non-AKTIF |
+| `VALIDATION_FAILED` | 400 | Body PM1 gagal schema (bentuk operasi, harga_override hilang, dst) |
+| `FORBIDDEN_ROLE` | 403 | role tidak di whitelist (BD/DS di PM1) |
+| `FORBIDDEN_EDISI` | 403 | panitia menarget edisi non-AKTIF (PM2 read) |
 | `NOT_FOUND` | 404 | edisi_id tidak ditemukan |
-| `INTERNAL_ERROR` | 500 | gagal baca Sheets |
+| `CONFLICT_VERSION` | 409 | `expected_version` ≠ `pemetaan_version` saat ini |
+| `BUSINESS_EDISI_NOT_AKTIF` | 422 | PM1 di edisi DRAFT |
+| `BUSINESS_EDISI_LOCKED` | 422 | PM1 di edisi SELESAI |
+| `BUSINESS_PEMETAAN_INVALID` | 422 | Op gagal validasi atau final-state collision |
+| `INTERNAL_ERROR` | 500 | gagal baca/tulis Sheets |
 
-PM1 + harga-decision + version-mismatch → didefinisikan di Milestone A2.
+### Audit Events (Pemetaan)
+
+| `event_type` | Aksi | Sumber |
+|---|---|---|
+| `pemetaan.batch_save` | `UPDATE` | PM1 (1 event per request; `detail.after` = `{ version_before, version_after, operations, audit_notes }`) |
 
 ---
 

@@ -140,6 +140,37 @@ export async function listPesertaByEdisi(edisiId: string): Promise<QurbanPeserta
   return listPeserta({ edisi_id: edisiId });
 }
 
+/**
+ * List peserta + their 1-based sheet row index for one edisi (optionally
+ * filtered). Dipakai PM1 batch-save (F5b A2) yang butuh rowIndex untuk
+ * `batchUpdateRanges`. Defensive: kalau sheet missing → `[]`.
+ */
+export async function listPesertaRecordsByEdisi(
+  edisiId: string,
+  filter: Omit<PesertaFilter, 'edisi_id'> = {}
+): Promise<PesertaRecord[]> {
+  if (!edisiId) return [];
+  try {
+    const rows = await sheetsService.getRows(PESERTA_SHEET);
+    const out: PesertaRecord[] = [];
+    rows.forEach((r, i) => {
+      if (!r[COL.id]) return;
+      const p = mapRowToPeserta(r);
+      if (p.edisi_id !== edisiId) return;
+      if (filter.status_pendaftaran && p.status_pendaftaran !== filter.status_pendaftaran) return;
+      if (filter.hewan_id && p.hewan_id !== filter.hewan_id) return;
+      if (filter.muqorib_id && p.muqorib_id !== filter.muqorib_id) return;
+      if (filter.tipe_qurban && p.tipe_qurban !== filter.tipe_qurban) return;
+      if (filter.sumber_pendaftaran && p.sumber_pendaftaran !== filter.sumber_pendaftaran) return;
+      out.push({ rowIndex: i + 2, peserta: p });
+    });
+    return out;
+  } catch (err) {
+    console.error('[peserta-repo.listPesertaRecordsByEdisi] failed:', err);
+    return [];
+  }
+}
+
 export async function getPesertaById(id: string): Promise<QurbanPeserta | null> {
   const rec = await getPesertaRecordById(id);
   return rec ? rec.peserta : null;
