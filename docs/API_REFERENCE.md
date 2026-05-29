@@ -2204,6 +2204,7 @@ edisi). Transformasi via fungsi murni `buildPemetaanSnapshot` di
         "nama_tipe": "SAPI Kelas A",              // disintesis "<jenis> Kelas <kelas>"
         "kapasitas_slot": 7,                      // dari hewan row (denormalisasi)
         "status": "AKTIF",
+        "harga_master_per_slot": 3500000,         // master.harga_beli ÷ master.kapasitas_slot, Math.round
         "slots": [
           {
             "slot_number": 1,
@@ -2232,6 +2233,12 @@ edisi). Transformasi via fungsi murni `buildPemetaanSnapshot` di
 - Peserta dengan `slot_number` di luar `1..kapasitas_slot` (data korup) →
   diabaikan, tidak menggelembungkan `slots[]`.
 - `muqorib_nama` lookup miss → string kosong (UI tetap render).
+- `harga_master_per_slot` = harga master "per slot" hewan ini
+  (`master.harga_beli ÷ master.kapasitas_slot`, dibulatkan `Math.round` via
+  `masterHargaPerSlot` — konvensi tunggal yang sama dengan PM1 `use_new`).
+  Dipakai HargaDecisionModal sebagai "Harga master tujuan" pada drop
+  cross-class, jadi angka yang di-display **identik** dengan yang nantinya
+  disimpan PM1. Master tak terpetakan → `0`.
 
 ### PM1 — `POST /api/qurban/pemetaan/batch-save`
 

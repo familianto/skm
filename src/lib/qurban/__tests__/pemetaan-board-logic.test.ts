@@ -209,6 +209,7 @@ function mkHewan(id: string, nomor_urut: number, slots: SnapshotHewan['slots']):
     nama_tipe: 'SAPI Kelas A',
     kapasitas_slot: slots.length,
     status: 'AKTIF',
+    harga_master_per_slot: 0,
     slots,
   };
 }
