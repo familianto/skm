@@ -1,13 +1,13 @@
 # HANDOFF Sprint F5b — Pemetaan Peserta↔Hewan (Drag-Drop)
 
-**Branch:** `claude/f5b-pemetaan-recon-8idld` (PR: `F5b — Pemetaan Peserta↔Hewan`, Draft)
+**Branch:** `claude/f5b-pemetaan-recon-8idld` (PR #93 — `F5b — Pemetaan Peserta↔Hewan`, **Draft, menunggu verifikasi iPad screenshots**)
 **Status milestone:**
 
 | ID | Title | Status |
 |---|---|---|
 | **A1** | Infra `qurban_edisi.pemetaan_version` + endpoint PM2 (`/api/qurban/pemetaan/state`) | ✅ done |
 | **A2** | Endpoint PM1 (`/api/qurban/pemetaan/batch-save`) — validate-first, atomic batch write, harga_decision, version bump | ✅ done |
-| B  | UI papan pemetaan (drag-drop, harga modal, sticky save) | ⏳ next |
+| **B**  | UI papan pemetaan (`/qurban/pemetaan`, `@dnd-kit`, modal harga cross-class, sticky save, mode atur urutan) | ✅ done |
 
 ---
 
@@ -266,23 +266,159 @@ bump version. UI drag-drop simpan-sekali di akhir.
 
 ---
 
-## Watch-out untuk B (UI drag-drop)
+## Milestone B — selesai
 
-- **Pasang lib drag-drop** — rekomendasi `@dnd-kit/core` + `@dnd-kit/sortable`
-  (tree-shakable, headless, a11y support React 19).
-- **Refresh-after-save**: setelah PM1 sukses, klien WAJIB refetch PM2
-  (`version` baru dari response). Jangan apply changes optimistically
-  tanpa re-fetch.
-- **Modal harga**: tampilkan saat drop cross-class atau cross-tipe (BELI ↔
-  BAWA_SENDIRI). Default radio: `use_old`. `use_custom` butuh input number
-  ≥ 0.
-- **Sticky save bar**: kumpulkan operasi lokal dulu, kirim sekali di akhir.
-  Konfirmasi sebelum diskard saat user navigate away.
-- **Handle 409 CONFLICT_VERSION**: tampilkan "Papan sudah diperbarui pihak
-  lain. Muat ulang untuk menyimpan ulang." + tombol refresh.
-- **Handle 422 BUSINESS_PEMETAAN_INVALID**: highlight op yang gagal pakai
-  `failed_op_index`; tampilkan pesan engine.
-- **Master harga cross-tipe**: lihat catatan di "Keputusan yang dikunci"
-  — UI sebaiknya pakai `use_custom` (atau force `use_existing_target`/
-  `use_old`) untuk cross-tipe move agar tidak salah-charge ke harga BELI
-  saat peserta dipindah ke hewan BAWA_SENDIRI atau sebaliknya.
+### Deliverable B
+
+1. **Dependensi** `@dnd-kit/core`, `@dnd-kit/sortable`, `@dnd-kit/utilities`.
+2. **Halaman server** `src/app/(dashboard)/qurban/pemetaan/page.tsx` —
+   pattern sama dengan `/qurban/peserta`: resolve edisi via
+   `getEdisiContext` (?edisi → cookie → AKTIF default), kirim `edisiId` ke
+   `PemetaanBoard`. Empty state dengan CTA "Kelola Edisi" kalau belum
+   ada edisi.
+3. **Sidebar entry** "Pemetaan" antara "Hewan" dan "Peserta". Visible
+   untuk SA/BD/AQ/PD/DS; readOnly indicator untuk BD/DS (yang memang tidak
+   bisa write — backend tetap yang men-gate). Whitelist permissions
+   `/qurban/pemetaan` sudah ada dari sebelumnya.
+4. **Pure helpers** `src/lib/qurban/pemetaan-board-logic.ts`:
+   - `isSameClass`/`isCrossClass`/`isCrossTipe` — `(jenis, kelas)` tuple
+     sebagai proxy `master_hewan_id` karena F03 menjamin unik per edisi
+     (snapshot PM2 tidak meng-ekspose `master_hewan_id`).
+   - `moveHargaOptions`/`swapHargaOptions` — opsi radio modal harga dengan
+     metadata `{disabled, isDefault, note}` per opsi. **Cross-tipe → `use_new`
+     disabled + default `use_custom`**.
+   - `classifyDrop` — slot terisi → swap; kosong → move. Cross-class →
+     `needsModal: true`.
+   - `buildRenumberOps` — diff posisi baru vs nomor_urut asal.
+   - `applyMoveLocal`/`applySwapLocal`/`applyRenumberLocal` — mutasi
+     immutable salinan snapshot untuk preview UI.
+5. **Modal harga** `src/components/qurban/HargaDecisionModal.tsx` — dua
+   varian (move/swap), unmount/mount untuk reset state (hindari
+   `useEffect` set-state-in-effect rule React 19). Cross-tipe radio
+   `use_new` disabled + note penjelasan; default `use_custom` dengan input
+   CurrencyInput.
+6. **Komponen utama** `src/components/qurban/PemetaanBoard.tsx`:
+   - Sensor: `PointerSensor` (`distance: 5`) + **`TouchSensor` (`delay: 200,
+     tolerance: 5`)** untuk iPad Safari.
+   - State: `initial` (snapshot server), `local` (preview ter-mutasi),
+     `pendingOps[]`, `version`. `dirty = pendingOps.length > 0`.
+   - Drag peserta antar slot → `move_peserta` atau `swap_peserta`. Same-class
+     silent default `use_old`; cross-class → modal.
+   - Mode "Atur Urutan Hewan" → `SortableContext` horizontal di kolom.
+     Renumber ops dihitung diff dari `initial` (bukan kumulatif lokal) untuk
+     hindari ops duplikat.
+   - **Save flow**: POST `batch-save` dengan `expected_version`. Sukses →
+     toast + **refetch PM2 penuh** (versi & harga server sebagai sumber
+     kebenaran). 409 → modal "Papan basi" satu tombol Muat Ulang. 422 →
+     toast dengan `failed_op_index` + refetch + buang local ops.
+   - Tombol "Buang Perubahan" dengan ConfirmDialog (destruktif).
+   - `touchAction: 'none'` pada card peserta (iPad Safari scroll vs drag).
+   - Read-only mode kalau peran tidak di write whitelist (BD/DS).
+7. **Tests** `src/lib/qurban/__tests__/pemetaan-board-logic.test.ts` —
+   23 cases: cross-class/cross-tipe detection, opsi modal (move +
+   swap, same-tipe vs cross-tipe), `classifyDrop` semua kuadran,
+   `buildRenumberOps` permutasi, `applyMoveLocal`/`applySwapLocal`/
+   `applyRenumberLocal` (immutability, harga override).
+   **`npm test`: 430 → 453 pass.**
+
+### Keputusan yang dikunci di B
+
+- **`(jenis, kelas)` sebagai proxy cross-class**, bukan `master_hewan_id`
+  (yang tidak diexpose snapshot). F03 invariant menjamin tuple ini unik per
+  edisi → ekuivalensi penuh. Tidak ada gap; tidak menyentuh PM2.
+- **`@dnd-kit` (`/core`, `/sortable`, `/utilities`)** — headless React 19
+  + tree-shakable, support touch sensor dengan activation constraint.
+- **`TouchSensor` `delay: 200ms, tolerance: 5px`** — pola dari dnd-kit
+  docs untuk membedakan tap-drag dari scroll di iPad Safari.
+- **`touchAction: 'none'`** pada element peserta + `select-none` untuk
+  menghentikan teks-selection + scroll-bounce.
+- **Save flow selalu refetch PM2** setelah sukses — tidak optimistic
+  update dengan response PM1 lean. Alasan: server bisa mengubah harga via
+  `use_new`/swap, dan client harus melihat sumber kebenaran.
+- **422 BUSINESS_PEMETAAN_INVALID** → refetch + buang ops lokal
+  (konservatif: lebih aman daripada nahan ops yang valid + ops invalid
+  campur).
+- **Modal mount/unmount via parent conditional** (`{hargaModal?.kind ===
+  'move' && <…/>}`) menghindari `useEffect` reset-state pattern yang
+  dilarang React 19 `react-hooks/set-state-in-effect`.
+- **`hargaTargetMaster`** di modal move = harga peserta pertama di
+  `(jenis, kelas, tipe_pembelian)` target — proxy, bukan master sebenarnya.
+  Cukup untuk display "Harga master tujuan: Rp X" sebagai konteks. UI
+  tidak otomatis memakai nilai ini — operator yang memilih radio.
+
+### Hal yang sengaja TIDAK dilakukan di B
+
+- Tidak menambah/mengubah endpoint backend. PM2/PM1/audit/error codes tetap
+  apa adanya.
+- Tidak menambah `master_hewan_id` ke snapshot PM2 — `(jenis, kelas)`
+  proxy cukup.
+- Tidak menegakkan urutan jenis di UI (paritas backend H5/PM1).
+- Tidak flip PR ke Ready for review — menunggu verifikasi screenshot di
+  iPad oleh Hopy.
+
+### Files (B)
+
+**Lib:**
+- `src/lib/qurban/pemetaan-board-logic.ts` (baru) — pure helpers.
+
+**Component:**
+- `src/components/qurban/PemetaanBoard.tsx` (baru).
+- `src/components/qurban/HargaDecisionModal.tsx` (baru).
+
+**Page:**
+- `src/app/(dashboard)/qurban/pemetaan/page.tsx` (baru).
+
+**Sidebar:**
+- `src/components/layout/sidebar.tsx` — entry "Pemetaan" + icon.
+
+**Test:**
+- `src/lib/qurban/__tests__/pemetaan-board-logic.test.ts` (baru) — 23 cases.
+- `package.json` — daftarkan test + deps `@dnd-kit/*`.
+
+**Docs:**
+- `docs/API_REFERENCE.md` — note halaman `/qurban/pemetaan`.
+- `HANDOFF_SPRINT_F5b.md` (file ini).
+- `docs/PROJECT_BRIEF.md` — F5b ke "Done".
+- `CLAUDE.md` — Current Sprint line.
+
+---
+
+## F5b — Selesai (rangkuman 3 milestone)
+
+**A1 (commit `a5c05b9`)** — kolom `qurban_edisi.pemetaan_version` + migration
+script Apps Script (idempoten + DRY_RUN + backfill batch `setValues`) + PM2
+snapshot endpoint + fungsi murni `buildPemetaanSnapshot` + 14 tests.
+
+**A2 (commit `daa2f93`)** — helper `sheetsService.batchUpdateRanges`
+(`spreadsheets.values.batchUpdate` wrapper, 1 HTTP call atomik) + Zod
+schema operasi + engine simulator murni `simulateBatch` (cross-op + matriks
+harga + final-state collision check) + audit emitter `pemetaan.batch_save`
++ error codes baru (`CONFLICT_VERSION`, `BUSINESS_PEMETAAN_INVALID`) +
+handler PM1 (`version check → re-read fresh → simulate → batch write →
+audit`) + 39 tests.
+
+**B (commit ini)** — halaman `/qurban/pemetaan` + sidebar entry +
+`PemetaanBoard` papan drag-drop iPad-first + `HargaDecisionModal` cross-class
++ pure logic helpers + 23 tests.
+
+**Test baseline:** 288 → 391 (A1) → 430 (A2) → **453 (B)** semua hijau.
+
+**Pre-production checklist final:**
+
+1. Operator: jalankan `migrate_F5b_pemetaan_version.gs` di PRODUCTION
+   (DRY_RUN → apply) + `verify_F5b_pemetaan_version()` → semua ✅.
+2. Verifikasi visual di iPad Safari preview Vercel (lihat checklist di
+   PR description).
+3. Hopy flip PR #93 ke "Ready for review" + squash-merge ke `main` via
+   GitHub UI.
+4. Branch `claude/f5b-pemetaan-recon-8idld` dipertahankan pasca-merge.
+
+**Limitations & polish items kelak:**
+- Handler-level integration test PM1 di-skip — would need
+  `--experimental-test-module-mocks`. Coverage handler dijaga via pure
+  engine + validators + helper tests.
+- `hargaTargetMaster` di modal move adalah proxy dari peserta existing
+  di kelas tujuan, bukan harga master sebenarnya — cukup untuk display.
+  Kalau perlu akurasi penuh, perlu PM2 expose master harga (gap kecil).
+- Penegakan urutan jenis (BAWA_SENDIRI sebelum BELI) di renumber tidak
+  ada — sengaja, paritas dengan H5.

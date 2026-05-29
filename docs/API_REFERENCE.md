@@ -2353,6 +2353,37 @@ simulator menolak op tsb → 422 atomik, tidak ada partial write.
 |---|---|---|
 | `pemetaan.batch_save` | `UPDATE` | PM1 (1 event per request; `detail.after` = `{ version_before, version_after, operations, audit_notes }`) |
 
+### UI — `/qurban/pemetaan` (F5b B)
+
+Papan drag-drop konsumsi PM2 + commit batch via PM1. iPad Safari sebagai
+target utama: `TouchSensor` dengan `delay: 200ms, tolerance: 5px`
+membedakan tap-drag dari scroll.
+
+| Interaksi | Hasilkan op |
+|---|---|
+| Drag peserta → slot kosong, same-class | `move_peserta` silent, `harga_decision: 'use_old'` |
+| Drag peserta → slot kosong, cross-class | Modal harga (move) → `move_peserta` dengan decision pilihan operator |
+| Drag peserta → slot terisi, same-class | `swap_peserta` silent, `harga_decision: 'use_old'` |
+| Drag peserta → slot terisi, cross-class | Modal harga (swap) → `swap_peserta` dengan decision pilihan operator |
+| Mode "Atur Urutan Hewan" → drag kolom | `renumber_hewan` per hewan yang `nomor_urut`-nya berubah |
+| Klik "Simpan Pemetaan" | POST PM1 dengan `expected_version` snapshot lokal |
+| Klik "Buang Perubahan" | Reset ke snapshot terakhir |
+
+**Cross-tipe handling:** Saat drop dari hewan BELI ke BAWA_SENDIRI (atau
+sebaliknya), modal harga **disable opsi `use_new`** dan default ke
+`use_custom` — karena PM1 `use_new` selalu pakai `harga_beli/kapasitas`
+yang tidak masuk akal untuk hewan BAWA_SENDIRI.
+
+**Save flow:** sukses → refetch PM2 penuh (server sumber kebenaran untuk
+harga dan version baru). 409 `CONFLICT_VERSION` → modal "Papan basi" satu
+tombol Muat Ulang. 422 `BUSINESS_PEMETAAN_INVALID` → toast dengan
+`failed_op_index` + refetch + buang local ops.
+
+**Role gating UI:** sidebar entry "Pemetaan" visible untuk SA/BD/AQ/PD/DS
+(BD/DS dengan indikator read-only). Tombol Simpan/Atur Urutan/Buang hanya
+muncul untuk SA/AQ/PD (write whitelist PM1). Read-only view tetap berfungsi
+untuk semua peran yang diizinkan.
+
 ---
 
 ## Qurban Public Pendaftaran Endpoints (Sprint F4b) — PB1–PB4

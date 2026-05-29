@@ -11,14 +11,15 @@
 
 ## Current Sprint
 
-> **Sprint F5b — Pemetaan Peserta↔Hewan (drag-drop)** dalam progres.
-> Milestone **A1 + A2 selesai**: A1 = kolom `qurban_edisi.pemetaan_version`
-> + endpoint **PM2** `GET /api/qurban/pemetaan/state`. A2 = endpoint **PM1**
-> `POST /api/qurban/pemetaan/batch-save` (atomic `batchUpdateRanges` +
-> optimistic concurrency `expected_version` + simulator cross-op + matriks
-> `harga_decision` + audit `pemetaan.batch_save`). Lihat
-> `HANDOFF_SPRINT_F5b.md`. PR Draft. Lanjut **B** (UI drag-drop).
-> Sebelumnya: F4d Phone-Primary Lookup ✅.
+> **Sprint F5b — Pemetaan Peserta↔Hewan (drag-drop)** selesai (A1 + A2 + B).
+> A1 = kolom `qurban_edisi.pemetaan_version` + PM2 snapshot. A2 = PM1
+> `batch-save` (atomic `batchUpdateRanges` + optimistic concurrency +
+> simulator cross-op + matriks `harga_decision` + audit). B = halaman
+> `/qurban/pemetaan` papan drag-drop (`@dnd-kit`, TouchSensor delay 200ms
+> iPad-first), modal harga cross-class, sticky save, mode "Atur Urutan
+> Hewan". Lihat `HANDOFF_SPRINT_F5b.md`. PR #93 Draft — menunggu
+> verifikasi screenshot iPad sebelum Hopy flip ke Ready. Sebelumnya:
+> F4d Phone-Primary Lookup ✅.
 
 Update baris ini setiap kali sprint berganti.
 
