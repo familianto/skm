@@ -22,6 +22,8 @@ import {
   BLOCKING_STATUSES,
 } from '@/lib/qurban/pembayaran-repo';
 import { auditPembayaranBatal } from '@/lib/qurban/pembayaran-audit';
+import { findKonfigurasiByEdisiId } from '@/lib/qurban/konfigurasi-repo';
+import { computeNominalTransfer } from '@/lib/qurban/publik-nominal';
 import type { QurbanPeserta } from '@/lib/qurban/peserta-types';
 
 // PS5 = SA, AQ only.
@@ -112,17 +114,19 @@ export async function POST(
       notes: alasan || undefined,
     });
 
-    // F6 kaskade: bila tak ada lagi slot TERDAFTAR untuk kode_bayar ini, dan
-    // pembayaran masih BELUM_BAYAR, batalkan pembayaran-nya juga.
-    let pembayaranBatal = false;
+    // F6 kaskade (A-6 + B-6): pembayaran BELUM_BAYAR mengikuti slot tersisa.
+    //  - Tak ada slot TERDAFTAR tersisa → pembayaran BATAL.
+    //  - Masih ada slot tersisa → recompute nominal_total (Σ harga slot aktif) +
+    //    nominal_transfer (=total+suffix) agar tidak basi sebelum rekonsiliasi.
+    let kaskade: 'batal' | 'recompute' | null = null;
     try {
       const sisaAktif = (
         await listPeserta({ edisi_id: gate.edisi.id, status_pendaftaran: STATUS_TERDAFTAR })
       ).filter((p) => p.kode_bayar === current.kode_bayar && p.id !== id);
 
-      if (sisaAktif.length === 0) {
-        const payRec = await findPembayaranRecordByKodeBayar(gate.edisi.id, current.kode_bayar);
-        if (payRec && payRec.pembayaran.status === 'BELUM_BAYAR') {
+      const payRec = await findPembayaranRecordByKodeBayar(gate.edisi.id, current.kode_bayar);
+      if (payRec && payRec.pembayaran.status === 'BELUM_BAYAR') {
+        if (sisaAktif.length === 0) {
           await updatePembayaranAt(payRec.rowIndex, {
             ...payRec.pembayaran,
             status: 'BATAL',
@@ -133,7 +137,23 @@ export async function POST(
             alasan,
             kode_bayar: current.kode_bayar,
           });
-          pembayaranBatal = true;
+          kaskade = 'batal';
+        } else {
+          const nominalTotal = sisaAktif.reduce((sum, p) => sum + p.harga_disepakati, 0);
+          const konfig = await findKonfigurasiByEdisiId(gate.edisi.id);
+          const nominalTransfer = computeNominalTransfer(nominalTotal, konfig?.payment_suffix ?? 0);
+          if (
+            nominalTotal !== payRec.pembayaran.nominal_total ||
+            nominalTransfer !== payRec.pembayaran.nominal_transfer
+          ) {
+            await updatePembayaranAt(payRec.rowIndex, {
+              ...payRec.pembayaran,
+              nominal_total: nominalTotal,
+              nominal_transfer: nominalTransfer,
+              updated_at: new Date().toISOString(),
+            });
+            kaskade = 'recompute';
+          }
         }
       }
     } catch (e) {
@@ -141,9 +161,12 @@ export async function POST(
       console.error('[POST /api/qurban/peserta/[id]/cancel] kaskade pembayaran gagal:', e);
     }
 
-    const meta = pembayaranBatal
-      ? { warning: 'Pembayaran (BELUM_BAYAR) untuk pendaftaran ini ikut dibatalkan otomatis.' }
-      : undefined;
+    const meta =
+      kaskade === 'batal'
+        ? { warning: 'Pembayaran (BELUM_BAYAR) untuk pendaftaran ini ikut dibatalkan otomatis.' }
+        : kaskade === 'recompute'
+        ? { warning: 'Nominal pembayaran (BELUM_BAYAR) dihitung ulang mengikuti slot tersisa.' }
+        : undefined;
 
     return success(updated, meta);
   } catch (err) {

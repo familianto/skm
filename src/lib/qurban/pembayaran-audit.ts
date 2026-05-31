@@ -4,11 +4,11 @@ import type { Pembayaran } from './pembayaran-repo';
 
 /**
  * Audit emitters untuk `qurban_pembayaran` (F6). Event names:
- *   pembayaran.created | pembayaran.batal
+ *   pembayaran.created | pembayaran.batal (M-A) |
+ *   pembayaran.terima_panitia | pembayaran.lunas (M-B, TUNAI Model A)
  *
- * Transisi status lain (pembayaran.terima_panitia, pembayaran.lunas,
- * pembayaran.matched) menyusul di Milestone B/C. Mengikuti pola
- * `peserta-audit.ts` (memanggil `writeAuditLog`, `entitas='pembayaran'`).
+ * Pencocokan TRANSFER (pembayaran.matched) menyusul di Milestone C. Mengikuti
+ * pola `peserta-audit.ts` (memanggil `writeAuditLog`, `entitas='pembayaran'`).
  */
 
 const ENTITAS = 'pembayaran';
@@ -25,6 +25,51 @@ export function auditPembayaranCreated(record: Pembayaran, actor: Actor): Promis
     entitas_id: record.id,
     event_type: 'pembayaran.created',
     after: record,
+    user_id: actor.user_id,
+    ip_address: actor.ip_address,
+  });
+}
+
+export function auditPembayaranTerimaPanitia(
+  record: Pembayaran,
+  actor: Actor,
+  detail: { panitia_terima_id: string; tanggal_terima_panitia: string }
+): Promise<void> {
+  return writeAuditLog({
+    aksi: AuditAksi.UPDATE,
+    entitas: ENTITAS,
+    entitas_id: record.id,
+    event_type: 'pembayaran.terima_panitia',
+    before: { status: 'BELUM_BAYAR' },
+    after: {
+      status: 'TERIMA_PANITIA',
+      kode_bayar: record.kode_bayar,
+      panitia_terima_id: detail.panitia_terima_id,
+      tanggal_terima_panitia: detail.tanggal_terima_panitia,
+    },
+    user_id: actor.user_id,
+    ip_address: actor.ip_address,
+  });
+}
+
+export function auditPembayaranLunas(
+  record: Pembayaran,
+  actor: Actor,
+  detail: { skm_transaksi_id: string; tanggal_lunas: string; jumlah: number }
+): Promise<void> {
+  return writeAuditLog({
+    aksi: AuditAksi.UPDATE,
+    entitas: ENTITAS,
+    entitas_id: record.id,
+    event_type: 'pembayaran.lunas',
+    before: { status: 'TERIMA_PANITIA' },
+    after: {
+      status: 'LUNAS',
+      kode_bayar: record.kode_bayar,
+      skm_transaksi_id: detail.skm_transaksi_id,
+      tanggal_lunas: detail.tanggal_lunas,
+      jumlah: detail.jumlah,
+    },
     user_id: actor.user_id,
     ip_address: actor.ip_address,
   });

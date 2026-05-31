@@ -6,7 +6,7 @@ Status per milestone. Modul Qurban = **island pelengkap**; schema `transaksi`,
 | Milestone | Lingkup | Status |
 |---|---|---|
 | **A** | Fondasi `qurban_pembayaran` + auto-create saat registrasi | ✅ **Done** (PR Draft `claude/f6-pembayaran`) |
-| B | Transisi status TUNAI (`TERIMA_PANITIA`/`LUNAS`) + endpoint + UI cash | ⏳ Belum |
+| **B** | Transisi status TUNAI (`TERIMA_PANITIA`/`LUNAS`) + Cash Model A (PY2–PY4) | ✅ **Done** (akumulasi PR #100) |
 | C | Pencocokan TRANSFER via `kode_bayar` di `transaksi.deskripsi` + rekonsiliasi | ⏳ Belum |
 | D | UI pembayaran (form metode, dashboard status) + WA "pembayaran confirmed" | ⏳ Belum |
 
@@ -142,20 +142,112 @@ Status per milestone. Modul Qurban = **island pelengkap**; schema `transaksi`,
 
 ---
 
-## Untuk Helper/Hopy — diputuskan sebelum Milestone B
+## Milestone B — Selesai
 
-1. **Jalankan migrasi STAGING.** `scripts/migrate_F6A_pembayaran.gs`:
-   `dryRun_F6A()` → `migrate_F6A()` (F6_TARGET='STAGING') → `verify_F6A()`.
-   Migrasi PRODUCTION dijalankan **segera setelah merge** (bukan post-soak).
-2. **Apakah PB3 (publik) boleh memilih `TUNAI`?** Saat ini M-A menerima
-   `TRANSFER`/`TUNAI` di kedua endpoint. Mungkin publik **selalu** `TRANSFER`
-   (jamaah tidak di lokasi). Tentukan untuk M-D (form/validasi).
-3. **Peran endpoint M-B** (`TERIMA_PANITIA`/`LUNAS`): usul
-   `[SUPER_ADMIN, BENDAHARA, ADMIN_QURBAN]` karena menyentuh keuangan (Model A:
-   Bendahara catat pemasukan Kas Tunai). Konfirmasi.
-4. **`skm_transaksi_id` saat `LUNAS`:** apakah transisi `LUNAS` membuat transaksi
-   SKM (Model A: pemasukan Kas Tunai) langsung dari modul qurban, atau hanya
-   menautkan ke transaksi yang sudah dibuat manual/import? (Menentukan apakah
-   modul qurban menulis ke sheet `transaksi` — saat ini TIDAK.)
-5. **WA "pembayaran confirmed":** flag `wa_send_on_pembayaran_confirmed` sudah ada
-   di konfigurasi, tapi template pesannya belum. Siapkan di M-D.
+### Apa yang dibangun
+
+1. **Jembatan island→ledger** `src/lib/qurban/skm-bridge.ts`:
+   - `kategoriNamaForTipe` / `decideKategoriNama` (pure): map (jenisHewan,
+     tipePembelian) → nama kategori; deteksi campur-kategori.
+   - `resolveKategoriIdByNama` / `resolveKategoriQurbanByTipe` /
+     `resolveRekeningByNama`: resolve id by-NAMA persis (kategori `MASUK`,
+     rekening `Kas Tunai`); **throw** bila tak ketemu.
+   - `createTransaksiPemasukanQurban(...)`: tulis transaksi `MASUK`/`AKTIF` via
+     jalur kanonik SKM (`getNextId('TRX')` → append berlayout
+     `SHEET_HEADERS.transaksi` → `logAudit`). Tanggal divalidasi `YYYY-MM-DD`.
+
+2. **PY2** `POST /api/qurban/pembayaran/[id]/terima-panitia` — TUNAI
+   `BELUM_BAYAR → TERIMA_PANITIA`. Roles `[SUPER_ADMIN, BENDAHARA, ADMIN_QURBAN,
+   PENDAFTARAN]`.
+
+3. **PY3** `POST /api/qurban/pembayaran/[id]/lunaskan` — TUNAI Model A
+   `TERIMA_PANITIA → LUNAS`. Roles `[SUPER_ADMIN, BENDAHARA]`. Transaksi-first
+   (Kas Tunai, `jumlah = nominal_total`), lalu link `skm_transaksi_id`.
+   Idempotensi: tolak bila bukan `TERIMA_PANITIA` atau `skm_transaksi_id` terisi.
+
+4. **PY4** `GET /api/qurban/pembayaran` — list + filter (`status`/`metode`/
+   `panitia_terima_id`) + enrichment (`muqorib_nama`, `jumlah_slot`). Roles semua
+   peran qurban.
+
+5. **Audit** `pembayaran.terima_panitia`, `pembayaran.lunas`
+   (`pembayaran-audit.ts`).
+
+6. **B-6** kaskade cancel parsial di `cancel/route.ts`: pembayaran `BELUM_BAYAR`
+   di-**recompute** (`nominal_total` = Σ harga slot tersisa, `nominal_transfer`
+   = total + suffix) bila masih ada slot; di-`BATAL` bila habis (lanjutan A-6).
+
+7. Error code baru `BUSINESS_PEMBAYARAN_MIXED_KATEGORI`.
+
+### File dibuat / diubah (M-B)
+
+**Baru:** `src/lib/qurban/skm-bridge.ts`,
+`src/app/api/qurban/pembayaran/route.ts`,
+`src/app/api/qurban/pembayaran/[id]/terima-panitia/route.ts`,
+`src/app/api/qurban/pembayaran/[id]/lunaskan/route.ts`,
+`src/lib/qurban/__tests__/skm-bridge.test.ts`,
+`src/lib/qurban/__tests__/pembayaran-status.handler.test.ts`.
+
+**Diubah:** `pembayaran-audit.ts` (+2 emitter), `errors.ts` (+1 code),
+`cancel/route.ts` (B-6 recompute), `package.json` (2 test), docs.
+
+### Divergensi dari prompt (M-B)
+
+- **Method = POST, bukan PATCH.** Prompt menulis `PATCH` untuk PY2/PY3; konvensi
+  in-repo untuk endpoint aksi Qurban (`/cancel`, `/activate`, `/close`,
+  `/refresh-harga`, `/deactivate`) **semua POST**. Saya ikut in-repo (POST) demi
+  konsistensi. Bila Anda mau PATCH, mudah diubah.
+- **B-2 jalur transaksi: BUILD helper minimal di island (bukan reuse).** Di repo
+  TIDAK ada service pembuat-transaksi yang reusable — logika create di-INLINE di
+  handler `POST /api/transaksi`. `createTransaksiPemasukanQurban` **mereplikasi
+  urutan kanonik itu persis** (`getNextId('TRX')` + append layout
+  `SHEET_HEADERS.transaksi` + `logAudit`), menghasilkan baris tak terbedakan dari
+  transaksi manual. Saya TIDAK refactor route inti (hindari risiko SKM-core);
+  konsekuensinya ada sedikit duplikasi sequence — kandidat refactor SKM-core
+  terpisah bila diinginkan.
+- **PY4 izinkan DISTRIBUSI (read), tapi `getCanAccess` TIDAK** memberi DISTRIBUSI
+  path `/qurban/pembayaran/**` (hanya `/qurban/distribusi/**` + `/laporan/**`).
+  API guard (requireRole) independen dari allowlist path; saya ikuti spesifikasi
+  PY4 (DISTRIBUSI boleh baca). **Perlu diputuskan:** selaraskan `permissions.ts`
+  (tambah path utk DISTRIBUSI) atau cabut DISTRIBUSI dari PY4. Peran lain
+  (PY2/PY3) konsisten dengan allowlist.
+- **Campur-tipe (B-4): kasus NYATA tapi jarang.** Satu pendaftaran dibuat dengan
+  satu `master_hewan_id`+`tipe` (PS2/PB3), jadi awalnya selalu seragam. **Namun
+  Pemetaan F5b (drag-drop) bisa memindah satu slot ke hewan jenis lain** →
+  `kode_bayar` bisa lintas-kategori. PY3 menanganinya defensif:
+  `409 BUSINESS_PEMBAYARAN_MIXED_KATEGORI` + tandai `notes`, TANPA auto-create.
+  Penanganan manual/UI menyusul (M-D).
+
+### Asumsi (M-B)
+
+- **PY3 non-atomik (transaksi-first).** Bila update pembayaran gagal setelah
+  transaksi terbuat → `500` LOUD dengan `skm_transaksi_id`; operator JANGAN
+  ulangi. Pass rekonsiliasi M-C = jaring (deteksi transaksi ber-`kode_bayar` yang
+  pembayarannya belum `LUNAS`).
+- **Cash bayar nominal BULAT** = `nominal_total` (tanpa suffix); suffix hanya
+  disambiguasi TRANSFER (sebab itu 2 kolom disimpan).
+
+### Verifikasi (M-B)
+
+`npm ci` ✅ · `type-check` ✅ · `lint` ✅ · `test` ✅ **497 pass / 0 fail**
+(+15 tes B: 482→497) · `build` ✅ (3 route `/api/qurban/pembayaran*` terdaftar).
+
+---
+
+## Untuk Helper/Hopy — diputuskan sebelum Milestone C
+
+1. **Migrasi STAGING** sudah dijalankan (kolom lengkap dari M-A; M-B tanpa migrasi
+   baru). PRODUCTION dijalankan **segera setelah merge** PR #100.
+2. **Method PY2/PY3: POST (ikut konvensi in-repo) vs PATCH (prompt).** Saat ini
+   POST. Konfirmasi tetap POST atau pindah ke PATCH (akan memengaruhi UI M-D).
+3. **PY4 & DISTRIBUSI:** API mengizinkan DISTRIBUSI baca, tapi `getCanAccess`
+   belum memberi DISTRIBUSI path `/qurban/pembayaran/**`. Pilih: (a) tambah path
+   ke `permissions.ts`, atau (b) cabut DISTRIBUSI dari PY4.
+4. **Resolusi kategori M-C (TRANSFER):** PY3 (TUNAI) memetakan transaksi ke
+   kategori per-tipe (`Qurban Sapi/Kambing/Jasa Titip`). Konfirmasi M-C (match
+   TRANSFER → set `LUNAS` + link transaksi import) memakai resolusi **yang sama**
+   dan TIDAK membuat transaksi baru (transaksi sudah ada dari import CSV).
+5. **Campur-kategori pasca-pemetaan:** PY3 menolak (`MIXED_KATEGORI`) + tandai
+   `notes`. Perlu keputusan UX M-D: split manual, atau larang pindah lintas-jenis
+   di Pemetaan untuk pendaftaran yang sudah punya pembayaran.
+6. **WA "pembayaran confirmed":** flag `wa_send_on_pembayaran_confirmed` sudah ada
+   di konfigurasi; template pesan belum. Siapkan di M-D (kirim saat `LUNAS`).

@@ -2193,9 +2193,65 @@ menulis). Repo: `src/lib/qurban/pembayaran-repo.ts`
 `src/lib/qurban/pembayaran-create.ts`. Audit `pembayaran.created` /
 `pembayaran.batal` (`src/lib/qurban/pembayaran-audit.ts`).
 
-> **Belum diimplementasi (M-B/M-C):** endpoint transisi status (TUNAI
-> `TERIMA_PANITIA`/`LUNAS`), pencocokan TRANSFER via `kode_bayar` di
-> `transaksi.deskripsi`, rekonsiliasi, dan UI.
+### PY2 — `POST /api/qurban/pembayaran/[id]/terima-panitia?edisi_id=EDS-...`
+
+> Catatan method: mengikuti konvensi in-repo endpoint aksi Qurban (`/cancel`,
+> `/activate`, …) yang memakai **POST** (bukan PATCH).
+
+Roles `[SUPER_ADMIN, BENDAHARA, ADMIN_QURBAN, PENDAFTARAN]`. **TUNAI:**
+`BELUM_BAYAR → TERIMA_PANITIA`. Gate: `metode==='TUNAI'` &&
+`status==='BELUM_BAYAR'` (else `409 CONFLICT`). **Body:** `{ panitia_terima_id
+(wajib), tanggal_terima_panitia? (ISO-Z, default now), bukti_url? }`. Set field +
+`updated_at`. Audit `pembayaran.terima_panitia`.
+
+### PY3 — `POST /api/qurban/pembayaran/[id]/lunaskan?edisi_id=EDS-...`
+
+Roles `[SUPER_ADMIN, BENDAHARA]` (menulis transaksi keuangan → ketat). **TUNAI
+Model A:** `TERIMA_PANITIA → LUNAS`. **Gate idempotensi:** `metode==='TUNAI'` &&
+`status==='TERIMA_PANITIA'` && `skm_transaksi_id===''` (else `409`). **Body:**
+`{ tanggal_lunas? (ISO-Z, default now) }`.
+
+**Alur (transaksi-first):** (1) re-baca + gate; (2) resolusi kategori per-tipe
+dari slot peserta `kode_bayar` (BELI→`Qurban Sapi`/`Qurban Kambing`,
+BAWA_SENDIRI→`Qurban Jasa Titip & Pakan`) — bila **campur kategori** (mis.
+pasca-pemetaan) → `409 BUSINESS_PEMBAYARAN_MIXED_KATEGORI` + tandai `notes`
+(penanganan manual, TIDAK auto-create); (3) **buat transaksi pemasukan** lewat
+jalur kanonik SKM (`TRX-`, MASUK, AKTIF) ke rekening **Kas Tunai**,
+**`jumlah = nominal_total`** (BULAT, tanpa suffix), `tanggal = tanggal_lunas`
+(dikonversi ke `YYYY-MM-DD`), deskripsi
+`Qurban {tahun} - {kode_bayar} - {nama} (Cash/Datang Langsung)`; (4) update
+pembayaran `LUNAS` + `skm_transaksi_id`. **Kegagalan langkah 4 setelah transaksi
+terbuat → `500` LOUD** ("Transaksi {id} sudah dibuat … JANGAN ulangi") — jaring
+perbaikan = pass rekonsiliasi M-C. Audit `pembayaran.lunas`.
+
+### PY4 — `GET /api/qurban/pembayaran?edisi_id=EDS-...`
+
+Roles semua peran qurban `[SUPER_ADMIN, BENDAHARA, ADMIN_QURBAN, PENDAFTARAN,
+DISTRIBUSI]`. Filter opsional `status`, `metode`, `panitia_terima_id`. Response:
+baris pembayaran + enrichment `{ muqorib_nama, jumlah_slot }` (slot `TERDAFTAR`
+per `kode_bayar`). Urut `created_at` ASC. `meta: { total, filters_applied }`.
+
+### Error Codes (Pembayaran)
+
+| Code | HTTP | Kapan |
+|---|---|---|
+| `NOT_FOUND` | 404 | Pembayaran/edisi tidak ditemukan / beda edisi. |
+| `CONFLICT` | 409 | PY2/PY3 — metode/status tidak sesuai gate, atau sudah tertaut transaksi. |
+| `BUSINESS_PEMBAYARAN_MIXED_KATEGORI` | 409 | PY3 — slot `kode_bayar` lintas kategori; pelunasan manual. |
+| `BUSINESS_PEMBAYARAN_EXISTS` | 409 | PS5 — cancel ditolak karena pembayaran `TERIMA_PANITIA`/`LUNAS`. |
+| `VALIDATION_REQUIRED`/`VALIDATION_FORMAT` | 422 | Field input wajib/format salah. |
+
+### Audit Events (Pembayaran)
+
+| `event_type` | Aksi | Sumber |
+|---|---|---|
+| `pembayaran.created` | `CREATE` | PS2/PB3 auto-create (M-A) |
+| `pembayaran.terima_panitia` | `UPDATE` | PY2 (TUNAI) |
+| `pembayaran.lunas` | `UPDATE` | PY3 (TUNAI Model A; catat `skm_transaksi_id`) |
+| `pembayaran.batal` | `UPDATE` | PS5 kaskade (seluruh slot batal) |
+
+> **Belum diimplementasi (M-C/M-D):** pelunasan TRANSFER via pencocokan
+> `kode_bayar` di `transaksi.deskripsi`, rekonsiliasi, dan UI.
 
 ---
 
