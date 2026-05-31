@@ -308,19 +308,22 @@ Tidak perlu ubah `permissions.ts` (allowlist path = superset; pembatasan ketat d
 
 ## Untuk Helper/Hopy — diputuskan sebelum C2 / M-D
 
-1. **Migrasi STAGING** sudah dijalankan (kolom lengkap dari M-A; M-B tanpa migrasi
-   baru). PRODUCTION dijalankan **segera setelah merge** PR #100.
-2. **Method PY2/PY3: POST (ikut konvensi in-repo) vs PATCH (prompt).** Saat ini
-   POST. Konfirmasi tetap POST atau pindah ke PATCH (akan memengaruhi UI M-D).
-3. **PY4 & DISTRIBUSI:** API mengizinkan DISTRIBUSI baca, tapi `getCanAccess`
-   belum memberi DISTRIBUSI path `/qurban/pembayaran/**`. Pilih: (a) tambah path
-   ke `permissions.ts`, atau (b) cabut DISTRIBUSI dari PY4.
-4. **Resolusi kategori M-C (TRANSFER):** PY3 (TUNAI) memetakan transaksi ke
-   kategori per-tipe (`Qurban Sapi/Kambing/Jasa Titip`). Konfirmasi M-C (match
-   TRANSFER → set `LUNAS` + link transaksi import) memakai resolusi **yang sama**
-   dan TIDAK membuat transaksi baru (transaksi sudah ada dari import CSV).
-5. **Campur-kategori pasca-pemetaan:** PY3 menolak (`MIXED_KATEGORI`) + tandai
-   `notes`. Perlu keputusan UX M-D: split manual, atau larang pindah lintas-jenis
-   di Pemetaan untuk pendaftaran yang sudah punya pembayaran.
-6. **WA "pembayaran confirmed":** flag `wa_send_on_pembayaran_confirmed` sudah ada
-   di konfigurasi; template pesan belum. Siapkan di M-D (kirim saat `LUNAS`).
+1. **Migrasi:** kolom lengkap sejak M-A; B & C tanpa migrasi baru. PRODUCTION
+   jalankan `migrate_F6A_pembayaran.gs` **segera setelah merge** PR #100.
+2. **Method PY2/PY3/PY5/PY6: POST** (ikut konvensi in-repo) vs PATCH (prompt).
+   Konfirmasi sebelum UI M-D (memengaruhi pemanggilan fetch).
+3. **Anomali rekonsiliasi → Layer 3 (C2):** PY5 saat ini hanya *melaporkan*
+   `anomali`/`unmatched` (tanpa antrian persist). C2 perlu antrian + smart-scoring
+   (Jaro-Winkler nama, toleransi nominal) + UI triase. Konfirmasi scope C2.
+4. **Campur-kategori pasca-pemetaan:** PY3 menolak (`MIXED_KATEGORI`); PY5/PY6
+   tetap `LUNAS` + flag `mixed`. UX M-D: tombol "set kategori manual" pada
+   transaksi ber-flag, atau larang Pemetaan lintas-jenis bila sudah ada pembayaran.
+5. **Toleransi nominal-beda TRANSFER:** PY5 menandai anomali (tak auto); BD pakai
+   PY6 (link manual, selisih dicatat). Konfirmasi perlu/tidaknya ambang auto
+   (mis. selisih ≤ suffix) di C2.
+6. **WA "pembayaran confirmed":** flag `wa_send_on_pembayaran_confirmed` ada;
+   template belum. Kirim saat `LUNAS` (TUNAI & TRANSFER) di M-D.
+7. **Drift bridge SKM-core:** create (M-B) & update-kategori (M-C) transaksi
+   mereplikasi route inti (tak ada service reusable). Putuskan apakah refactor
+   route `transaksi` → service bersama (di luar F6) sebelum island makin banyak
+   menulis ke ledger.
