@@ -42,6 +42,7 @@
   .slide {
     position: absolute;
     inset: 0;
+    padding: 5.5%;            /* TV-safe area: keep foreground out of overscan zone */
     display: flex;
     opacity: 0;
     visibility: hidden;
@@ -87,7 +88,7 @@
     padding: clamp(28px, 4vh, 64px) clamp(20px, 2.4vw, 56px);
   }
   .img-panel img {
-    max-height: 90vh;
+    max-height: 78vh;        /* reduced vertical dominance after safe-area inset */
     max-width: 100%;
     width: auto;
     height: auto;
@@ -210,10 +211,11 @@
   /* progress bar — full width, bottom edge */
   #progress {
     position: absolute;
-    bottom: 0;
-    left: 0;
+    bottom: 5.5%;            /* inside TV-safe area */
+    left: 5.5%;
     height: clamp(4px, 0.45vh, 6px);
     width: 0%;
+    max-width: 89%;          /* cap so full bar stays off the right edge */
     background: linear-gradient(90deg, var(--gold), var(--gold-bright));
     z-index: 40;
     box-shadow: 0 0 16px rgba(231,202,132,0.55);
@@ -221,8 +223,8 @@
 
   #dots {
     position: absolute;
-    right: clamp(28px, 3vw, 64px);
-    bottom: clamp(26px, 3vh, 56px);
+    right: 7%;               /* inside TV-safe area */
+    bottom: 8%;              /* above the progress bar, inside safe area */
     display: flex;
     gap: clamp(9px, 0.7vw, 13px);
     z-index: 40;
@@ -296,8 +298,8 @@
   </div>
 
 <script>
-  // --- auto-rotate 10s / slide ---
-  var SLIDE_MS = 10000;
+  // --- auto-rotate 20s / slide ---
+  var SLIDE_MS = 20000;
   var slides = document.querySelectorAll('.slide');
   var dots = document.querySelectorAll('#dots .d');
   var progress = document.getElementById('progress');
