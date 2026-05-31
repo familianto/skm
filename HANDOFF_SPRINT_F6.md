@@ -7,7 +7,8 @@ Status per milestone. Modul Qurban = **island pelengkap**; schema `transaksi`,
 |---|---|---|
 | **A** | Fondasi `qurban_pembayaran` + auto-create saat registrasi | ✅ **Done** (PR Draft `claude/f6-pembayaran`) |
 | **B** | Transisi status TUNAI (`TERIMA_PANITIA`/`LUNAS`) + Cash Model A (PY2–PY4) | ✅ **Done** (akumulasi PR #100) |
-| C | Pencocokan TRANSFER via `kode_bayar` di `transaksi.deskripsi` + rekonsiliasi | ⏳ Belum |
+| **C** | Rekonsiliasi TRANSFER Layer 1 (auto) + link manual + koreksi kategori (PY5/PY6) | ✅ **Done** (akumulasi PR #100) |
+| C2 | Smart-scoring Layer 2 + antrian Layer 3 | ⏳ Belum |
 | D | UI pembayaran (form metode, dashboard status) + WA "pembayaran confirmed" | ⏳ Belum |
 
 ---
@@ -233,7 +234,79 @@ Status per milestone. Modul Qurban = **island pelengkap**; schema `transaksi`,
 
 ---
 
-## Untuk Helper/Hopy — diputuskan sebelum Milestone C
+## Milestone C — Selesai
+
+### Apa yang dibangun
+
+1. **C-0 koreksi peran:** PY2 → `[SA, AQ, PD]` (hapus BD); PY4 → `[SA, BD, AQ, PD]`
+   (hapus DISTRIBUSI); PY3 tetap `[SA, BD]`.
+2. **Engine murni** `src/lib/qurban/rekonsiliasi-engine.ts`: `extractKodeBayar`
+   (regex `QRB-\d{4}-\d{3}`), `classifyTransaksi` (auto / anomali / unmatched),
+   `indexPembayaranByKode`.
+3. **Bridge read+update** (`skm-bridge.ts`): `listTransaksiMasukByRekening`,
+   `getTransaksiLiteById`, **`correctTransaksiKategori`** (UPDATE kanonik SKM +
+   audit), const `REKENING_BANK_MUAMALAT`.
+4. **Apply bersama** `src/lib/qurban/rekonsiliasi-apply.ts`:
+   `resolveKodeBayarKategori` (slot→kategori, null bila campur tak-resolusi) +
+   **`applyMatch`** (gate dobel → koreksi kategori → LUNAS + link + `bank_ref` +
+   `match_metadata` → audit).
+5. **PY5** `POST /api/qurban/pembayaran/rekonsiliasi` (Layer 1 auto, idempoten,
+   baca Bank Muamalat MASUK/AKTIF belum ter-link).
+6. **PY6** `POST /api/qurban/pembayaran/[id]/link-transaksi` (link manual; nominal
+   beda diizinkan + selisih di `match_metadata`).
+7. **Audit** `pembayaran.lunas_via_rekonsiliasi`.
+
+### File dibuat / diubah (M-C)
+
+**Baru:** `rekonsiliasi-engine.ts`, `rekonsiliasi-apply.ts`,
+`pembayaran/rekonsiliasi/route.ts`, `pembayaran/[id]/link-transaksi/route.ts`,
+`__tests__/rekonsiliasi-engine.test.ts`, `__tests__/rekonsiliasi.handler.test.ts`.
+
+**Diubah:** `skm-bridge.ts` (+read/update transaksi), `pembayaran-audit.ts`
+(+1 emitter), `terima-panitia/route.ts` + `pembayaran/route.ts` (C-0 peran),
+`pembayaran-status.handler.test.ts` (sesuaikan 2 tes ke peran C-0), `package.json`,
+docs.
+
+### Divergensi & keputusan (M-C)
+
+- **Jalur update-transaksi: MIRROR, bukan reuse** — sama seperti bridge create di
+  M-B. Route `PUT /api/transaksi/[id]` meng-inline logika update; tak ada service
+  reusable. `correctTransaksiKategori` mereplikasi pola itu setia (getRowById →
+  updateRow full-layout → `logAudit(UPDATE)`), hanya mengubah kolom `kategori_id`
+  + `updated_at`. Schema tak disentuh. **Drift dicatat** (kandidat refactor
+  SKM-core terpisah).
+- **Campur-tipe pada rekonsiliasi:** TIDAK koreksi kategori (mungkin >1 kategori
+  benar), set flag `mixed` di `match_metadata`, **tetap** set `LUNAS` (uang sudah
+  masuk). Review kategori manual di UI (M-D).
+- **Engine memakai SELURUH pembayaran edisi** (bukan hanya BELUM_BAYAR) agar bisa
+  membedakan anomali (sudah LUNAS / metode TUNAI) dari unmatched.
+- **Idempotensi** lewat exclude transaksi yang `id`-nya sudah ada di
+  `skm_transaksi_id` pembayaran mana pun + gate re-baca di `applyMatch`.
+
+### Peran final vs `permissions.ts`
+
+`getCanAccess` memberi `/qurban/pembayaran/**` ke BENDAHARA & PENDAFTARAN
+(+ AQ via `/qurban/**`, SA via `**`). API guard per-endpoint kini:
+
+| Endpoint | Roles API | Catatan vs allowlist |
+|---|---|---|
+| PY2 terima-panitia | SA, AQ, PD | ✅ subset allowlist |
+| PY3 lunaskan | SA, BD | ✅ |
+| PY4 list | SA, BD, AQ, PD | ✅ (DISTRIBUSI sudah dicabut — kini konsisten) |
+| PY5 rekonsiliasi | SA, BD | ✅ |
+| PY6 link-transaksi | SA, BD | ✅ |
+
+Tidak perlu ubah `permissions.ts` (allowlist path = superset; pembatasan ketat di API).
+
+### Verifikasi (M-C)
+
+`npm ci` ✅ · `type-check` ✅ · `lint` ✅ · `test` ✅ **509 pass / 0 fail**
+(+12 tes C; 2 tes M-B disesuaikan ke peran C-0) · `build` ✅ (5 route
+`/api/qurban/pembayaran*` termasuk `rekonsiliasi` + `link-transaksi`).
+
+---
+
+## Untuk Helper/Hopy — diputuskan sebelum C2 / M-D
 
 1. **Migrasi STAGING** sudah dijalankan (kolom lengkap dari M-A; M-B tanpa migrasi
    baru). PRODUCTION dijalankan **segera setelah merge** PR #100.

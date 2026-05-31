@@ -152,7 +152,8 @@ test('PY2: tolak bila bukan BELUM_BAYAR (409)', async () => {
 
 test('PY2: tolak metode TRANSFER (409)', async () => {
   installMockSheets(lunasDb({ status: 'BELUM_BAYAR', metode: 'TRANSFER' }));
-  const req = await makeReq('POST', '/api/qurban/pembayaran/BYR-20260531-0001/terima-panitia?edisi_id=EDS-1', PERAN.BENDAHARA, {
+  // C-0: BD bukan peran PY2; pakai ADMIN_QURBAN agar lolos guard → kena gate metode.
+  const req = await makeReq('POST', '/api/qurban/pembayaran/BYR-20260531-0001/terima-panitia?edisi_id=EDS-1', PERAN.ADMIN_QURBAN, {
     panitia_terima_id: 'ANG-9',
   });
   const { status } = await read(await TERIMA(req, { params: Promise.resolve({ id: 'BYR-20260531-0001' }) }));
@@ -213,7 +214,7 @@ test('PY3: peran PENDAFTARAN ditolak (403)', async () => {
 
 test('PY4: list + filter metode + enrichment', async () => {
   installMockSheets(lunasDb({ status: 'LUNAS' }));
-  const req = await makeReq('GET', '/api/qurban/pembayaran?edisi_id=EDS-1&metode=TUNAI', PERAN.DISTRIBUSI);
+  const req = await makeReq('GET', '/api/qurban/pembayaran?edisi_id=EDS-1&metode=TUNAI', PERAN.BENDAHARA); // C-0: DISTRIBUSI bukan peran PY4
   const { status, body } = await read(await LIST(req));
   assert.equal(status, 200, JSON.stringify(body));
   const items = body.data as unknown as Array<Record<string, unknown>>;
@@ -221,7 +222,7 @@ test('PY4: list + filter metode + enrichment', async () => {
   assert.equal(items[0].muqorib_nama, 'Fulan');
   assert.equal(items[0].jumlah_slot, 2);
 
-  const empty = await makeReq('GET', '/api/qurban/pembayaran?edisi_id=EDS-1&metode=TRANSFER', PERAN.DISTRIBUSI);
+  const empty = await makeReq('GET', '/api/qurban/pembayaran?edisi_id=EDS-1&metode=TRANSFER', PERAN.BENDAHARA); // C-0: DISTRIBUSI bukan peran PY4
   const r2 = await read(await LIST(empty));
   assert.equal((r2.body.data as unknown as unknown[]).length, 0);
 });

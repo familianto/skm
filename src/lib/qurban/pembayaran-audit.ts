@@ -75,6 +75,31 @@ export function auditPembayaranLunas(
   });
 }
 
+export function auditPembayaranLunasViaRekonsiliasi(
+  record: Pembayaran,
+  actor: Actor,
+  detail: { layer: string; via: string; skm_transaksi_id: string; bank_ref: string; amount_ok: boolean }
+): Promise<void> {
+  return writeAuditLog({
+    aksi: AuditAksi.UPDATE,
+    entitas: ENTITAS,
+    entitas_id: record.id,
+    event_type: 'pembayaran.lunas_via_rekonsiliasi',
+    before: { status: 'BELUM_BAYAR' },
+    after: {
+      status: 'LUNAS',
+      kode_bayar: record.kode_bayar,
+      layer: detail.layer,
+      via: detail.via,
+      skm_transaksi_id: detail.skm_transaksi_id,
+      bank_ref: detail.bank_ref,
+      amount_ok: detail.amount_ok,
+    },
+    user_id: actor.user_id,
+    ip_address: actor.ip_address,
+  });
+}
+
 export function auditPembayaranBatal(
   id: string,
   from: string,

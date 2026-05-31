@@ -14,13 +14,12 @@ import {
 import { listPesertaByEdisi, STATUS_TERDAFTAR } from '@/lib/qurban/peserta-repo';
 import { listAllMuqorib } from '@/lib/qurban/muqorib-repo';
 
-// PY4 — read untuk semua peran qurban.
+// PY4 — read untuk peran Pembayaran (C-0: DISTRIBUSI 🔒 dikecualikan).
 const READ_ROLES = [
   PERAN.SUPER_ADMIN,
   PERAN.BENDAHARA,
   PERAN.ADMIN_QURBAN,
   PERAN.PENDAFTARAN,
-  PERAN.DISTRIBUSI,
 ];
 
 /**

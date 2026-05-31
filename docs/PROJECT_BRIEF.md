@@ -339,7 +339,7 @@ Lihat detail di `SPRINT_PLAN.md` dan file individual di `sprints/`.
 | F4c | UI Pendaftaran Qurban (panitia + publik daftar + cek-status) | 6 milestone A–F | ✅ Done |
 | F4d | Phone-primary lookup (PB2 v2 + M7 dual-mode) | 2 milestone A–B | ✅ Done |
 | F5b | Pemetaan Peserta↔Hewan (drag-drop) — A1 infra+PM2, A2 PM1, B UI | 3 milestone A1/A2/B | ✅ Done |
-| F6 | Pembayaran & Rekonsiliasi Qurban (`qurban_pembayaran`) — A fondasi+registrasi, B status TUNAI, C match TRANSFER, D UI | A–D | 🚧 M-A+M-B done |
+| F6 | Pembayaran & Rekonsiliasi Qurban (`qurban_pembayaran`) — A fondasi+registrasi, B status TUNAI, C match TRANSFER, D UI | A–D | 🚧 M-A+B+C done |
 | F7 | Hari-H | TBD | ⏳ Planned |
 
 ### Sprint F6 — Pembayaran & Rekonsiliasi Qurban
@@ -361,9 +361,18 @@ saat seluruh slot pendaftaran dibatalkan. Migrasi `scripts/migrate_F6A_pembayara
 `skm_transaksi_id`), **PY4** list+enrichment. Jembatan island→ledger
 `src/lib/qurban/skm-bridge.ts` (resolve kategori/rekening by-name + create
 transaksi kanonik). Kaskade cancel parsial (B-6) kini **recompute** nominal
-pembayaran `BELUM_BAYAR`. **Belum:** pelunasan TRANSFER via pencocokan
-`kode_bayar` di berita + rekonsiliasi (M-C), UI (M-D). Detail:
-`HANDOFF_SPRINT_F6.md`, `docs/API_REFERENCE.md` (section Qurban Pembayaran).
+pembayaran `BELUM_BAYAR`.
+
+**Milestone C (rekonsiliasi TRANSFER, Layer 1 + link manual):** pass **terpisah
+yang MEMBACA sheet `transaksi`** (bukan disuntik ke import). **PY5**
+`/pembayaran/rekonsiliasi` auto-match deterministik via `kode_bayar`
+(`QRB-\d{4}-\d{3}`) di `deskripsi` + nominal pas → set `LUNAS` + link + koreksi
+`kategori_id` transaksi per-tipe (import salah auto-kategori "QRB"→Sapi); **PY6**
+`/[id]/link-transaksi` link manual (nominal beda diizinkan, selisih dicatat).
+Engine murni `rekonsiliasi-engine.ts`; apply bersama `rekonsiliasi-apply.ts`;
+koreksi kategori via jalur UPDATE kanonik SKM (`skm-bridge.correctTransaksiKategori`).
+C-0: peran PY2 tanpa BD, PY4 tanpa DISTRIBUSI. **Belum:** Layer 2/3 (M-C2), UI +
+WA confirmed (M-D). Detail: `HANDOFF_SPRINT_F6.md`, `docs/API_REFERENCE.md`.
 
 ### Sprint F02 — Qurban Edisi Management
 

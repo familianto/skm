@@ -10,8 +10,8 @@ import { resolveEdisiForPeserta } from '@/lib/qurban/peserta-context';
 import { getPembayaranRecordById, updatePembayaranAt } from '@/lib/qurban/pembayaran-repo';
 import { auditPembayaranTerimaPanitia } from '@/lib/qurban/pembayaran-audit';
 
-// PY2 — panitia/bendahara mencatat cash diterima fisik.
-const TERIMA_ROLES = [PERAN.SUPER_ADMIN, PERAN.BENDAHARA, PERAN.ADMIN_QURBAN, PERAN.PENDAFTARAN];
+// PY2 — terima cash adalah operasi panitia (C-0: BD read-only di Pembayaran).
+const TERIMA_ROLES = [PERAN.SUPER_ADMIN, PERAN.ADMIN_QURBAN, PERAN.PENDAFTARAN];
 
 const ISO_Z = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z$/;
 

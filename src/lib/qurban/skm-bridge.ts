@@ -33,6 +33,9 @@ export const KATEGORI_QURBAN = {
 /** Nama rekening Kas Tunai (Model A) di sheet `rekening_bank`. */
 export const REKENING_KAS_TUNAI = 'Kas Tunai';
 
+/** Nama rekening bank utama (sumber transfer masuk) untuk rekonsiliasi F6 M-C. */
+export const REKENING_BANK_MUAMALAT = 'Bank Muamalat Indonesia';
+
 /**
  * Tentukan NAMA kategori income untuk satu slot qurban.
  * - BAWA_SENDIRI (bawa sendiri / titip) → Jasa Titip & Pakan (mengalahkan jenis).
@@ -166,4 +169,95 @@ export async function createTransaksiPemasukanQurban(
   );
 
   return id;
+}
+
+// ============================================================
+// F6 M-C — baca transaksi + koreksi kategori (jalur kanonik SKM)
+// ============================================================
+
+/** Subset kolom transaksi yang dipakai rekonsiliasi. */
+export interface TransaksiLite {
+  id: string;
+  tanggal: string;
+  jenis: string;
+  kategori_id: string;
+  deskripsi: string;
+  jumlah: number;
+  rekening_id: string;
+  status: string;
+  bank_ref: string;
+}
+
+function rowToTransaksiLite(row: string[]): TransaksiLite {
+  const headers = SHEET_HEADERS[SHEET_NAMES.TRANSAKSI];
+  const idx = (h: string) => headers.indexOf(h);
+  return {
+    id: row[idx('id')] || '',
+    tanggal: row[idx('tanggal')] || '',
+    jenis: row[idx('jenis')] || '',
+    kategori_id: row[idx('kategori_id')] || '',
+    deskripsi: row[idx('deskripsi')] || '',
+    jumlah: parseInt(row[idx('jumlah')] || '0', 10) || 0,
+    rekening_id: row[idx('rekening_id')] || '',
+    status: row[idx('status')] || '',
+    bank_ref: row[idx('bank_ref')] || '',
+  };
+}
+
+/**
+ * Kandidat rekonsiliasi: transaksi `MASUK` + `AKTIF` pada satu rekening.
+ * Read-only — TIDAK menyentuh schema.
+ */
+export async function listTransaksiMasukByRekening(rekeningId: string): Promise<TransaksiLite[]> {
+  const rows = await sheetsService.getRows(SHEET_NAMES.TRANSAKSI);
+  return rows
+    .map(rowToTransaksiLite)
+    .filter(
+      (t) => t.id && t.jenis === TransaksiJenis.MASUK && t.status === TransaksiStatus.AKTIF && t.rekening_id === rekeningId
+    );
+}
+
+/** Baca satu transaksi (lite) by id, atau null. */
+export async function getTransaksiLiteById(id: string): Promise<TransaksiLite | null> {
+  const res = await sheetsService.getRowById(SHEET_NAMES.TRANSAKSI, id);
+  return res ? rowToTransaksiLite(res.row) : null;
+}
+
+/**
+ * Koreksi `kategori_id` satu baris transaksi lewat jalur UPDATE kanonik SKM
+ * (mirror `PUT /api/transaksi/[id]`: getRowById → updateRow full-layout →
+ * `logAudit(UPDATE)`). Hanya transaksi `AKTIF`. No-op bila kategori sama.
+ *
+ * Catatan drift (sama seperti `createTransaksiPemasukanQurban`): tidak ada
+ * service update transaksi yang reusable — logika di-INLINE pada route PUT;
+ * helper ini mereplikasinya dengan setia, bukan `updateRow` mentah tanpa audit.
+ */
+export async function correctTransaksiKategori(
+  transaksiId: string,
+  newKategoriId: string,
+  createdBy: string
+): Promise<{ changed: boolean; from: string }> {
+  const res = await sheetsService.getRowById(SHEET_NAMES.TRANSAKSI, transaksiId);
+  if (!res) throw new Error(`Transaksi ${transaksiId} tidak ditemukan untuk koreksi kategori.`);
+  const t = rowToTransaksiLite(res.row);
+  if (t.status !== TransaksiStatus.AKTIF) {
+    throw new Error(`Transaksi ${transaksiId} berstatus ${t.status}; hanya AKTIF yang bisa dikoreksi.`);
+  }
+  if (t.kategori_id === newKategoriId) return { changed: false, from: t.kategori_id };
+
+  const headers = SHEET_HEADERS[SHEET_NAMES.TRANSAKSI];
+  const updated = [...res.row];
+  while (updated.length < headers.length) updated.push('');
+  updated[headers.indexOf('kategori_id')] = newKategoriId;
+  updated[headers.indexOf('updated_at')] = nowISO();
+
+  await sheetsService.updateRow(SHEET_NAMES.TRANSAKSI, res.rowIndex, updated);
+  await logAudit(
+    AuditAksi.UPDATE,
+    SHEET_NAMES.TRANSAKSI,
+    transaksiId,
+    JSON.stringify({ kategori_id: newKategoriId, from: t.kategori_id, sumber: 'qurban_rekonsiliasi' }),
+    createdBy
+  );
+  return { changed: true, from: t.kategori_id };
 }

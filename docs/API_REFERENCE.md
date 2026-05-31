@@ -2198,7 +2198,8 @@ menulis). Repo: `src/lib/qurban/pembayaran-repo.ts`
 > Catatan method: mengikuti konvensi in-repo endpoint aksi Qurban (`/cancel`,
 > `/activate`, …) yang memakai **POST** (bukan PATCH).
 
-Roles `[SUPER_ADMIN, BENDAHARA, ADMIN_QURBAN, PENDAFTARAN]`. **TUNAI:**
+Roles `[SUPER_ADMIN, ADMIN_QURBAN, PENDAFTARAN]` (C-0: **BD dikecualikan** —
+terima cash operasi panitia; BD read-only di Pembayaran). **TUNAI:**
 `BELUM_BAYAR → TERIMA_PANITIA`. Gate: `metode==='TUNAI'` &&
 `status==='BELUM_BAYAR'` (else `409 CONFLICT`). **Body:** `{ panitia_terima_id
 (wajib), tanggal_terima_panitia? (ISO-Z, default now), bukti_url? }`. Set field +
@@ -2226,10 +2227,43 @@ perbaikan = pass rekonsiliasi M-C. Audit `pembayaran.lunas`.
 
 ### PY4 — `GET /api/qurban/pembayaran?edisi_id=EDS-...`
 
-Roles semua peran qurban `[SUPER_ADMIN, BENDAHARA, ADMIN_QURBAN, PENDAFTARAN,
-DISTRIBUSI]`. Filter opsional `status`, `metode`, `panitia_terima_id`. Response:
-baris pembayaran + enrichment `{ muqorib_nama, jumlah_slot }` (slot `TERDAFTAR`
-per `kode_bayar`). Urut `created_at` ASC. `meta: { total, filters_applied }`.
+Roles `[SUPER_ADMIN, BENDAHARA, ADMIN_QURBAN, PENDAFTARAN]` (C-0: **DISTRIBUSI
+🔒 dikecualikan**). Filter opsional `status`, `metode`, `panitia_terima_id`.
+Response: baris pembayaran + enrichment `{ muqorib_nama, jumlah_slot }` (slot
+`TERDAFTAR` per `kode_bayar`). Urut `created_at` ASC. `meta: { total,
+filters_applied }`.
+
+### PY5 — `POST /api/qurban/pembayaran/rekonsiliasi?edisi_id=EDS-...` (M-C)
+
+Roles `[SUPER_ADMIN, BENDAHARA]` (domain finansial). **Pass rekonsiliasi
+TRANSFER Layer 1 (deterministik).** Pass TERPISAH yang **membaca** sheet
+`transaksi` — BUKAN disuntik ke alur import. Baca transaksi `MASUK`/`AKTIF`
+rekening **Bank Muamalat** yang **belum ter-link** (idempoten). Engine
+(`rekonsiliasi-engine.ts`): ekstrak `QRB-\d{4}-\d{3}` dari `deskripsi`, cocokkan
+ke pembayaran `TRANSFER`+`BELUM_BAYAR` + **nominal == `nominal_transfer`** →
+**AUTO_MATCH**. AUTO-apply: **koreksi `kategori_id` transaksi** (import meng-auto
+"QRB"→`Qurban Sapi`; dikoreksi per-tipe via resolver — kambing→`Qurban Kambing`,
+dst.) lewat jalur UPDATE kanonik SKM + audit, lalu set pembayaran `LUNAS` +
+`skm_transaksi_id` + `bank_ref` + `match_metadata`. **Campur-tipe** (pasca
+Pemetaan): koreksi kategori **di-skip** + flag `mixed` di `match_metadata`, uang
+tetap `LUNAS`. Response: `{ auto_lunas[], anomali[{transaksi_id, kode_bayar,
+alasan}], unmatched[{transaksi_id, jumlah, deskripsi, tanggal}] }`. Audit
+`pembayaran.lunas_via_rekonsiliasi`.
+
+### PY6 — `POST /api/qurban/pembayaran/[id]/link-transaksi?edisi_id=EDS-...` (M-C)
+
+Roles `[SUPER_ADMIN, BENDAHARA]`. **Link manual** (transfer tanpa kode / nominal
+beda / bank_ref tak match — BD memutuskan). **Body:** `{ transaksi_id }`. Gate:
+pembayaran `TRANSFER`+`BELUM_BAYAR`+belum ter-link; transaksi `MASUK` & belum
+tertaut pembayaran lain. Memakai `applyMatch` yang sama (koreksi kategori + LUNAS
++ link). **Nominal beda tetap diizinkan** (sengaja) → `meta.warning` + `selisih`
+dicatat di `match_metadata`.
+
+> **Catatan drift bridge:** koreksi `kategori_id` transaksi (M-C) & create
+> transaksi (M-B) memakai helper island (`skm-bridge.ts`) yang **mereplikasi**
+> jalur kanonik SKM (`getNextId`/`updateRow` + `logAudit`) karena route
+> `transaksi` meng-inline logikanya (tak ada service reusable). Schema tak
+> disentuh.
 
 ### Error Codes (Pembayaran)
 
@@ -2239,6 +2273,7 @@ per `kode_bayar`). Urut `created_at` ASC. `meta: { total, filters_applied }`.
 | `CONFLICT` | 409 | PY2/PY3 — metode/status tidak sesuai gate, atau sudah tertaut transaksi. |
 | `BUSINESS_PEMBAYARAN_MIXED_KATEGORI` | 409 | PY3 — slot `kode_bayar` lintas kategori; pelunasan manual. |
 | `BUSINESS_PEMBAYARAN_EXISTS` | 409 | PS5 — cancel ditolak karena pembayaran `TERIMA_PANITIA`/`LUNAS`. |
+| `CONFLICT` | 409 | PY6 — transaksi bukan MASUK / sudah tertaut pembayaran lain. |
 | `VALIDATION_REQUIRED`/`VALIDATION_FORMAT` | 422 | Field input wajib/format salah. |
 
 ### Audit Events (Pembayaran)
@@ -2248,10 +2283,11 @@ per `kode_bayar`). Urut `created_at` ASC. `meta: { total, filters_applied }`.
 | `pembayaran.created` | `CREATE` | PS2/PB3 auto-create (M-A) |
 | `pembayaran.terima_panitia` | `UPDATE` | PY2 (TUNAI) |
 | `pembayaran.lunas` | `UPDATE` | PY3 (TUNAI Model A; catat `skm_transaksi_id`) |
+| `pembayaran.lunas_via_rekonsiliasi` | `UPDATE` | PY5/PY6 (TRANSFER; layer AUTO/MANUAL + `bank_ref` + `amount_ok`) |
 | `pembayaran.batal` | `UPDATE` | PS5 kaskade (seluruh slot batal) |
 
-> **Belum diimplementasi (M-C/M-D):** pelunasan TRANSFER via pencocokan
-> `kode_bayar` di `transaksi.deskripsi`, rekonsiliasi, dan UI.
+> **Belum diimplementasi:** Layer 2 (smart-scoring) + Layer 3 (antrian) = **M-C2**;
+> UI pembayaran + WA "pembayaran confirmed" = **M-D**.
 
 ---
 
