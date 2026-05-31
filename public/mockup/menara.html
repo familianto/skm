@@ -42,7 +42,7 @@
   .slide {
     position: absolute;
     inset: 0;
-    padding: 5.5%;            /* TV-safe area: keep foreground out of overscan zone */
+    padding: 7%;             /* TV-safe area: keep foreground out of overscan zone */
     display: flex;
     opacity: 0;
     visibility: hidden;
@@ -159,7 +159,7 @@
     width: clamp(72px, 5.4vw, 110px);
     height: 2px;
     background: linear-gradient(90deg, var(--gold), transparent);
-    margin: clamp(18px, 1.6vw, 32px) 0 clamp(20px, 1.7vw, 34px);
+    margin: clamp(14px, 1.3vw, 26px) 0 clamp(16px, 1.4vw, 28px);
   }
 
   .body {
@@ -171,7 +171,7 @@
     text-wrap: pretty;
     text-shadow: 0 1px 16px rgba(0,0,0,0.55);
   }
-  .body p { margin-bottom: clamp(14px, 1.35vw, 26px); }
+  .body p { margin-bottom: clamp(10px, 1.0vw, 18px); }
   .body p:last-child { margin-bottom: 0; }
   .body .lead { font-weight: 400; }
   .body em { color: var(--gold-bright); font-style: normal; font-weight: 500; }
@@ -179,7 +179,7 @@
   .quote {
     border-left: 2px solid var(--gold);
     padding: clamp(2px,0.3vw,4px) 0 clamp(2px,0.3vw,4px) clamp(20px, 1.7vw, 32px);
-    margin: clamp(20px, 1.6vw, 32px) 0;
+    margin: clamp(14px, 1.2vw, 22px) 0;
   }
   .quote .arabic {
     font-family: "Amiri", serif;
@@ -196,8 +196,8 @@
   }
 
   .closing {
-    margin-top: clamp(18px, 1.6vw, 30px);
-    padding: clamp(16px, 1.4vw, 28px) clamp(20px, 1.8vw, 36px);
+    margin-top: clamp(12px, 1.1vw, 20px);
+    padding: clamp(12px, 1.1vw, 22px) clamp(16px, 1.5vw, 30px);
     background: rgba(205,168,90,0.12);
     border: 1px solid var(--line);
     border-radius: 10px;
@@ -211,11 +211,11 @@
   /* progress bar — full width, bottom edge */
   #progress {
     position: absolute;
-    bottom: 5.5%;            /* inside TV-safe area */
-    left: 5.5%;
+    bottom: 7%;              /* inside TV-safe area */
+    left: 7%;
     height: clamp(4px, 0.45vh, 6px);
     width: 0%;
-    max-width: 89%;          /* cap so full bar stays off the right edge */
+    max-width: 86%;          /* (100 - 2x7)% cap so full bar stays off both edges */
     background: linear-gradient(90deg, var(--gold), var(--gold-bright));
     z-index: 40;
     box-shadow: 0 0 16px rgba(231,202,132,0.55);
@@ -223,8 +223,8 @@
 
   #dots {
     position: absolute;
-    right: 7%;               /* inside TV-safe area */
-    bottom: 8%;              /* above the progress bar, inside safe area */
+    right: 8.5%;             /* inside TV-safe area, further in than progress edge */
+    bottom: 9.5%;            /* above the progress bar, inside safe area */
     display: flex;
     gap: clamp(9px, 0.7vw, 13px);
     z-index: 40;
@@ -298,8 +298,8 @@
   </div>
 
 <script>
-  // --- auto-rotate 20s / slide ---
-  var SLIDE_MS = 20000;
+  // --- auto-rotate 35s / slide ---
+  var SLIDE_MS = 35000;
   var slides = document.querySelectorAll('.slide');
   var dots = document.querySelectorAll('#dots .d');
   var progress = document.getElementById('progress');
