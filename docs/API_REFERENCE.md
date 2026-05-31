@@ -2061,20 +2061,27 @@ ASC (tiebreak `id`). `meta: { total, filters_applied }`.
 ### PS2 — `POST /api/qurban/peserta?edisi_id=EDS-...`
 
 **Body:** `{ muqorib_id, master_hewan_id, tipe_qurban, jumlah_slot,
-nama_atas_nama_per_slot?, keterangan_bagian?, allow_additional_qurban? }`.
-`nama_atas_nama_per_slot` (kalau diisi) panjangnya harus = `jumlah_slot`.
+nama_atas_nama_per_slot?, keterangan_bagian?, allow_additional_qurban?,
+metode_pembayaran? }`. `nama_atas_nama_per_slot` (kalau diisi) panjangnya harus =
+`jumlah_slot`. **`metode_pembayaran` (F6, opsional, default `TRANSFER`):** hanya
+`TRANSFER`|`TUNAI` diterima; `VA` → `422 VALIDATION_FAILED` ("segera hadir");
+nilai lain → `422 VALIDATION_FAILED`. Divalidasi **sebelum** menulis apa pun.
 
-**Alur:** (1) validasi + `muqorib_id` harus ada & **aktif** (`is_active`);
-(2) deteksi duplikat Layer 1 — bila muqorib sudah punya peserta `TERDAFTAR` di
-edisi & `allow_additional_qurban=false` → `409 DUPLICATE_PESERTA` (body memuat
-`existing[]`); (3) bekukan `harga_disepakati` dari master; (4) **auto-assign
-slot** (hewan `AKTIF` cocok `master_hewan_id`+`tipe`, urut `nomor_urut` ASC,
-slot kosong terkecil dulu, auto-split antar hewan) — kurang dari diminta →
-`409 BUSINESS_INSUFFICIENT_SLOTS` (`{available, needed}`); (5) generate
-`kode_bayar` berurutan per slot; (6) insert N baris (batch) dengan
-`sumber_pendaftaran=PANITIA`, `status_pendaftaran=TERDAFTAR`. **Response 201**
-(array N peserta). Audit `peserta.created` per baris (flag
-`is_additional_qurban` bila berlaku).
+**Alur:** (1) validasi + `metode_pembayaran` + `muqorib_id` harus ada & **aktif**
+(`is_active`); (2) deteksi duplikat Layer 1 — bila muqorib sudah punya peserta
+`TERDAFTAR` di edisi & `allow_additional_qurban=false` → `409 DUPLICATE_PESERTA`
+(body memuat `existing[]`); (3) bekukan `harga_disepakati` dari master;
+(4) **auto-assign slot** (hewan `AKTIF` cocok `master_hewan_id`+`tipe`, urut
+`nomor_urut` ASC, slot kosong terkecil dulu, auto-split antar hewan) — kurang
+dari diminta → `409 BUSINESS_INSUFFICIENT_SLOTS` (`{available, needed}`);
+(5) generate `kode_bayar` per pendaftaran (dibagi semua baris); (6) insert N
+baris peserta (batch) dengan `sumber_pendaftaran=PANITIA`,
+`status_pendaftaran=TERDAFTAR`; **(7) F6 — auto-create SATU baris
+`qurban_pembayaran`** per pendaftaran (`status=BELUM_BAYAR`,
+`nominal_total = Σ harga_disepakati`, `nominal_transfer = nominal_total +
+payment_suffix`, `metode` dari body). Bila langkah 7 gagal → `500` dengan pesan
+jelas (peserta sudah tertulis; backfill manual menyusul M-C). **Response 201**
+(array N peserta). Audit `peserta.created` per baris + `pembayaran.created`.
 
 ### PS3 — `GET /api/qurban/peserta/[id]?edisi_id=EDS-...`
 
@@ -2092,9 +2099,13 @@ Idempotent no-op bila tak ada perubahan.
 
 **Body:** `{ alasan?, refund_handling? }`. `TERDAFTAR → BATAL` (sudah `BATAL` →
 `422 BUSINESS_PESERTA_NOT_TERDAFTAR`). Slot otomatis kosong (computed via
-okupansi). Pembayaran existing TIDAK dinonaktifkan; bila sheet `qurban_pembayaran`
-(F6) ada & peserta punya pembayaran, response menyertakan `meta.warning`.
-Audit `peserta.status_changed`.
+okupansi). **F6:** bila pembayaran pendaftaran (resolved via `kode_bayar`)
+berstatus `TERIMA_PANITIA`/`LUNAS` → `409 BUSINESS_PEMBAYARAN_EXISTS` (cancel
+**ditolak**, refund di luar sistem). **Kaskade:** setelah `BATAL`, bila tak ada
+lagi slot `TERDAFTAR` untuk `kode_bayar` itu **dan** pembayarannya masih
+`BELUM_BAYAR`, pembayaran di-set `BATAL` (audit `pembayaran.batal`) +
+`meta.warning`. Tahan-banting bila sheet `qurban_pembayaran` belum ada
+(pre-F6 → tidak memblokir). Audit `peserta.status_changed`.
 
 ### PS6 — `POST /api/qurban/peserta/check-duplicate`
 
@@ -2135,6 +2146,7 @@ slots[] }`, tiap slot `{ hewan_id, nomor_urut, slot_number }` (hanya hewan
 | `BUSINESS_EDISI_NOT_AKTIF` | 422 | PS2 — edisi bukan `AKTIF`. |
 | `BUSINESS_EDISI_LOCKED` | 422 | PS4/PS5/PS7 — edisi `SELESAI`. |
 | `BUSINESS_PESERTA_NOT_TERDAFTAR` | 422 | PS4/PS5/PS7 — peserta tidak berstatus `TERDAFTAR`. |
+| `BUSINESS_PEMBAYARAN_EXISTS` | 409 | PS5 — pembayaran pendaftaran sudah `TERIMA_PANITIA`/`LUNAS`; cancel ditolak (F6). |
 
 ### Audit Events (Peserta)
 
@@ -2146,6 +2158,44 @@ slots[] }`, tiap slot `{ hewan_id, nomor_urut, slot_number }` (hanya hewan
 | `peserta.harga_changed` | `UPDATE` | PS7 (skip kalau harga sama) |
 | `peserta.wa_sent_success` | `CREATE` | PS2 (retrofit Fonnte F4b-C; gated `wa_send_on_pendaftaran`) |
 | `peserta.wa_sent_failed` | `CREATE` | PS2 (kirim WA gagal; tidak menggagalkan response) |
+
+---
+
+## Qurban Pembayaran — `qurban_pembayaran` (Sprint F6)
+
+Sprint F6 mencatat pembayaran peserta qurban. **Milestone A = fondasi data +
+auto-create saat registrasi** (belum ada endpoint transisi status / rekonsiliasi
+/ UI). Sheet hidup di **workbook utama** (`GOOGLE_SHEETS_ID`). Migrasi:
+`scripts/migrate_F6A_pembayaran.gs` (jalankan ke STAGING dulu).
+
+**Grain: 1 baris = 1 pendaftaran (`kode_bayar`)**, BUKAN per-slot. Satu
+pendaftaran multi-slot berbagi satu `kode_bayar` → satu baris pembayaran
+menaungi seluruh slotnya.
+
+**Schema `qurban_pembayaran` (19 kolom):** `id` (prefix `BYR-{YYYYMMDD-WIB}-{NNNN}`),
+`edisi_id` (FK), `kode_bayar` (kunci pendaftaran, unik per edisi → menautkan ke
+baris `qurban_peserta`), `muqorib_id` (FK), `nominal_total` (Σ `harga_disepakati`
+semua slot), `nominal_transfer` (`nominal_total + payment_suffix`), `metode`
+(`TRANSFER`|`TUNAI`|`VA`|`IMPORT_1447H`), `status`
+(`BELUM_BAYAR`|`TERIMA_PANITIA`|`LUNAS`|`BATAL`), `tanggal_terima_panitia`
+(ISO-8601 Z | '', TUNAI), `panitia_terima_id` ('' | FK, TUNAI), `tanggal_lunas`
+(ISO-8601 Z | ''), `bank_ref` ('' → diisi saat match TRANSFER, M-C),
+`skm_transaksi_id` ('' → diisi saat `LUNAS`, FK `transaksi.id`), `bukti_url`,
+`match_metadata` (JSON string | '' → M-C), `notes`, `created_at`, `updated_at`,
+`created_by`. Timestamp = **ISO-8601 Z** (konvensi entitas qurban).
+
+**Auto-create di registrasi (M-A):** PS2 (admin) & PB3 (publik) membuat satu
+baris `BELUM_BAYAR` setelah insert peserta sukses, memakai `metode_pembayaran`
+dari body (default `TRANSFER`; `VA`/nilai tak dikenal ditolak `422` sebelum
+menulis). Repo: `src/lib/qurban/pembayaran-repo.ts`
+(`listPembayaranByEdisi`/`getPembayaranById`/`findPembayaranByKodeBayar`/
+`insertPembayaran`/`updatePembayaranAt`). Builder murni:
+`src/lib/qurban/pembayaran-create.ts`. Audit `pembayaran.created` /
+`pembayaran.batal` (`src/lib/qurban/pembayaran-audit.ts`).
+
+> **Belum diimplementasi (M-B/M-C):** endpoint transisi status (TUNAI
+> `TERIMA_PANITIA`/`LUNAS`), pencocokan TRANSFER via `kode_bayar` di
+> `transaksi.deskripsi`, rekonsiliasi, dan UI.
 
 ---
 
@@ -2459,14 +2509,17 @@ Response **TIDAK pernah memuat PII penuh:**
 
 Body: `muqorib_id` (dari PB2) **atau** `muqorib_data {nama_lengkap, alamat, rt,
 no_hp}`; `master_hewan_id`, `tipe_qurban`, `jumlah_slot` (≤ 50), `nama_atas_nama?`,
-`keterangan_bagian?`, + field honeypot `email`.
+`keterangan_bagian?`, `metode_pembayaran?` (F6; default `TRANSFER`; `VA` ditolak
+`422`), + field honeypot `email`.
 
-Alur: rate-limit → honeypot → audit `attempted` → validasi + gate `BUKA` →
-resolusi muqorib (id aktif / match `no_hp` / **auto-create**; **muqorib nonaktif
-ditolak**, konsisten PS2) → duplikat Layer 1 (`409 DUPLICATE_PESERTA`, arahkan ke
-cek-status) → freeze harga → auto-assign slot (`409 BUSINESS_INSUFFICIENT_SLOTS`)
-→ generate `kode_bayar` → insert batch (`sumber_pendaftaran=PUBLIK`) → audit per
-peserta + `succeeded` → **WA Fonnte** (gated `wa_send_on_pendaftaran`). Response
+Alur: rate-limit → honeypot → audit `attempted` → validasi (+ `metode_pembayaran`,
+tolak VA/invalid sebelum menulis) + gate `BUKA` → resolusi muqorib (id aktif /
+match `no_hp` / **auto-create**; **muqorib nonaktif ditolak**, konsisten PS2) →
+duplikat Layer 1 (`409 DUPLICATE_PESERTA`, arahkan ke cek-status) → freeze harga →
+auto-assign slot (`409 BUSINESS_INSUFFICIENT_SLOTS`) → generate `kode_bayar` →
+insert batch (`sumber_pendaftaran=PUBLIK`) → **F6: auto-create `qurban_pembayaran`
+`BELUM_BAYAR`** (gagal → `500` jelas) → audit per peserta + `pembayaran.created` +
+`succeeded` → **WA Fonnte** (gated `wa_send_on_pendaftaran`). Response
 `201`: `{ edisi, muqorib: { id, nama_masked }, peserta[], pembayaran{ total_harga,
 payment_suffix, nominal_transfer, rekening[] } }` — sejak F4d response **tidak
 lagi memuat** `muqorib.nama_lengkap` / `no_hp` penuh (WA tetap dikirim

@@ -45,6 +45,11 @@ export function generatePesertaIds(count: number): Promise<string[]> {
   return generateIds('PST', QURBAN_SHEETS.PESERTA, count);
 }
 
+/** F6 — id pembayaran `BYR-{YYYYMMDD-WIB}-{NNNN}` (BUKAN di ID_PREFIXES, itu SKM-core). */
+export function generatePembayaranId(): Promise<string> {
+  return generateId('BYR', QURBAN_SHEETS.PEMBAYARAN);
+}
+
 /**
  * Format `kode_bayar` peserta: `QRB-{tahun}-{NNN}` (mis. `QRB-1448-007`).
  *

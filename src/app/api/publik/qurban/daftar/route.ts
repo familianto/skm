@@ -23,8 +23,11 @@ import {
   type QurbanMuqorib,
 } from '@/lib/qurban/muqorib-repo';
 import { findMuqoribByNoHp, muqoribDataDiffers } from '@/lib/qurban/publik-muqorib';
-import { generateMuqoribId, generatePesertaIds } from '@/lib/qurban/id-generator';
+import { generateMuqoribId, generatePesertaIds, generatePembayaranId } from '@/lib/qurban/id-generator';
 import { findDuplikatTerdaftar, insertPeserta } from '@/lib/qurban/peserta-repo';
+import { insertPembayaran } from '@/lib/qurban/pembayaran-repo';
+import { buildPembayaranFromPendaftaran, resolveMetodePembayaranInput } from '@/lib/qurban/pembayaran-create';
+import { auditPembayaranCreated } from '@/lib/qurban/pembayaran-audit';
 import { lookupHargaDisepakati } from '@/lib/qurban/peserta-pricing';
 import { autoAssignSlots } from '@/lib/qurban/peserta-slot-assignment';
 import { nextKodeBayar } from '@/lib/qurban/peserta-kode-bayar';
@@ -97,6 +100,13 @@ export async function POST(request: NextRequest) {
       return error(ErrorCodes.VALIDATION_FAILED, first.message, 422, { field: first.field, errors: parsed.errors });
     }
     const input = parsed.value;
+
+    // F6: metode pembayaran (default TRANSFER). Validasi awal — tolak VA / nilai
+    // tak dikenal sebelum menulis apa pun (hindari peserta yatim).
+    const metodeRes = resolveMetodePembayaranInput(raw.metode_pembayaran);
+    if (!metodeRes.ok) {
+      return error(ErrorCodes.VALIDATION_FAILED, metodeRes.message, 422, { field: 'metode_pembayaran' });
+    }
 
     // 4b. Gate: edisi AKTIF + window pendaftaran BUKA.
     const edisi = await findActiveEdisi();
@@ -258,6 +268,33 @@ export async function POST(request: NextRequest) {
     const konfig = await findKonfigurasiByEdisiId(edisi.id);
     const pembayaran = computePembayaran(harga.harga_disepakati, input.jumlah_slot, konfig?.payment_suffix ?? 0);
     const rekening = await listRekeningPublik();
+
+    // F6 Milestone A: auto-create SATU baris qurban_pembayaran per pendaftaran
+    // (kode_bayar), status BELUM_BAYAR. Peserta sudah tertulis; bila pencatatan
+    // pembayaran gagal, gagalkan request dengan pesan jelas (backfill di M-C).
+    try {
+      const pembayaranRecord = buildPembayaranFromPendaftaran({
+        id: await generatePembayaranId(),
+        edisi_id: edisi.id,
+        kode_bayar: kode,
+        muqorib_id: muqorib.id,
+        slot_harga: records.map((r) => r.harga_disepakati),
+        payment_suffix: konfig?.payment_suffix ?? 0,
+        metode: metodeRes.metode,
+        created_by: 'PUBLIK',
+        now: ts,
+      });
+      await insertPembayaran(pembayaranRecord);
+      await auditPembayaranCreated(pembayaranRecord, pesertaActor);
+    } catch (e) {
+      console.error('[POST /api/publik/qurban/daftar] gagal auto-create pembayaran:', e);
+      const msg = e instanceof Error ? e.message : 'unknown';
+      return error(
+        ErrorCodes.INTERNAL_ERROR,
+        `Pendaftaran tercatat tetapi pencatatan pembayaran gagal: ${msg}. Hubungi panitia.`,
+        500
+      );
+    }
 
     // Gated `wa_send_on_pendaftaran`. Di-await (agar tuntas di lifetime serverless)
     // tetapi error ditangkap — kegagalan WA TIDAK menggagalkan response.

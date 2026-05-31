@@ -5,41 +5,53 @@ import { ErrorCodes } from '@/lib/api/errors';
 import { requireRole } from '@/lib/api/guards';
 import { getClientIp } from '@/lib/api/rate-limit';
 import { PERAN } from '@/lib/api/permissions';
-import { sheetsService } from '@/lib/google-sheets';
 
 import { resolveEdisiForPeserta } from '@/lib/qurban/peserta-context';
-import { getPesertaRecordById, updatePesertaAt, STATUS_TERDAFTAR, STATUS_BATAL } from '@/lib/qurban/peserta-repo';
+import {
+  getPesertaRecordById,
+  updatePesertaAt,
+  listPeserta,
+  STATUS_TERDAFTAR,
+  STATUS_BATAL,
+} from '@/lib/qurban/peserta-repo';
 import { validatePesertaCancel } from '@/lib/qurban/peserta-validators';
 import { auditPesertaStatusChanged } from '@/lib/qurban/peserta-audit';
+import {
+  findPembayaranRecordByKodeBayar,
+  updatePembayaranAt,
+  BLOCKING_STATUSES,
+} from '@/lib/qurban/pembayaran-repo';
+import { auditPembayaranBatal } from '@/lib/qurban/pembayaran-audit';
 import type { QurbanPeserta } from '@/lib/qurban/peserta-types';
 
 // PS5 = SA, AQ only.
 const CANCEL_ROLES = [PERAN.SUPER_ADMIN, PERAN.ADMIN_QURBAN];
 
-const PEMBAYARAN_SHEET = 'qurban_pembayaran';
-
 /**
- * Defensif: sheet `qurban_pembayaran` belum ada (Sprint F6). Hitung pembayaran
- * milik peserta lewat resolusi kolom by-header. Sheet hilang / error → 0 (skip).
+ * F6: pembayaran ber-grain `kode_bayar` (BUKAN per-peserta). Slot tidak boleh
+ * dibatalkan bila pembayaran pendaftarannya sudah "jalan" (TERIMA_PANITIA /
+ * LUNAS). Tahan-banting bila sheet `qurban_pembayaran` belum ada (return null).
  */
-async function countPembayaranForPeserta(pesertaId: string): Promise<number> {
-  try {
-    const headerRows = await sheetsService.getRows(PEMBAYARAN_SHEET, `${PEMBAYARAN_SHEET}!A1:ZZ1`);
-    const header = headerRows[0] ?? [];
-    const idx = header.indexOf('peserta_id');
-    if (idx === -1) return 0;
-    const rows = await sheetsService.getRows(PEMBAYARAN_SHEET);
-    return rows.filter((r) => r[idx] === pesertaId).length;
-  } catch {
-    return 0; // sheet belum ada (pre-F6) atau error baca → lewati.
+async function findBlockingPembayaran(
+  edisiId: string,
+  kodeBayar: string
+): Promise<{ id: string; status: string } | null> {
+  const rec = await findPembayaranRecordByKodeBayar(edisiId, kodeBayar);
+  if (!rec) return null;
+  if ((BLOCKING_STATUSES as readonly string[]).includes(rec.pembayaran.status)) {
+    return { id: rec.pembayaran.id, status: rec.pembayaran.status };
   }
+  return null;
 }
 
 /**
  * PS5 — POST /api/qurban/peserta/[id]/cancel?edisi_id=EDS-...
  *
- * TERDAFTAR → BATAL. Slot otomatis kosong (computed via okupansi). Pembayaran
- * existing TIDAK di-nonaktifkan; bila ada, sertakan peringatan di response.
+ * TERDAFTAR → BATAL. Slot otomatis kosong (computed via okupansi). Bila
+ * pembayaran pendaftaran (kode_bayar) sudah TERIMA_PANITIA/LUNAS → tolak
+ * (refund ditangani di luar sistem). Kaskade (F6): bila setelah pembatalan tak
+ * ada lagi slot TERDAFTAR untuk kode_bayar itu dan pembayaran masih
+ * BELUM_BAYAR, pembayaran di-set BATAL.
  */
 export async function POST(
   request: NextRequest,
@@ -77,6 +89,17 @@ export async function POST(
     }
     const { alasan, refund_handling } = parsed.value;
 
+    // F6: blokir pembatalan bila uang sudah jalan (cek SEBELUM mutasi).
+    const blocking = await findBlockingPembayaran(gate.edisi.id, current.kode_bayar);
+    if (blocking) {
+      return error(
+        ErrorCodes.BUSINESS_PEMBAYARAN_EXISTS,
+        `Pendaftaran ini memiliki pembayaran berstatus ${blocking.status}. Pembatalan tidak diizinkan; tangani refund di luar sistem.`,
+        409,
+        { pembayaran_id: blocking.id, pembayaran_status: blocking.status, kode_bayar: current.kode_bayar }
+      );
+    }
+
     const updated: QurbanPeserta = {
       ...current,
       status_pendaftaran: STATUS_BATAL,
@@ -89,11 +112,37 @@ export async function POST(
       notes: alasan || undefined,
     });
 
-    const pembayaranCount = await countPembayaranForPeserta(id);
-    const meta = pembayaranCount > 0
-      ? {
-          warning: `Peserta memiliki ${pembayaranCount} pembayaran. Refund ditangani di luar sistem; pembayaran tidak dinonaktifkan otomatis.`,
+    // F6 kaskade: bila tak ada lagi slot TERDAFTAR untuk kode_bayar ini, dan
+    // pembayaran masih BELUM_BAYAR, batalkan pembayaran-nya juga.
+    let pembayaranBatal = false;
+    try {
+      const sisaAktif = (
+        await listPeserta({ edisi_id: gate.edisi.id, status_pendaftaran: STATUS_TERDAFTAR })
+      ).filter((p) => p.kode_bayar === current.kode_bayar && p.id !== id);
+
+      if (sisaAktif.length === 0) {
+        const payRec = await findPembayaranRecordByKodeBayar(gate.edisi.id, current.kode_bayar);
+        if (payRec && payRec.pembayaran.status === 'BELUM_BAYAR') {
+          await updatePembayaranAt(payRec.rowIndex, {
+            ...payRec.pembayaran,
+            status: 'BATAL',
+            notes: alasan || payRec.pembayaran.notes,
+            updated_at: new Date().toISOString(),
+          });
+          await auditPembayaranBatal(payRec.pembayaran.id, payRec.pembayaran.status, actor, {
+            alasan,
+            kode_bayar: current.kode_bayar,
+          });
+          pembayaranBatal = true;
         }
+      }
+    } catch (e) {
+      // Kaskade best-effort — kegagalan tidak membatalkan pembatalan peserta.
+      console.error('[POST /api/qurban/peserta/[id]/cancel] kaskade pembayaran gagal:', e);
+    }
+
+    const meta = pembayaranBatal
+      ? { warning: 'Pembayaran (BELUM_BAYAR) untuk pendaftaran ini ikut dibatalkan otomatis.' }
       : undefined;
 
     return success(updated, meta);

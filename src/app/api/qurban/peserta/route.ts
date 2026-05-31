@@ -24,10 +24,13 @@ import { getMuqoribById } from '@/lib/qurban/muqorib-repo';
 import { lookupHargaDisepakati } from '@/lib/qurban/peserta-pricing';
 import { autoAssignSlots } from '@/lib/qurban/peserta-slot-assignment';
 import { nextKodeBayar } from '@/lib/qurban/peserta-kode-bayar';
-import { generatePesertaIds } from '@/lib/qurban/id-generator';
+import { generatePesertaIds, generatePembayaranId } from '@/lib/qurban/id-generator';
 import { auditPesertaCreated, auditPesertaWaSent, auditPesertaWaFailed } from '@/lib/qurban/peserta-audit';
 import { findKonfigurasiByEdisiId } from '@/lib/qurban/konfigurasi-repo';
 import { computePembayaran, listRekeningPublik } from '@/lib/qurban/publik-pembayaran';
+import { insertPembayaran } from '@/lib/qurban/pembayaran-repo';
+import { buildPembayaranFromPendaftaran, resolveMetodePembayaranInput } from '@/lib/qurban/pembayaran-create';
+import { auditPembayaranCreated } from '@/lib/qurban/pembayaran-audit';
 import { buildPendaftaranPanitiaMessage, shouldSendPendaftaranWA } from '@/lib/qurban/publik-wa-template';
 import type { QurbanPeserta, SumberPendaftaran, StatusPendaftaran, TipeQurban } from '@/lib/qurban/peserta-types';
 
@@ -122,6 +125,13 @@ export async function POST(request: NextRequest) {
     }
     const input = parsed.value;
 
+    // F6: metode pembayaran (default TRANSFER). Tolak VA / nilai tak dikenal
+    // SEBELUM menulis peserta agar tidak meninggalkan baris peserta yatim.
+    const metodeRes = resolveMetodePembayaranInput((body as Record<string, unknown>).metode_pembayaran);
+    if (!metodeRes.ok) {
+      return error(ErrorCodes.VALIDATION_FAILED, metodeRes.message, 422, { field: 'metode_pembayaran' });
+    }
+
     // FK muqorib harus ada & aktif (soft-delete via is_active).
     const muqorib = await getMuqoribById(input.muqorib_id);
     if (!muqorib) {
@@ -209,9 +219,39 @@ export async function POST(request: NextRequest) {
       await auditPesertaCreated(rec, actor, { is_additional_qurban: isAdditional });
     }
 
+    // Konfigurasi edisi (payment_suffix) dibaca sekali — dipakai oleh
+    // auto-create pembayaran (F6) DAN gating WA di bawah.
+    const konfig = await findKonfigurasiByEdisiId(edisi.id);
+
+    // F6 Milestone A: auto-create SATU baris pembayaran per pendaftaran
+    // (kode_bayar), status BELUM_BAYAR. Peserta sudah tertulis; bila pencatatan
+    // pembayaran gagal, gagalkan request dengan pesan jelas (backfill di M-C).
+    try {
+      const pembayaran = buildPembayaranFromPendaftaran({
+        id: await generatePembayaranId(),
+        edisi_id: edisi.id,
+        kode_bayar: kode,
+        muqorib_id: input.muqorib_id,
+        slot_harga: records.map((r) => r.harga_disepakati),
+        payment_suffix: konfig?.payment_suffix ?? 0,
+        metode: metodeRes.metode,
+        created_by: guard.session.user_id,
+        now,
+      });
+      await insertPembayaran(pembayaran);
+      await auditPembayaranCreated(pembayaran, actor);
+    } catch (e) {
+      console.error('[POST /api/qurban/peserta] gagal auto-create pembayaran:', e);
+      const msg = e instanceof Error ? e.message : 'unknown';
+      return error(
+        ErrorCodes.INTERNAL_ERROR,
+        `Peserta dibuat tetapi pencatatan pembayaran gagal: ${msg}. Hubungi admin untuk backfill.`,
+        500
+      );
+    }
+
     // F4b-C: notifikasi WA panitia (gated `wa_send_on_pendaftaran`). Di-await
     // tetapi error ditangkap — kegagalan WA TIDAK menggagalkan response PS2.
-    const konfig = await findKonfigurasiByEdisiId(edisi.id);
     if (shouldSendPendaftaranWA(konfig, muqorib.no_hp)) {
       try {
         const pembayaran = computePembayaran(harga.harga_disepakati, input.jumlah_slot, konfig?.payment_suffix ?? 0);

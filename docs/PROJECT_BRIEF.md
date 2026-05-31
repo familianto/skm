@@ -339,7 +339,22 @@ Lihat detail di `SPRINT_PLAN.md` dan file individual di `sprints/`.
 | F4c | UI Pendaftaran Qurban (panitia + publik daftar + cek-status) | 6 milestone A–F | ✅ Done |
 | F4d | Phone-primary lookup (PB2 v2 + M7 dual-mode) | 2 milestone A–B | ✅ Done |
 | F5b | Pemetaan Peserta↔Hewan (drag-drop) — A1 infra+PM2, A2 PM1, B UI | 3 milestone A1/A2/B | ✅ Done |
-| F6 / F7 | Pembayaran · Hari-H | TBD | ⏳ Planned |
+| F6 | Pembayaran & Rekonsiliasi Qurban (`qurban_pembayaran`) — A fondasi+registrasi, B status TUNAI, C match TRANSFER, D UI | A–D | 🚧 M-A in progress |
+| F7 | Hari-H | TBD | ⏳ Planned |
+
+### Sprint F6 — Pembayaran & Rekonsiliasi Qurban
+
+**Milestone A (fondasi + integrasi registrasi):** sheet baru `qurban_pembayaran`
+(prefix `BYR-`, grain per-pendaftaran/`kode_bayar`, di workbook utama). Registrasi
+PS2 (admin) & PB3 (publik) kini **auto-create** satu baris pembayaran
+`BELUM_BAYAR` setelah insert peserta (field baru `metode_pembayaran`, default
+`TRANSFER`; `VA` ditolak "segera hadir"). PS5 cancel kini **memblokir** bila
+pembayaran `TERIMA_PANITIA`/`LUNAS` dan **kaskade-batal** pembayaran `BELUM_BAYAR`
+saat seluruh slot pendaftaran dibatalkan. Migrasi `scripts/migrate_F6A_pembayaran.gs`
+(STAGING dulu). Repo/builder/audit: `pembayaran-repo.ts`, `pembayaran-create.ts`,
+`pembayaran-audit.ts`. **Belum:** transisi status TUNAI (M-B), pencocokan TRANSFER
+via `kode_bayar` di berita (M-C), rekonsiliasi & UI (M-D). Detail:
+`HANDOFF_SPRINT_F6.md`, `docs/API_REFERENCE.md` (section Qurban Pembayaran).
 
 ### Sprint F02 — Qurban Edisi Management
 
