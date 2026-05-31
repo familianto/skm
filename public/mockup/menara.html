@@ -39,11 +39,10 @@
   }
 
   /* ---- slides ---- */
+  /* NO padding here — TV-safe area handled by .tv-safe */
   .slide {
     position: absolute;
     inset: 0;
-    padding: 7%;             /* TV-safe area: keep foreground out of overscan zone */
-    display: flex;
     opacity: 0;
     visibility: hidden;
     transition: opacity 1.1s ease;
@@ -76,6 +75,24 @@
       radial-gradient(130% 120% at 22% 50%, transparent 34%, rgba(5,18,14,0.5) 100%);
   }
 
+  /* TV-safe area wrapper — vertical & horizontal overscan handled separately */
+  .tv-safe {
+    position: absolute;
+    inset: 0;
+    padding: 6vh 5vw;        /* TV-safe area: 6% vertical, 5% horizontal */
+    box-sizing: border-box;
+    display: flex;
+    z-index: 2;
+  }
+
+  /* container-query context — content scales relative to container (cqw), not viewport */
+  .tv-container {
+    container-type: inline-size;
+    flex: 1;
+    min-height: 0;
+    display: flex;           /* horizontal split: img-panel + text-panel */
+  }
+
   /* image side — image shown whole (as-is) */
   .img-panel {
     position: relative;
@@ -85,11 +102,11 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    padding: clamp(28px, 4vh, 64px) clamp(20px, 2.4vw, 56px);
+    padding: 4vh 2.67cqw;
   }
   .img-panel img {
-    max-height: 78vh;        /* reduced vertical dominance after safe-area inset */
-    max-width: 100%;
+    max-height: 78vh;
+    max-width: 95%;
     width: auto;
     height: auto;
     object-fit: contain;
@@ -117,13 +134,13 @@
   .eyebrow {
     display: flex;
     align-items: center;
-    gap: clamp(10px, 0.9vw, 18px);
-    margin-bottom: clamp(16px, 1.5vw, 28px);
+    gap: 1cqw;
+    margin-bottom: 1.67cqw;
     white-space: nowrap;
   }
   .star {
-    width: clamp(11px, 0.8vw, 15px);
-    height: clamp(11px, 0.8vw, 15px);
+    width: 0.89cqw;
+    height: 0.89cqw;
     flex: 0 0 auto;
     background: var(--gold);
     transform: rotate(45deg);
@@ -132,15 +149,15 @@
     font-weight: 500;
     letter-spacing: 0.32em;
     text-transform: uppercase;
-    font-size: clamp(12px, 0.95vw, 19px);
+    font-size: 0.9cqw;
     color: var(--gold-bright);
   }
 
   .salam {
     font-family: "Amiri", serif;
-    font-size: clamp(18px, 1.5vw, 30px);
+    font-size: 1.42cqw;
     color: var(--cream-muted);
-    margin-bottom: clamp(14px, 1.3vw, 26px);
+    margin-bottom: 1.44cqw;
     font-style: italic;
   }
 
@@ -148,7 +165,7 @@
     font-family: "Cormorant Garamond", Georgia, serif;
     font-weight: 600;
     color: var(--cream);
-    font-size: clamp(38px, 3.15vw, 64px);
+    font-size: 2.97cqw;
     line-height: 1.08;
     letter-spacing: 0.01em;
     text-shadow: 0 2px 26px rgba(0,0,0,0.45);
@@ -156,66 +173,67 @@
   .title .accent { color: var(--gold-bright); }
 
   .divider {
-    width: clamp(72px, 5.4vw, 110px);
+    width: 6cqw;
     height: 2px;
     background: linear-gradient(90deg, var(--gold), transparent);
-    margin: clamp(14px, 1.3vw, 26px) 0 clamp(16px, 1.4vw, 28px);
+    margin: 1.78cqw 0 1.89cqw;
   }
 
   .body {
     font-weight: 300;
     color: var(--cream);
-    font-size: clamp(19px, 1.62vw, 32px);
+    font-size: 1.53cqw;
     line-height: 1.72;
     max-width: 60ch;
     text-wrap: pretty;
     text-shadow: 0 1px 16px rgba(0,0,0,0.55);
   }
-  .body p { margin-bottom: clamp(10px, 1.0vw, 18px); }
+  .body p { margin-bottom: 1.5cqw; }
   .body p:last-child { margin-bottom: 0; }
   .body .lead { font-weight: 400; }
   .body em { color: var(--gold-bright); font-style: normal; font-weight: 500; }
 
   .quote {
     border-left: 2px solid var(--gold);
-    padding: clamp(2px,0.3vw,4px) 0 clamp(2px,0.3vw,4px) clamp(20px, 1.7vw, 32px);
-    margin: clamp(14px, 1.2vw, 22px) 0;
+    padding: clamp(2px,0.3vw,4px) 0 clamp(2px,0.3vw,4px) 1.89cqw;
+    margin: 1.78cqw 0;
   }
   .quote .arabic {
     font-family: "Amiri", serif;
-    font-size: clamp(19px, 1.55vw, 30px);
+    font-size: 1.46cqw;
     color: var(--gold-bright);
-    margin-bottom: clamp(8px, 0.6vw, 12px);
+    margin-bottom: 0.67cqw;
     line-height: 1.55;
   }
   .quote .src {
-    font-size: clamp(15px, 1.15vw, 23px);
+    font-size: 1.09cqw;
     color: var(--cream-muted);
     font-weight: 400;
     letter-spacing: 0.02em;
   }
 
   .closing {
-    margin-top: clamp(12px, 1.1vw, 20px);
-    padding: clamp(12px, 1.1vw, 22px) clamp(16px, 1.5vw, 30px);
+    margin-top: 1.78cqw;
+    padding: 1.56cqw 2cqw;
     background: rgba(205,168,90,0.12);
     border: 1px solid var(--line);
     border-radius: 10px;
-    font-size: clamp(17px, 1.35vw, 27px);
+    font-size: 1.27cqw;
     line-height: 1.6;
     color: var(--cream);
     font-weight: 300;
   }
   .closing strong { color: var(--gold-bright); font-weight: 600; }
 
-  /* progress bar — full width, bottom edge */
+  /* stage-level overlays — viewport-relative (vh/vw), respect safe area */
   #progress {
     position: absolute;
-    bottom: 7%;              /* inside TV-safe area */
-    left: 7%;
+    bottom: 3vh;
+    left: 5vw;
+    right: 5vw;              /* respect safe area */
+    width: auto;
+    max-width: 90vw;        /* cap so JS-animated full width stays inside safe area */
     height: clamp(4px, 0.45vh, 6px);
-    width: 0%;
-    max-width: 86%;          /* (100 - 2x7)% cap so full bar stays off both edges */
     background: linear-gradient(90deg, var(--gold), var(--gold-bright));
     z-index: 40;
     box-shadow: 0 0 16px rgba(231,202,132,0.55);
@@ -223,8 +241,8 @@
 
   #dots {
     position: absolute;
-    right: 8.5%;             /* inside TV-safe area, further in than progress edge */
-    bottom: 9.5%;            /* above the progress bar, inside safe area */
+    right: 5vw;
+    bottom: 5vh;
     display: flex;
     gap: clamp(9px, 0.7vw, 13px);
     z-index: 40;
@@ -246,46 +264,54 @@
     <!-- SLIDE 1 : foto menara tanpa keterangan -->
     <section class="slide active" data-screen-label="Slide 1">
       <div class="bg"><div class="ph" style="background-image:url('images/menara-foto.jpeg?v=3')"></div></div>
-      <div class="img-panel">
-        <img src="images/menara-foto.jpeg?v=3" alt="Menara Masjid Al-Jabar Jatinegara Baru" />
-      </div>
-      <div class="text-panel">
-        <div class="eyebrow">
-          <span class="star"></span>
-          <span class="eyebrow-text">Masjid Al-Jabar &middot; Jatinegara Baru</span>
-        </div>
-        <div class="salam">Assalamu&rsquo;alaikum Warahmatullahi Wabarakatuh</div>
-        <h1 class="title">Menjulang Bersama,<br /><span class="accent">Menara Rumah Allah</span></h1>
-        <div class="divider"></div>
-        <div class="body">
-          <p class="lead">Kini Masjid Al-Jabar Jatinegara Baru tengah membangun sebuah menara &mdash; penanda rumah Allah yang menjulang di tengah lingkungan kita.</p>
-          <p>Lebih dari sekadar bangunan, menara ini menjadi tempat seruan <em>adzan</em> menggema dan warisan kebaikan yang insya Allah terus mengalir.</p>
+      <div class="tv-safe">
+        <div class="tv-container">
+          <div class="img-panel">
+            <img src="images/menara-foto.jpeg?v=3" alt="Menara Masjid Al-Jabar Jatinegara Baru" />
+          </div>
+          <div class="text-panel">
+            <div class="eyebrow">
+              <span class="star"></span>
+              <span class="eyebrow-text">Masjid Al-Jabar &middot; Jatinegara Baru</span>
+            </div>
+            <div class="salam">Assalamu&rsquo;alaikum Warahmatullahi Wabarakatuh</div>
+            <h1 class="title">Menjulang Bersama,<br /><span class="accent">Menara Rumah Allah</span></h1>
+            <div class="divider"></div>
+            <div class="body">
+              <p class="lead">Kini Masjid Al-Jabar Jatinegara Baru tengah membangun sebuah menara &mdash; penanda rumah Allah yang menjulang di tengah lingkungan kita.</p>
+              <p>Lebih dari sekadar bangunan, menara ini menjadi tempat seruan <em>adzan</em> menggema dan warisan kebaikan yang insya Allah terus mengalir.</p>
+            </div>
+          </div>
         </div>
       </div>
     </section>
 
     <!-- SLIDE 2 : diagram menara dengan keterangan -->
     <section class="slide" data-screen-label="Slide 2">
-      <div class="bg"><div class="ph" style="background-image:url('images/menara-foto.jpeg?v=3')"></div></div>
-      <div class="img-panel">
-        <img src="images/menara-keterangan.jpeg?v=3" alt="Anatomi Menara Masjid Al-Jabar Jatinegara Baru" />
-      </div>
-      <div class="text-panel">
-        <div class="eyebrow">
-          <span class="star"></span>
-          <span class="eyebrow-text">Ikhtiar Bersama Para Jamaah</span>
-        </div>
-        <h1 class="title">Setiap Sumbangsih,<br /><span class="accent">Menjadi Amal Jariyah</span></h1>
-        <div class="divider"></div>
-        <div class="body">
-          <p>Pembangunan menara ini adalah ikhtiar kita bersama. Setiap uluran tangan dan doa menjadi amal yang pahalanya tak pernah terputus.</p>
-          <div class="quote">
-            <div class="arabic">&ldquo;Barangsiapa membangun masjid karena Allah, niscaya Allah membangunkan untuknya sebuah rumah di surga.&rdquo;</div>
-            <div class="src">&mdash; HR. Bukhari &amp; Muslim</div>
+      <div class="bg"><div class="ph" style="background-image:url('images/menara-keterangan.jpeg?v=3')"></div></div>
+      <div class="tv-safe">
+        <div class="tv-container">
+          <div class="img-panel">
+            <img src="images/menara-keterangan.jpeg?v=3" alt="Anatomi Menara Masjid Al-Jabar Jatinegara Baru" />
           </div>
-        </div>
-        <div class="closing">
-          Mari menjadi bagian dari kebaikan ini. Informasi selengkapnya akan disampaikan lebih lanjut oleh <strong>Pengurus Masjid Al-Jabar Jatinegara Baru</strong>.
+          <div class="text-panel">
+            <div class="eyebrow">
+              <span class="star"></span>
+              <span class="eyebrow-text">Ikhtiar Bersama Para Jamaah</span>
+            </div>
+            <h1 class="title">Setiap Sumbangsih,<br /><span class="accent">Menjadi Amal Jariyah</span></h1>
+            <div class="divider"></div>
+            <div class="body">
+              <p>Pembangunan menara ini adalah ikhtiar kita bersama. Setiap uluran tangan dan doa menjadi amal yang pahalanya tak pernah terputus.</p>
+              <div class="quote">
+                <div class="arabic">&ldquo;Barangsiapa membangun masjid karena Allah, niscaya Allah membangunkan untuknya sebuah rumah di surga.&rdquo;</div>
+                <div class="src">&mdash; HR. Bukhari &amp; Muslim</div>
+              </div>
+            </div>
+            <div class="closing">
+              Mari menjadi bagian dari kebaikan ini. Informasi selengkapnya akan disampaikan lebih lanjut oleh <strong>Pengurus Masjid Al-Jabar Jatinegara Baru</strong>.
+            </div>
+          </div>
         </div>
       </div>
     </section>
