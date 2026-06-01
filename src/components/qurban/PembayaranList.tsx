@@ -22,6 +22,7 @@ import {
 } from '@/lib/qurban/pembayaran-display';
 import { PembayaranStatusBadge } from './PembayaranStatusBadge';
 import { TerimaPanitiaModal } from './TerimaPanitiaModal';
+import { RekonsiliasiTab } from './RekonsiliasiTab';
 
 /**
  * F6 D2 — daftar & manajemen pembayaran (konsumsi PY4). Tab tunggal "Daftar
@@ -46,14 +47,15 @@ const METODE_FILTERS: { value: MetodePembayaranFilter; label: string }[] = [
   { value: 'TUNAI', label: 'Cash · Datang Langsung' },
 ];
 
-type Tab = 'daftar';
+type Tab = 'daftar' | 'rekonsiliasi';
 
 export function PembayaranList({ edisiId }: Props) {
   const { me } = useMe();
   const peran = me?.user.peran;
   const { toast } = useToast();
+  const canRekon = peran === 'SUPER_ADMIN' || peran === 'BENDAHARA';
 
-  const [tab] = useState<Tab>('daftar');
+  const [tab, setTab] = useState<Tab>('daftar');
   const [rows, setRows] = useState<PembayaranRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -118,25 +120,33 @@ export function PembayaranList({ edisiId }: Props) {
     }
   };
 
+  const tabClass = (t: Tab) =>
+    tab === t
+      ? 'px-3 py-2 text-sm font-medium text-emerald-700 border-b-2 border-emerald-600'
+      : 'px-3 py-2 text-sm font-medium text-gray-500 hover:text-gray-700';
+
   return (
     <div className="space-y-4">
-      {/* Tabs (D2 tunggal; "Rekonsiliasi" menyusul M-D3). */}
+      {/* Tabs — "Rekonsiliasi" hanya untuk [SA,BD] (RBAC mengikuti PY5/6/7). */}
       <div className="flex gap-1 border-b border-gray-200">
-        <button
-          type="button"
-          className={
-            tab === 'daftar'
-              ? 'px-3 py-2 text-sm font-medium text-emerald-700 border-b-2 border-emerald-600'
-              : 'px-3 py-2 text-sm font-medium text-gray-500'
-          }
-        >
+        <button type="button" className={tabClass('daftar')} onClick={() => setTab('daftar')}>
           Daftar Pembayaran
         </button>
-        <span className="px-3 py-2 text-sm text-gray-300" title="Segera hadir (M-D3)">
-          Rekonsiliasi
-        </span>
+        {canRekon ? (
+          <button type="button" className={tabClass('rekonsiliasi')} onClick={() => setTab('rekonsiliasi')}>
+            Rekonsiliasi
+          </button>
+        ) : (
+          <span className="px-3 py-2 text-sm text-gray-300" title="Khusus Bendahara / Super Admin">
+            Rekonsiliasi
+          </span>
+        )}
       </div>
 
+      {tab === 'rekonsiliasi' && canRekon ? (
+        <RekonsiliasiTab edisiId={edisiId} onChanged={() => void load()} />
+      ) : (
+      <>
       {/* Filters */}
       <div className="flex flex-wrap gap-2">
         <select
@@ -223,6 +233,8 @@ export function PembayaranList({ edisiId }: Props) {
             </table>
           </div>
         </Card>
+      )}
+      </>
       )}
 
       <TerimaPanitiaModal

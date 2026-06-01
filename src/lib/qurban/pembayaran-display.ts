@@ -60,6 +60,20 @@ export function metodePembayaranLabel(metode: string): string {
   }
 }
 
+/**
+ * True bila pembayaran LUNAS lewat rekonsiliasi tapi kategori transaksinya belum
+ * diselesaikan (slot lintas-jenis). Dibaca dari `match_metadata.mixed`.
+ */
+export function isMixedKategoriUnresolved(matchMetadata: string): boolean {
+  if (!matchMetadata) return false;
+  try {
+    const m = JSON.parse(matchMetadata) as Record<string, unknown>;
+    return m.mixed === true && m.kategori_resolved !== true;
+  } catch {
+    return false;
+  }
+}
+
 /** Indikasi sub-teks untuk TRANSFER yang belum lunas (menunggu rekonsiliasi). */
 export function transferHintForStatus(metode: string, status: string): string | null {
   if (metode !== 'TRANSFER') return null;

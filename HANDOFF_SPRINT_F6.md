@@ -11,7 +11,7 @@ Status per milestone. Modul Qurban = **island pelengkap**; schema `transaksi`,
 | **C2** | Smart-scoring Layer 2 + antrian Layer 3 (PY5 diperluas, PY7) | ✅ **Done** (akumulasi PR #100) |
 | **D1** | UX registrasi: dropdown metode + layar sukses per-metode + WA pendaftaran per-metode | ✅ **Done** (akumulasi PR #100) |
 | **D2** | Halaman manajemen pembayaran admin + WA "pembayaran confirmed" | ✅ **Done** (akumulasi PR #100) |
-| D3 | UI triase rekonsiliasi (konsumsi PY7 + konfirmasi PY6) | ⏳ Belum |
+| **D3** | Triase rekonsiliasi TRANSFER (tab Rekonsiliasi + band + PY8/PY9) | ✅ **Done** — **Sprint F6 LENGKAP** |
 
 ---
 
@@ -508,7 +508,95 @@ scored — kode tetap otoritatif, hanya nominal yang perlu mata manusia.
 
 ---
 
-## Untuk Helper/Hopy — diputuskan sebelum M-D3
+## Milestone D3 — Selesai (triase rekonsiliasi — PENUTUP F6)
+
+### Apa yang dibangun
+
+1. **Band-filter code-less** (`rekonsiliasi-band.ts`): `QURBAN_RECON_BAND_MIN
+   3.000.000` / `QURBAN_RECON_BAND_MAX 40.000.000` + `isWithinReconBand`.
+   Diterapkan di `buildSuggestionBuckets` (`rekonsiliasi-report.ts`) **hanya pada
+   jalur code-less** (engine `unmatched` tanpa kode) — di luar band di-skip dari
+   antrian. **Layer 1 (kode_bayar) & suggestion_high (ber-kode) tidak dibatasi
+   band.** Dipakai PY5 & PY7 sekaligus.
+2. **Tab "Rekonsiliasi"** (`RekonsiliasiTab.tsx`) di `/qurban/pembayaran` —
+   diaktifkan untuk `[SA,BD]` (peran lain lihat label abu). Isi: Jalankan
+   Auto-match (PY5); antrian (PY7) berkelompok **Kecocokan Kuat** (pending_auto →
+   Terapkan/PY6), **Saran** (skor Layer 2 + rincian sinyal → Konfirmasi/PY6),
+   **Tak Cocok** (unmatched → Taut Manual/PY6), **Anomali** (info); **Resolusi
+   Kategori** (mixed → PY9); **Cari Transaksi…** (PY8) untuk taut di luar band.
+3. **PY8** `GET /rekonsiliasi/cari-transaksi` — cari transaksi MASUK belum
+   ter-link **tanpa band** (untuk taut manual transfer kecil/Bawa Sendiri).
+4. **PY9** `POST /[id]/resolve-kategori` — panitia pilih kategori untuk transaksi
+   TRANSFER ber-flag `mixed`; koreksi via `correctTransaksiKategori` + turunkan
+   flag (`kategori_resolved:true`); audit `pembayaran.kategori_resolved`.
+5. Helper `isMixedKategoriUnresolved` (`pembayaran-display.ts`) + badge reuse.
+
+### File dibuat / diubah (D3)
+
+**Baru:** `src/lib/qurban/rekonsiliasi-band.ts`,
+`src/components/qurban/RekonsiliasiTab.tsx`,
+`src/app/api/qurban/pembayaran/rekonsiliasi/cari-transaksi/route.ts` (PY8),
+`src/app/api/qurban/pembayaran/[id]/resolve-kategori/route.ts` (PY9),
+`__tests__/rekonsiliasi-band.test.ts`.
+
+**Diubah:** `rekonsiliasi-report.ts` (band di code-less),
+`pembayaran-display.ts` (+`isMixedKategoriUnresolved`),
+`PembayaranList.tsx` (tab Rekonsiliasi aktif), `__tests__/pembayaran-display.test.ts`,
+`__tests__/rekonsiliasi-queue.handler.test.ts` + `__tests__/rekonsiliasi.handler.test.ts`
+(fixture dinaikkan ke dalam band), `package.json`, docs.
+
+### Deskripsi layar/aksi (untuk verifikasi iPad Hopy)
+
+- **Tab Rekonsiliasi** (buka di `/qurban/pembayaran` sebagai BD/SA): tombol
+  **Jalankan Auto-match** kanan-atas → toast "N pembayaran TRANSFER otomatis
+  LUNAS". Di bawahnya kartu berkelompok:
+  - **Kecocokan Kuat** — baris `TRX → kode`, tombol **Terapkan**.
+  - **Saran** — berita transaksi + kandidat (kode/muqorib + **skor** + rincian
+    sinyal), tombol **Konfirmasi**.
+  - **Tak Cocok** — berita + nominal, tombol **Taut Manual** (modal pilih
+    pembayaran TRANSFER belum bayar).
+  - **Anomali** — info kode + alasan.
+  - **Perlu Resolusi Kategori** (bila ada mixed) — kartu amber, tombol **Pilih
+    Kategori** (modal dropdown kategori qurban).
+  - **Cari Transaksi…** — modal cari transaksi di luar band (PY8) → pilih → taut.
+- **Verifikasi:** (a) transfer dummy ber-kode di transaksi → Auto-match →
+  pembayaran LUNAS + transaksi kategori terkoreksi; (b) transfer dalam-band tanpa
+  kode → muncul Saran → Konfirmasi → LUNAS; (c) transfer di luar band (250rb)
+  via Cari Transaksi → Taut Manual; (d) transaksi mixed → Pilih Kategori.
+
+### Divergensi (D3)
+
+- **Band hanya men-skip jalur code-less** di `buildSuggestionBuckets` (sesuai
+  spec) — bukan di seleksi awal `listTransaksiMasukByRekening`, agar Layer 1
+  (kode) & suggestion_high tetap lolos tanpa band. Dilaporkan: titik penyisipan =
+  cabang `unmatched`-no-kode di report builder.
+- **PY8 endpoint baru** (tak eksplisit diminta) dibutuhkan untuk "pencarian
+  manual di luar band" — antrian dibatasi band, pencarian tidak.
+- **PY9 endpoint baru** untuk resolusi mixed (kategori dipilih panitia; tak
+  auto-tebak), koreksi via jalur kanonik existing.
+- Kontrak PY5/PY6/PY7 **tidak diubah** (hanya perilaku internal report builder
+  yang kini band-aware — berlaku ke PY5 & PY7).
+- 2 fixture tes lama (queue + rekon handler) nominalnya dinaikkan ke dalam band
+  agar tetap relevan; tak ada perubahan perilaku yang di-loosen.
+
+### Verifikasi (D3)
+
+`npm ci` ✅ · `type-check` ✅ · `lint` ✅ · `test` ✅ **543 pass / 0 fail**
+(+6 tes D3) · `build` ✅ (8 route `/api/qurban/pembayaran*` + halaman).
+
+---
+
+## Sprint F6 — LENGKAP
+
+End-to-end: registrasi (metode) → auto-create BELUM_BAYAR → TUNAI
+(terima-panitia → setor Kas Model A) / TRANSFER (rekonsiliasi auto Layer 1 +
+smart-scoring Layer 2 + triase manual) → LUNAS + WA confirmed + koreksi kategori
+ledger. Total **543 tes** hijau. Menunggu verifikasi iPad Hopy → flip PR #100
+ke Ready → merge → migrasi PRODUCTION `migrate_F6A_pembayaran.gs`.
+
+---
+
+## Untuk Helper/Hopy — sebelum merge F6
 
 0. **Verifikasi D1/D2 (Hopy, iPad Safari, preview Vercel):**
    - D1: daftar via Transfer → layar sukses transfer; daftar via Cash → layar
@@ -517,7 +605,12 @@ scored — kode tetap otoritatif, hanya nominal yang perlu mata manusia.
      Diterima Panitia → **Setor ke Kas** → badge Lunas + transaksi PEMASUKAN
      muncul di Transaksi (Kas Tunai, kategori per-tipe) + WA confirmed (flag on).
      Cek badge status di halaman Peserta.
-1. **Migrasi:** kolom lengkap sejak M-A; B/C/C2/D1/D2 tanpa migrasi baru.
+   - D3: tab **Rekonsiliasi** (BD/SA) → Jalankan Auto-match; (a) transfer dummy
+     ber-kode → LUNAS; (b) transfer dalam-band tanpa kode → Saran → Konfirmasi;
+     (c) transfer di luar band (250rb) → Cari Transaksi → Taut Manual; (d) bila
+     ada transaksi mixed → Pilih Kategori. *Catatan: uji code-less penuh butuh
+     edisi staging berharga-produksi; edisi 150rb sekarang hanya Layer 1 relevan.*
+1. **Migrasi:** kolom lengkap sejak M-A; seluruh B–D3 tanpa migrasi baru.
    PRODUCTION jalankan `migrate_F6A_pembayaran.gs` **segera setelah merge** PR #100.
 2. **Method PY2/PY3/PY5/PY6/PY7: POST/GET** (ikut konvensi in-repo) vs PATCH
    (prompt). Konfirmasi sebelum UI M-D (memengaruhi pemanggilan fetch).

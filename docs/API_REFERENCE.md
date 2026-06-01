@@ -2273,9 +2273,16 @@ anomali[], unmatched[] }`. Audit `pembayaran.lunas_via_rekonsiliasi`.
 ### PY7 — `GET /api/qurban/pembayaran/rekonsiliasi/queue?edisi_id=EDS-...` (C2)
 
 Roles `[SUPER_ADMIN, BENDAHARA]`. **Antrian rekonsiliasi READ-ONLY** (tab triase
-M-D) — **tidak meng-apply apa pun**. Struktur sama dengan PY5 minus `auto_lunas`,
+M-D3) — **tidak meng-apply apa pun**. Struktur sama dengan PY5 minus `auto_lunas`,
 plus `pending_auto[]` (AUTO_MATCH yang akan dituntaskan bila PY5 dijalankan).
 Response: `{ pending_auto[], suggestions[], anomali[], unmatched[] }`.
+
+**Band-filter code-less (M-D3, `rekonsiliasi-band.ts`):** kandidat **tanpa kode**
+hanya diauto-antri (saran/unmatched) bila nominal ∈ `[QURBAN_RECON_BAND_MIN
+3.000.000, QURBAN_RECON_BAND_MAX 40.000.000]`. Di luar band → SENGAJA tak diantri
+(transfer kecil mis. Bawa Sendiri ditangani via Taut Manual/PY8). **Layer 1
+(kode_bayar di deskripsi) TIDAK dibatasi band** — transfer ber-kode tetap match
+berapa pun nominalnya. Diterapkan di `buildSuggestionBuckets` (dipakai PY5 & PY7).
 
 ### PY6 — `POST /api/qurban/pembayaran/[id]/link-transaksi?edisi_id=EDS-...` (M-C)
 
@@ -2291,6 +2298,34 @@ dicatat di `match_metadata`.
 > jalur kanonik SKM (`getNextId`/`updateRow` + `logAudit`) karena route
 > `transaksi` meng-inline logikanya (tak ada service reusable). Schema tak
 > disentuh.
+
+### PY8 — `GET /api/qurban/pembayaran/rekonsiliasi/cari-transaksi?edisi_id=&q=` (M-D3)
+
+Roles `[SUPER_ADMIN, BENDAHARA]`. **Pencarian transaksi untuk Taut Manual** —
+transaksi Bank Muamalat `MASUK`/`AKTIF` yang belum ter-link. **TIDAK dibatasi
+band** (agar transfer di luar rentang qurban, mis. Bawa Sendiri, tetap bisa
+ditaut manual). `q` opsional cocokkan `deskripsi`/`bank_ref`/`id`/`jumlah`
+(substring). Maks 50 hasil, urut tanggal desc. Read-only.
+
+### PY9 — `POST /api/qurban/pembayaran/[id]/resolve-kategori?edisi_id=EDS-...` (M-D3, Q4a)
+
+Roles `[SUPER_ADMIN, BENDAHARA]`. **Selesaikan kategori transaksi TRANSFER
+ber-flag `mixed`** (slot lintas-jenis pasca remap pemetaan F5b; sudah LUNAS tapi
+kategori belum dikoreksi). **Body:** `{ kategori_id }` (panitia memilih; tidak
+auto-tebak). Koreksi `transaksi.kategori_id` lewat `correctTransaksiKategori`
+(jalur kanonik SKM) lalu turunkan flag mixed di `match_metadata`
+(`kategori_resolved: true`). Audit `pembayaran.kategori_resolved`. Gate: pembayaran
+harus sudah tertaut transaksi (`skm_transaksi_id` terisi).
+
+### UI Tab Rekonsiliasi (M-D3 — penutup F6)
+
+Tab **"Rekonsiliasi"** di `/qurban/pembayaran` (untuk `[SA,BD]`;
+`RekonsiliasiTab.tsx`): tombol **Jalankan Auto-match** (PY5) + antrian (PY7)
+dikelompokkan — **Kecocokan Kuat** (`pending_auto` → Terapkan via PY6), **Saran**
+(skor Layer 2 + rincian sinyal → Konfirmasi via PY6), **Tak Cocok** (`unmatched`
+→ Taut Manual via PY6), **Anomali** (informasional), dan **Resolusi Kategori**
+(transaksi mixed → PY9). **Cari Transaksi…** (PY8) untuk taut manual transfer di
+luar band. Badge status pembayaran via `PembayaranStatusBadge`.
 
 ### Error Codes (Pembayaran)
 
@@ -2311,6 +2346,7 @@ dicatat di `match_metadata`.
 | `pembayaran.terima_panitia` | `UPDATE` | PY2 (TUNAI) |
 | `pembayaran.lunas` | `UPDATE` | PY3 (TUNAI Model A; catat `skm_transaksi_id`) |
 | `pembayaran.lunas_via_rekonsiliasi` | `UPDATE` | PY5/PY6 (TRANSFER; layer AUTO/MANUAL + `bank_ref` + `amount_ok`) |
+| `pembayaran.kategori_resolved` | `UPDATE` | PY9 (resolusi kategori transaksi mixed) |
 | `pembayaran.batal` | `UPDATE` | PS5 kaskade (seluruh slot batal) |
 
 ### UI Registrasi per-metode (M-D1)
@@ -2358,8 +2394,8 @@ lunaskan (TUNAI) & `applyMatch` (TRANSFER, M-C). **Best-effort** — semua
 kegagalan (flag off / no_hp / fonnte error) di-swallow + log; pelunasan keuangan
 tidak pernah gagal karena WA.
 
-> **Belum diimplementasi:** UI triase rekonsiliasi (tab "Rekonsiliasi" konsumsi
-> PY7 + konfirmasi PY6) = **M-D3**.
+> **M-D3 (tab Rekonsiliasi + PY8/PY9 + band-filter) selesai — Sprint F6 lengkap
+> end-to-end** (registrasi → pembayaran TUNAI/TRANSFER → rekonsiliasi → triase).
 
 ---
 

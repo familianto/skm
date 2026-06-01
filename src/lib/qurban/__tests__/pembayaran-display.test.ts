@@ -10,6 +10,7 @@ import {
   metodePembayaranLabel,
   transferHintForStatus,
   filterPembayaran,
+  isMixedKategoriUnresolved,
   type PembayaranRow,
 } from '../pembayaran-display';
 
@@ -64,6 +65,14 @@ test('transferHintForStatus: TRANSFER+BELUM_BAYAR → hint; selain itu null', ()
   assert.match(transferHintForStatus('TRANSFER', 'BELUM_BAYAR') ?? '', /rekonsiliasi/i);
   assert.equal(transferHintForStatus('TRANSFER', 'LUNAS'), null);
   assert.equal(transferHintForStatus('TUNAI', 'BELUM_BAYAR'), null);
+});
+
+test('isMixedKategoriUnresolved: mixed true & belum resolved → true', () => {
+  assert.equal(isMixedKategoriUnresolved(JSON.stringify({ mixed: true })), true);
+  assert.equal(isMixedKategoriUnresolved(JSON.stringify({ mixed: true, kategori_resolved: true })), false);
+  assert.equal(isMixedKategoriUnresolved(JSON.stringify({ layer: 'AUTO' })), false);
+  assert.equal(isMixedKategoriUnresolved(''), false);
+  assert.equal(isMixedKategoriUnresolved('bukan json'), false);
 });
 
 test('filterPembayaran: status + metode + query', () => {

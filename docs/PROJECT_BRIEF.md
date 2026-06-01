@@ -339,7 +339,7 @@ Lihat detail di `SPRINT_PLAN.md` dan file individual di `sprints/`.
 | F4c | UI Pendaftaran Qurban (panitia + publik daftar + cek-status) | 6 milestone A–F | ✅ Done |
 | F4d | Phone-primary lookup (PB2 v2 + M7 dual-mode) | 2 milestone A–B | ✅ Done |
 | F5b | Pemetaan Peserta↔Hewan (drag-drop) — A1 infra+PM2, A2 PM1, B UI | 3 milestone A1/A2/B | ✅ Done |
-| F6 | Pembayaran & Rekonsiliasi Qurban (`qurban_pembayaran`) — A fondasi, B TUNAI, C match Layer 1, C2 scoring+antrian, D UI | A–D | 🚧 A+B+C+C2+D1+D2 done |
+| F6 | Pembayaran & Rekonsiliasi Qurban (`qurban_pembayaran`) — A fondasi, B TUNAI, C match Layer 1, C2 scoring+antrian, D1/D2/D3 UI | A–D | ✅ Done |
 | F7 | Hari-H | TBD | ⏳ Planned |
 
 ### Sprint F6 — Pembayaran & Rekonsiliasi Qurban
@@ -394,8 +394,15 @@ panitia"). WA pendaftaran (`publik-wa-template.ts`) bercabang sama.
 dipakai juga di daftar Peserta). Aksi alur TUNAI: **Terima Panitia** (PY2, modal)
 + **Setor ke Kas** (PY3, dialog konfirmasi → transaksi Kas Tunai). WA "pembayaran
 confirmed" (`notifyPembayaranLunas`, gated `wa_send_on_pembayaran_confirmed`,
-best-effort) dipanggil dari PY3 & `applyMatch`. **Belum:** UI triase rekonsiliasi
-(M-D3). Detail: `HANDOFF_SPRINT_F6.md`, `docs/API_REFERENCE.md`.
+best-effort) dipanggil dari PY3 & `applyMatch`.
+
+**Milestone D3 (triase rekonsiliasi — penutup F6):** tab **"Rekonsiliasi"**
+(`RekonsiliasiTab`, `[SA,BD]`): Jalankan Auto-match (PY5) + antrian (PY7)
+dikelompokkan (Kecocokan Kuat / Saran skor / Tak Cocok / Anomali) + Taut Manual
+(PY6) + **Cari Transaksi di luar band** (PY8) + **Resolusi Kategori mixed** (PY9).
+**Band-filter** (`rekonsiliasi-band.ts`, `[3jt, 40jt]`) membatasi jalur code-less
+agar antrian tak banjir; Layer 1 (kode_bayar) tak dibatasi band. **Sprint F6
+lengkap end-to-end.** Detail: `HANDOFF_SPRINT_F6.md`, `docs/API_REFERENCE.md`.
 
 ### Sprint F02 — Qurban Edisi Management
 

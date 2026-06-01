@@ -9,6 +9,7 @@ import {
 } from './skm-bridge';
 import { classifyTransaksi, indexPembayaranByKode, type ClassifyResult } from './rekonsiliasi-engine';
 import { rankKandidat, type KandidatKonteks, type ScoredKandidat } from './rekonsiliasi-scoring';
+import { isWithinReconBand } from './rekonsiliasi-band';
 
 /**
  * Pengumpul data + klasifikasi bersama untuk PY5 (apply) & PY7 (queue read-only).
@@ -119,6 +120,12 @@ export function buildSuggestionBuckets(
       anomali.push({ transaksi_id: t.id, kode_bayar: c.kode_bayar, alasan: c.alasan });
       continue;
     }
+
+    // CODE-LESS (engine 'unmatched' → tanpa kode_bayar di deskripsi). Band-filter:
+    // hanya nominal dalam [MIN, MAX] yang diauto-antri (saran/unmatched). Di luar
+    // band SENGAJA tak diantri otomatis — ditangani lewat Taut Manual (PY6) yang
+    // pencariannya tak dibatasi band. Layer 1 (kode_bayar) sudah lewat di atas.
+    if (!isWithinReconBand(t.jumlah)) continue;
 
     // unmatched dari engine → coba skor Layer 2.
     const ranked = rankKandidat(

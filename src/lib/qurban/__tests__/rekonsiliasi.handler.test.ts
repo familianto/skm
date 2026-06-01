@@ -141,7 +141,7 @@ test('REKON: AUTO-match Layer 1 → LUNAS + koreksi kategori (Sapi→Kambing); a
         trxRow({ id: 'TRX-2', tanggal: '2026-05-20', kategori_id: 'KAT-SAPI', deskripsi: 'QRB-1448-002', jumlah: 2_000_000, rekening_id: 'REK-1', bank_ref: 'REF2' }), // nominal beda
         trxRow({ id: 'TRX-3', tanggal: '2026-05-20', kategori_id: 'KAT-SAPI', deskripsi: 'QRB-1448-003', jumlah: 500_000, rekening_id: 'REK-1', bank_ref: 'REF3' }), // metode TUNAI
         trxRow({ id: 'TRX-4', tanggal: '2026-05-20', kategori_id: 'KAT-SAPI', deskripsi: 'QRB-1448-004', jumlah: 700_000, rekening_id: 'REK-1', bank_ref: 'REF4' }), // sudah LUNAS
-        trxRow({ id: 'TRX-5', tanggal: '2026-05-20', kategori_id: 'KAT-SAPI', deskripsi: 'Infaq jumat', jumlah: 50_000, rekening_id: 'REK-1', bank_ref: 'REF5' }), // unmatched
+        trxRow({ id: 'TRX-5', tanggal: '2026-05-20', kategori_id: 'KAT-SAPI', deskripsi: 'Infaq jumat', jumlah: 5_000_000, rekening_id: 'REK-1', bank_ref: 'REF5' }), // unmatched (dalam band, tanpa kode/skor)
         trxRow({ id: 'TRX-6', tanggal: '2026-05-20', kategori_id: 'KAT-SAPI', deskripsi: 'QRB-1448-001 lain bank', jumlah: 1_500_003, rekening_id: 'REK-2', bank_ref: 'REF6' }), // bukan Bank Muamalat → diabaikan
       ],
     })

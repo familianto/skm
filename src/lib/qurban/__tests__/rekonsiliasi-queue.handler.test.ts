@@ -44,7 +44,7 @@ async function read(res: Response) {
 function pay(over: Partial<Pembayaran>): Pembayaran {
   return {
     id: 'BYR-1', edisi_id: 'EDS-1', kode_bayar: 'QRB-1448-001', muqorib_id: 'MQR-1',
-    nominal_total: 1_500_000, nominal_transfer: 1_500_003, metode: 'TRANSFER', status: 'BELUM_BAYAR',
+    nominal_total: 3_500_000, nominal_transfer: 3_500_003, metode: 'TRANSFER', status: 'BELUM_BAYAR',
     tanggal_terima_panitia: '', panitia_terima_id: '', tanggal_lunas: '', bank_ref: '',
     skm_transaksi_id: '', bukti_url: '', match_metadata: '', notes: '',
     created_at: '2026-05-01T00:00:00.000Z', updated_at: '2026-05-01T00:00:00.000Z', created_by: 'ANG-1', ...over,
@@ -81,7 +81,7 @@ function db(transaksi: string[][]): SheetDb {
     [SHEETS.MUQORIB]: muqoribRows(makeMuqorib({ id: 'MQR-1', nama_lengkap: 'Ahmad Fauzi', no_hp: '628123456789' })),
     [SHEETS.DAFTAR_HEWAN]: hewanRows(makeHewan({ id: 'HSAPI', jenis: 'SAPI', tipe_pembelian: 'BELI' })),
     [SHEETS.PESERTA]: pesertaRows(
-      makePeserta({ id: 'PST-1', kode_bayar: 'QRB-1448-001', hewan_id: 'HSAPI', tipe_qurban: 'BELI', harga_disepakati: 1_500_000, tanggal_daftar: '2026-05-15T00:00:00.000Z' })
+      makePeserta({ id: 'PST-1', kode_bayar: 'QRB-1448-001', hewan_id: 'HSAPI', tipe_qurban: 'BELI', harga_disepakati: 3_500_000, tanggal_daftar: '2026-05-15T00:00:00.000Z' })
     ),
     [QURBAN_SHEETS.PEMBAYARAN]: [mapPembayaranToRow(pay({ id: 'BYR-1', kode_bayar: 'QRB-1448-001' }))] as string[][],
     [QURBAN_SHEETS.KONFIGURASI_EDISI]: [konfigurasiToRow(konfig())],
@@ -95,9 +95,9 @@ test('PY7: read-only — scored suggestion utk transfer tanpa kode, TIDAK menuli
   const cap = installMockSheets(
     db([
       // tanpa kode tapi sinyal kuat (keyword + nama + tanggal + nominal±1%) → suggestion scored.
-      trxRow({ id: 'TRX-A', tanggal: '2026-05-16', deskripsi: 'QURBAN Ahmad Fauzy', jumlah: 1_500_000, rekening_id: 'REK-1', bank_ref: 'RA' }),
+      trxRow({ id: 'TRX-A', tanggal: '2026-05-16', deskripsi: 'QURBAN Ahmad Fauzy', jumlah: 3_500_000, rekening_id: 'REK-1', bank_ref: 'RA' }),
       // betul-betul tak match → unmatched.
-      trxRow({ id: 'TRX-B', tanggal: '2026-09-01', deskripsi: 'Infaq jumat', jumlah: 50_000, rekening_id: 'REK-1', bank_ref: 'RB' }),
+      trxRow({ id: 'TRX-B', tanggal: '2026-09-01', deskripsi: 'Infaq jumat', jumlah: 5_000_000, rekening_id: 'REK-1', bank_ref: 'RB' }),
     ])
   );
   const { status, body } = await read(await QUEUE(await makeReq('/api/qurban/pembayaran/rekonsiliasi/queue?edisi_id=EDS-1', PERAN.BENDAHARA)));
@@ -120,7 +120,7 @@ test('PY7: read-only — scored suggestion utk transfer tanpa kode, TIDAK menuli
 
 test('PY7: AUTO_MATCH yang belum di-apply tampil di pending_auto (tetap tak menulis)', async () => {
   const cap = installMockSheets(
-    db([trxRow({ id: 'TRX-OK', tanggal: '2026-05-16', deskripsi: 'QRB-1448-001', jumlah: 1_500_003, rekening_id: 'REK-1', bank_ref: 'ROK' })])
+    db([trxRow({ id: 'TRX-OK', tanggal: '2026-05-16', deskripsi: 'QRB-1448-001', jumlah: 3_500_003, rekening_id: 'REK-1', bank_ref: 'ROK' })])
   );
   const { status, body } = await read(await QUEUE(await makeReq('/api/qurban/pembayaran/rekonsiliasi/queue?edisi_id=EDS-1', PERAN.SUPER_ADMIN)));
   assert.equal(status, 200);
