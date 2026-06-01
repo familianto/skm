@@ -312,6 +312,7 @@ export async function POST(request: NextRequest) {
             total_harga: pembayaran.total_harga,
             nominal_transfer: pembayaran.nominal_transfer,
             rekening,
+            metode: metodeRes.metode === 'TUNAI' ? 'TUNAI' : 'TRANSFER',
           }),
         });
         if (waRes.success) {
@@ -339,7 +340,7 @@ export async function POST(request: NextRequest) {
           tipe_qurban: r.tipe_qurban,
           harga_disepakati: r.harga_disepakati,
         })),
-        pembayaran: { ...pembayaran, rekening, catatan: 'Cantumkan kode bayar pada berita transfer.' },
+        pembayaran: { ...pembayaran, metode: metodeRes.metode, rekening, catatan: 'Cantumkan kode bayar pada berita transfer.' },
       },
       { total: records.length },
       { status: 201 }

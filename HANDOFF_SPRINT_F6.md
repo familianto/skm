@@ -9,7 +9,9 @@ Status per milestone. Modul Qurban = **island pelengkap**; schema `transaksi`,
 | **B** | Transisi status TUNAI (`TERIMA_PANITIA`/`LUNAS`) + Cash Model A (PY2–PY4) | ✅ **Done** (akumulasi PR #100) |
 | **C** | Rekonsiliasi TRANSFER Layer 1 (auto) + link manual + koreksi kategori (PY5/PY6) | ✅ **Done** (akumulasi PR #100) |
 | **C2** | Smart-scoring Layer 2 + antrian Layer 3 (PY5 diperluas, PY7) | ✅ **Done** (akumulasi PR #100) |
-| D | UI pembayaran (form metode, dashboard status) + WA "pembayaran confirmed" | ⏳ Belum |
+| **D1** | UX registrasi: dropdown metode + layar sukses per-metode + WA pendaftaran per-metode | ✅ **Done** (akumulasi PR #100) |
+| D2 | Halaman manajemen pembayaran admin + WA "pembayaran confirmed" | ⏳ Belum |
+| D3 | UI triase rekonsiliasi (konsumsi PY7 + konfirmasi PY6) | ⏳ Belum |
 
 ---
 
@@ -370,9 +372,74 @@ scored — kode tetap otoritatif, hanya nominal yang perlu mata manusia.
 
 ---
 
-## Untuk Helper/Hopy — diputuskan sebelum M-D
+## Milestone D1 — Selesai (UI pertama)
 
-1. **Migrasi:** kolom lengkap sejak M-A; B/C/C2 tanpa migrasi baru. PRODUCTION
+### Apa yang dibangun
+
+1. **Dropdown Metode Pembayaran** di **kedua** form daftar — publik
+   (`PublikDaftarWizard.tsx`, Step 1) & admin (`PesertaForm.tsx`, Bagian 3).
+   Opsi: `Transfer`, `Cash · Datang Langsung`, `Virtual Account` (disabled,
+   "segera hadir"). **Wajib dipilih** (validasi klien; backend tetap default
+   TRANSFER untuk back-compat). `metode_pembayaran` dikirim di body submit.
+2. **Layar sukses per-metode** (publik "Pendaftaran Tercatat"):
+   - TRANSFER → Kode Bayar (Salin) + Total + **Nominal transfer** (di-highlight)
+     + rekening **Bank Muamalat** (Kas Tunai disaring) + peringatan berita.
+   - TUNAI → Kode Bayar (Salin) + **Total** (`nominal_total`, tanpa suffix) +
+     instruksi "datang ke masjid, serahkan ke panitia". Tanpa rekening/suffix.
+   - Admin success card: tampilkan metode + hint singkat per-metode.
+3. **WA pendaftaran per-metode** (`publik-wa-template.ts`): cabang TRANSFER
+   (nominal_transfer + rekening + berita) vs TUNAI (nominal_total + datang ke
+   masjid, tanpa transfer). Field `metode?` (default TRANSFER). `rekeningBlock`
+   menyaring "Kas Tunai". Tetap gated `wa_send_on_pendaftaran`.
+4. Backend disentuh minimal: PB3/PS2 meneruskan `metode` ke WA builder; PB3
+   success payload menambah `pembayaran.metode`.
+
+### File diubah (D1)
+
+`src/components/qurban/PublikDaftarWizard.tsx`,
+`src/components/qurban/PesertaForm.tsx`, `src/lib/qurban/publik-wa-template.ts`,
+`src/app/api/publik/qurban/daftar/route.ts`,
+`src/app/api/qurban/peserta/route.ts`,
+`src/lib/qurban/__tests__/publik-wa-template.test.ts`, docs.
+
+### Deskripsi layar (untuk verifikasi iPad Hopy)
+
+- **Daftar via Transfer →** layar sukses menampilkan: kartu Kode Bayar (tombol
+  Salin), kotak Total harga + **Nominal transfer** hijau-bold + catatan "3 digit
+  terakhir adalah kode unik", daftar rekening Bank Muamalat (Salin per nomor),
+  banner kuning "Tulis kode bayar pada berita transfer", tombol "Cek Status".
+- **Daftar via Cash · Datang Langsung →** layar sukses menampilkan: kartu Kode
+  Bayar (Salin), kotak **Total** (bulat, tanpa 3-digit suffix), kotak hijau
+  instruksi "🕌 datang ke masjid, serahkan ke panitia, sebutkan kode bayar",
+  catatan WA. **Tidak ada** rekening/nominal-transfer.
+
+### Divergensi (D1)
+
+- **Tidak ada unit-test render UI** (sesuai instruksi — UI diverifikasi via
+  screenshot). Tes hanya untuk builder WA + logika nominal per-metode.
+- **`Select` helper publik tak mendukung opsi disabled** → metode dipakai
+  `<select>` native inline agar opsi VA bisa `disabled`. Konsisten visual dengan
+  Select lain (kelas Tailwind sama).
+- **Type narrowing**: `metodeRes.metode` (broad `MetodePembayaran` termasuk
+  VA/IMPORT) dipersempit ke `'TUNAI'|'TRANSFER'` saat masuk WA builder (registrasi
+  hanya menerima dua nilai itu).
+- Admin success card publik-facing minim (panitia-facing), jadi hanya menambah
+  label metode + hint — bukan layar instruksi pembayaran penuh (muqorib-facing
+  ada di alur publik).
+
+### Verifikasi (D1)
+
+`npm ci` ✅ · `type-check` ✅ · `lint` ✅ · `test` ✅ **525 pass / 0 fail**
+(+4 tes WA per-metode) · `build` ✅.
+
+---
+
+## Untuk Helper/Hopy — diputuskan sebelum M-D2/M-D3
+
+0. **Verifikasi D1 (Hopy):** screenshot iPad Safari preview Vercel — daftar via
+   Transfer → cek layar sukses transfer; daftar via Cash → cek layar sukses cash.
+   (Smart Punctuation OFF bila menempel kode bayar.)
+1. **Migrasi:** kolom lengkap sejak M-A; B/C/C2/D1 tanpa migrasi baru. PRODUCTION
    jalankan `migrate_F6A_pembayaran.gs` **segera setelah merge** PR #100.
 2. **Method PY2/PY3/PY5/PY6/PY7: POST/GET** (ikut konvensi in-repo) vs PATCH
    (prompt). Konfirmasi sebelum UI M-D (memengaruhi pemanggilan fetch).

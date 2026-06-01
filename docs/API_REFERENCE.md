@@ -2313,8 +2313,27 @@ dicatat di `match_metadata`.
 | `pembayaran.lunas_via_rekonsiliasi` | `UPDATE` | PY5/PY6 (TRANSFER; layer AUTO/MANUAL + `bank_ref` + `amount_ok`) |
 | `pembayaran.batal` | `UPDATE` | PS5 kaskade (seluruh slot batal) |
 
-> **Belum diimplementasi:** Layer 2 (smart-scoring) + Layer 3 (antrian) = **M-C2**;
-> UI pembayaran + WA "pembayaran confirmed" = **M-D**.
+### UI Registrasi per-metode (M-D1)
+
+Form daftar **publik** (`PublikDaftarWizard`) & **admin** (`PesertaForm`) kini
+punya dropdown **Metode Pembayaran** (wajib dipilih): `Transfer` (TRANSFER),
+`Cash · Datang Langsung` (TUNAI), `Virtual Account` (disabled — "segera hadir").
+Field `metode_pembayaran` dikirim di body daftar (kontrak M-A; backend tetap
+default `TRANSFER` bila absen).
+
+**Layar sukses bercabang:**
+- TRANSFER → Kode Bayar + Total + **Nominal transfer** (suffix, di-highlight) +
+  rekening **Bank Muamalat** (Kas Tunai disaring) + "tulis kode bayar di berita".
+- TUNAI → Kode Bayar + **Total** (`nominal_total`, tanpa suffix) + instruksi
+  "datang ke masjid, bayar ke panitia". Tanpa rekening/nominal-suffix.
+
+**WA pendaftaran** (`publik-wa-template.ts`) bercabang sama per `metode`
+(TRANSFER: nominal_transfer+rekening+berita; TUNAI: nominal_total+datang ke
+masjid). Tetap di-gate `wa_send_on_pendaftaran`. PB3 success payload menambah
+`pembayaran.metode`.
+
+> **Belum diimplementasi:** halaman manajemen pembayaran admin + WA "pembayaran
+> confirmed" = **M-D2**; UI triase rekonsiliasi = **M-D3**.
 
 ---
 

@@ -49,10 +49,14 @@ interface Props {
   edisiId: string;
 }
 
+/** F6 D1 — metode pembayaran yang dapat dipilih panitia saat input. */
+type MetodePembayaranOpt = 'TRANSFER' | 'TUNAI';
+
 interface CreatedResult {
   pesertaIds: string[];
   kodeBayar: string;
   slotCount: number;
+  metode: MetodePembayaranOpt;
 }
 
 const NEW_MUQORIB_FIELDS = ['nama_lengkap', 'alamat', 'rt', 'no_hp'] as const;
@@ -102,6 +106,8 @@ export function PesertaForm({ edisiId }: Props) {
   const [sameForAll, setSameForAll] = useState(false);
   const [keteranganBagian, setKeteranganBagian] = useState('');
   const [notes, setNotes] = useState('');
+  // F6 D1 — metode pembayaran (wajib dipilih; tanpa default tersembunyi).
+  const [metode, setMetode] = useState<MetodePembayaranOpt | ''>('');
 
   // Bagian 4 — confirm + submit.
   const [confirmed, setConfirmed] = useState(false);
@@ -311,6 +317,7 @@ export function PesertaForm({ edisiId }: Props) {
             perSlot: atasNamaList,
           }),
           keterangan_bagian: keteranganBagian.trim() || undefined,
+          metode_pembayaran: metode,
           allow_additional_qurban: allowAdd,
         }),
       });
@@ -328,6 +335,7 @@ export function PesertaForm({ edisiId }: Props) {
           pesertaIds: records.map((r) => r.id),
           kodeBayar: records[0]?.kode_bayar ?? '',
           slotCount: records.length,
+          metode: metode as MetodePembayaranOpt,
         });
         return;
       }
@@ -399,6 +407,10 @@ export function PesertaForm({ edisiId }: Props) {
       setFieldErrors(next);
       return;
     }
+    if (metode !== 'TRANSFER' && metode !== 'TUNAI') {
+      setFieldErrors({ metode_pembayaran: 'Pilih metode pembayaran.' });
+      return;
+    }
     setFieldErrors({});
 
     // Blocking duplicate gate (existing-muqorib path only).
@@ -429,6 +441,7 @@ export function PesertaForm({ edisiId }: Props) {
     setSameForAll(false);
     setKeteranganBagian('');
     setNotes('');
+    setMetode('');
     setConfirmed(false);
     setFieldErrors({});
     setFormError(null);
@@ -647,6 +660,33 @@ export function PesertaForm({ edisiId }: Props) {
             placeholder="mis. Daging + Jeroan"
           />
           <TextArea label="Catatan (opsional)" value={notes} onChange={setNotes} />
+
+          <div>
+            <label htmlFor="metode-pembayaran" className="block text-sm font-medium text-gray-700 mb-1">
+              Metode Pembayaran
+            </label>
+            <select
+              id="metode-pembayaran"
+              value={metode}
+              onChange={(e) => {
+                setMetode(e.target.value as MetodePembayaranOpt);
+                setFieldErrors((prev) => {
+                  const next = { ...prev };
+                  delete next.metode_pembayaran;
+                  return next;
+                });
+              }}
+              className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+            >
+              <option value="">— Pilih metode —</option>
+              <option value="TRANSFER">Transfer</option>
+              <option value="TUNAI">Cash · Datang Langsung</option>
+              <option value="VA" disabled>Virtual Account (segera hadir)</option>
+            </select>
+            {fieldErrors.metode_pembayaran && (
+              <p className="mt-1 text-sm text-red-600">{fieldErrors.metode_pembayaran}</p>
+            )}
+          </div>
         </div>
       </Section>
 
@@ -1052,7 +1092,19 @@ function SuccessCard({
             {multi && (
               <p className="text-xs text-gray-400 mt-1">Satu kode untuk seluruh {created.slotCount} slot.</p>
             )}
+            <p className="text-xs text-gray-500 mt-2">
+              Metode:{' '}
+              <span className="font-medium text-gray-700">
+                {created.metode === 'TUNAI' ? 'Cash · Datang Langsung' : 'Transfer'}
+              </span>
+            </p>
           </div>
+
+          <p className="mt-3 text-xs text-gray-500">
+            {created.metode === 'TUNAI'
+              ? 'Muqorib membayar tunai ke panitia; catat pemasukan saat diterima.'
+              : 'Muqorib transfer ke rekening masjid; cantumkan kode bayar di berita.'}
+          </p>
 
           <div className="flex flex-col sm:flex-row sm:justify-center gap-2 mt-5">
             <Button onClick={onReset} className="w-full sm:w-auto">

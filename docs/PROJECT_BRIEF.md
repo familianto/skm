@@ -339,7 +339,7 @@ Lihat detail di `SPRINT_PLAN.md` dan file individual di `sprints/`.
 | F4c | UI Pendaftaran Qurban (panitia + publik daftar + cek-status) | 6 milestone A–F | ✅ Done |
 | F4d | Phone-primary lookup (PB2 v2 + M7 dual-mode) | 2 milestone A–B | ✅ Done |
 | F5b | Pemetaan Peserta↔Hewan (drag-drop) — A1 infra+PM2, A2 PM1, B UI | 3 milestone A1/A2/B | ✅ Done |
-| F6 | Pembayaran & Rekonsiliasi Qurban (`qurban_pembayaran`) — A fondasi, B TUNAI, C match Layer 1, C2 scoring+antrian, D UI | A–D | 🚧 M-A+B+C+C2 done |
+| F6 | Pembayaran & Rekonsiliasi Qurban (`qurban_pembayaran`) — A fondasi, B TUNAI, C match Layer 1, C2 scoring+antrian, D UI | A–D | 🚧 A+B+C+C2+D1 done |
 | F7 | Hari-H | TBD | ⏳ Planned |
 
 ### Sprint F6 — Pembayaran & Rekonsiliasi Qurban
@@ -379,8 +379,16 @@ Kode-cocok-nominal-janggal → **suggestion** (bukan auto). Skorer murni
 `rekonsiliasi-scoring.ts` (suffix +30, keyword +30, nominal±1% +25, tanggal≤14h
 +15, fuzzy nama JW≥0.8 +20, phone +10; ambang ≥50) untuk transfer tanpa kode.
 **PY5** kini mengembalikan `suggestions[]` berperingkat; **PY7**
-`/rekonsiliasi/queue` antrian READ-ONLY untuk tab triase. **Belum:** UI + WA
-confirmed (M-D). Detail: `HANDOFF_SPRINT_F6.md`, `docs/API_REFERENCE.md`.
+`/rekonsiliasi/queue` antrian READ-ONLY untuk tab triase.
+
+**Milestone D1 (UX registrasi — UI pertama):** dropdown **Metode Pembayaran**
+(Transfer / Cash·Datang Langsung; VA disabled "segera hadir") di form daftar
+publik (`PublikDaftarWizard`) & admin (`PesertaForm`), wajib dipilih. Layar
+"Pendaftaran Tercatat" bercabang per-metode (TRANSFER: nominal-suffix + rekening
+Bank Muamalat + berita; TUNAI: nominal bulat + "datang ke masjid, bayar ke
+panitia"). WA pendaftaran (`publik-wa-template.ts`) bercabang sama. **Belum:**
+halaman pembayaran admin + WA confirmed (M-D2), UI triase rekonsiliasi (M-D3).
+Detail: `HANDOFF_SPRINT_F6.md`, `docs/API_REFERENCE.md`.
 
 ### Sprint F02 — Qurban Edisi Management
 

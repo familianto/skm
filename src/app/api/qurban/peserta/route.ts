@@ -268,6 +268,7 @@ export async function POST(request: NextRequest) {
             total_harga: pembayaran.total_harga,
             nominal_transfer: pembayaran.nominal_transfer,
             rekening,
+            metode: metodeRes.metode === 'TUNAI' ? 'TUNAI' : 'TRANSFER',
           }),
         });
         if (waRes.success) {

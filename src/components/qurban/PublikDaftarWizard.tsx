@@ -55,12 +55,16 @@ interface MatchedMuqorib {
   rt: string;
 }
 
+/** F6 D1 — metode pembayaran yang dapat dipilih muqorib saat daftar. */
+type MetodePembayaran = 'TRANSFER' | 'TUNAI';
+
 interface SuccessResult {
   kode_bayar: string;
   jumlah_slot: number;
   total_harga: number;
   nominal_transfer: number;
   rekening: RekeningInfo[];
+  metode: MetodePembayaran;
 }
 
 /**
@@ -88,6 +92,8 @@ export function PublikDaftarWizard() {
   const [jumlahSlotStr, setJumlahSlotStr] = useState('1');
   const [atasNama, setAtasNama] = useState('');
   const [keteranganBagian, setKeteranganBagian] = useState('');
+  // F6 D1 — metode pembayaran (wajib dipilih; tanpa default tersembunyi).
+  const [metode, setMetode] = useState<MetodePembayaran | ''>('');
   const [step1Error, setStep1Error] = useState<string | null>(null);
 
   // Step 2 — identitas (F4d phone-primary)
@@ -178,6 +184,10 @@ export function PublikDaftarWizard() {
     }
     if (jumlahSlot > effectiveMax) {
       setStep1Error(`Maksimal ${effectiveMax} slot untuk pilihan ini.`);
+      return;
+    }
+    if (metode !== 'TRANSFER' && metode !== 'TUNAI') {
+      setStep1Error('Pilih metode pembayaran.');
       return;
     }
     setStep1Error(null);
@@ -276,6 +286,7 @@ export function PublikDaftarWizard() {
           jumlah_slot: jumlahSlot,
           nama_atas_nama: atasNama.trim(),
           keterangan_bagian: keteranganBagian.trim(),
+          metode_pembayaran: metode,
           [HONEYPOT_FIELD]: honeypot,
         }),
       });
@@ -291,6 +302,7 @@ export function PublikDaftarWizard() {
           total_harga: data.pembayaran.total_harga,
           nominal_transfer: data.pembayaran.nominal_transfer,
           rekening: data.pembayaran.rekening,
+          metode: metode as MetodePembayaran,
         });
         return;
       }
@@ -388,6 +400,26 @@ export function PublikDaftarWizard() {
           <Field label="Keterangan (opsional)">
             <input value={keteranganBagian} onChange={(e) => setKeteranganBagian(e.target.value)}
               placeholder="mis. atas nama keluarga" className={inputClass(false)} />
+          </Field>
+
+          <Field label="Metode Pembayaran">
+            <select
+              value={metode}
+              onChange={(e) => { setMetode(e.target.value as MetodePembayaran); setStep1Error(null); }}
+              className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+            >
+              <option value="">— Pilih metode —</option>
+              <option value="TRANSFER">Transfer</option>
+              <option value="TUNAI">Cash · Datang Langsung</option>
+              <option value="VA" disabled>Virtual Account (segera hadir)</option>
+            </select>
+            <p className="text-xs text-gray-400 mt-1">
+              {metode === 'TUNAI'
+                ? 'Bayar tunai langsung ke panitia di masjid.'
+                : metode === 'TRANSFER'
+                ? 'Transfer ke rekening masjid; cantumkan kode bayar di berita.'
+                : 'Pilih cara Anda membayar.'}
+            </p>
           </Field>
 
           {selectedOption && jumlahSlot > 0 && (
@@ -520,6 +552,7 @@ export function PublikDaftarWizard() {
                   : newNamaLengkap.trim()
               }
             />
+            <SummaryRow label="Metode" value={metode === 'TUNAI' ? 'Cash · Datang Langsung' : 'Transfer'} />
             <SummaryRow label="Total" value={formatRupiah(totalHarga)} />
           </dl>
 
@@ -695,6 +728,9 @@ function NavButtons({
 }
 
 function SuccessScreen({ result }: { result: SuccessResult }) {
+  const isTunai = result.metode === 'TUNAI';
+  // Rekening transfer saja — Kas Tunai tak relevan untuk instruksi transfer.
+  const rekeningTransfer = result.rekening.filter((r) => !/kas tunai/i.test(r.nama_bank));
   return (
     <div className="bg-white rounded-xl shadow-sm p-5 space-y-4">
       <div className="text-center">
@@ -720,46 +756,71 @@ function SuccessScreen({ result }: { result: SuccessResult }) {
         )}
       </div>
 
-      <div className="rounded-lg border border-gray-200 px-3 py-3 text-sm space-y-1.5">
-        <div className="flex justify-between">
-          <span className="text-gray-500">Total harga</span>
-          <span className="font-medium text-gray-900">{formatRupiah(result.total_harga)}</span>
-        </div>
-        <div className="flex justify-between">
-          <span className="text-gray-500">Nominal transfer</span>
-          <span className="font-bold text-emerald-700">{formatRupiah(result.nominal_transfer)}</span>
-        </div>
-        <p className="text-xs text-gray-400">
-          Mohon transfer TEPAT sesuai nominal di atas (3 digit terakhir adalah kode unik).
-        </p>
-      </div>
+      {isTunai ? (
+        <>
+          <div className="rounded-lg border border-gray-200 px-3 py-3 text-sm">
+            <div className="flex justify-between">
+              <span className="text-gray-500">Total</span>
+              <span className="font-bold text-emerald-700">{formatRupiah(result.total_harga)}</span>
+            </div>
+          </div>
 
-      <div>
-        <p className="text-sm font-medium text-gray-700 mb-1.5">Transfer ke:</p>
-        {result.rekening.length === 0 ? (
-          <p className="text-sm text-gray-500">Info rekening menyusul dari panitia.</p>
-        ) : (
-          <ul className="space-y-2">
-            {result.rekening.map((r, i) => (
-              <li key={i} className="rounded-lg bg-emerald-50/60 border border-emerald-100 px-3 py-2 text-sm">
-                <div className="flex items-center justify-between gap-2">
-                  <div className="min-w-0">
-                    <span className="font-semibold text-gray-900">{r.nama_bank}</span>{' '}
-                    <span className="font-mono">{r.nomor_rekening}</span>
-                    <div className="text-xs text-gray-500">a.n. {r.atas_nama}</div>
-                  </div>
-                  <CopyButton text={r.nomor_rekening} label={`Salin nomor rekening ${r.nama_bank}`} />
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
+          <div className="rounded-lg bg-emerald-50/60 border border-emerald-100 px-3 py-3 text-sm text-gray-700">
+            <p className="font-medium text-gray-900 mb-1">🕌 Cash · Datang Langsung</p>
+            <p>
+              Silakan <strong>datang ke masjid</strong> dan serahkan pembayaran ke{' '}
+              <strong>panitia</strong>. Sebutkan <strong>kode bayar</strong> di atas saat membayar.
+            </p>
+          </div>
 
-      <p className="text-xs text-gray-500 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-        ⚠️ Tulis <strong>kode bayar</strong> Anda pada berita/keterangan transfer. Detail & instruksi
-        juga dikirim via WhatsApp ke nomor Anda.
-      </p>
+          <p className="text-xs text-gray-500 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+            Detail & konfirmasi juga dikirim via WhatsApp ke nomor Anda.
+          </p>
+        </>
+      ) : (
+        <>
+          <div className="rounded-lg border border-gray-200 px-3 py-3 text-sm space-y-1.5">
+            <div className="flex justify-between">
+              <span className="text-gray-500">Total harga</span>
+              <span className="font-medium text-gray-900">{formatRupiah(result.total_harga)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-500">Nominal transfer</span>
+              <span className="font-bold text-emerald-700">{formatRupiah(result.nominal_transfer)}</span>
+            </div>
+            <p className="text-xs text-gray-400">
+              Mohon transfer TEPAT sesuai nominal di atas (3 digit terakhir adalah kode unik).
+            </p>
+          </div>
+
+          <div>
+            <p className="text-sm font-medium text-gray-700 mb-1.5">Transfer ke:</p>
+            {rekeningTransfer.length === 0 ? (
+              <p className="text-sm text-gray-500">Info rekening menyusul dari panitia.</p>
+            ) : (
+              <ul className="space-y-2">
+                {rekeningTransfer.map((r, i) => (
+                  <li key={i} className="rounded-lg bg-emerald-50/60 border border-emerald-100 px-3 py-2 text-sm">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="min-w-0">
+                        <span className="font-semibold text-gray-900">{r.nama_bank}</span>{' '}
+                        <span className="font-mono">{r.nomor_rekening}</span>
+                        <div className="text-xs text-gray-500">a.n. {r.atas_nama}</div>
+                      </div>
+                      <CopyButton text={r.nomor_rekening} label={`Salin nomor rekening ${r.nama_bank}`} />
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
+          <p className="text-xs text-gray-500 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+            ⚠️ Tulis <strong>kode bayar</strong> Anda pada berita/keterangan transfer. Detail & instruksi
+            juga dikirim via WhatsApp ke nomor Anda.
+          </p>
+        </>
+      )}
 
       <a
         href="/publik/qurban/cek-status"
