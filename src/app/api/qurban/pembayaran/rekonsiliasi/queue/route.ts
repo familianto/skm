@@ -47,7 +47,7 @@ export async function GET(request: NextRequest) {
 
     return success(
       { pending_auto, suggestions, anomali, unmatched },
-      { total: ctx.classified.length, filters_applied: { edisi_id: edisiId, rekening_id: ctx.rekeningId } }
+      { total: ctx.classified.length, filters_applied: { edisi_id: edisiId, rekening_ids: ctx.rekeningIds } }
     );
   } catch (err) {
     console.error('[GET /api/qurban/pembayaran/rekonsiliasi/queue] error:', err);

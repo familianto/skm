@@ -63,7 +63,7 @@ export async function POST(request: NextRequest) {
 
     return success(
       { auto_lunas, suggestions, anomali: [...anomali, ...applyFailed], unmatched },
-      { total: ctx.classified.length, filters_applied: { edisi_id: edisiId, rekening_id: ctx.rekeningId } }
+      { total: ctx.classified.length, filters_applied: { edisi_id: edisiId, rekening_ids: ctx.rekeningIds } }
     );
   } catch (err) {
     console.error('[POST /api/qurban/pembayaran/rekonsiliasi] error:', err);

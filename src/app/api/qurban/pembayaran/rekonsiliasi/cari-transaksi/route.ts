@@ -7,7 +7,7 @@ import { PERAN } from '@/lib/api/permissions';
 
 import { resolveEdisiForPeserta } from '@/lib/qurban/peserta-context';
 import { listPembayaranByEdisi } from '@/lib/qurban/pembayaran-repo';
-import { resolveRekeningByNama, listTransaksiMasukByRekening, REKENING_BANK_MUAMALAT } from '@/lib/qurban/skm-bridge';
+import { listBankRekeningIds, listTransaksiMasukByRekeningIds } from '@/lib/qurban/skm-bridge';
 
 // Pencarian transaksi untuk Taut Manual = domain finansial → SA + BD.
 const ROLES = [PERAN.SUPER_ADMIN, PERAN.BENDAHARA];
@@ -16,7 +16,8 @@ const MAX_RESULTS = 50;
 /**
  * PY8 — GET /api/qurban/pembayaran/rekonsiliasi/cari-transaksi?edisi_id=&q=
  *
- * Cari transaksi bank MASUK/AKTIF (Bank Muamalat) yang BELUM ter-link, untuk
+ * Cari transaksi bank MASUK/AKTIF (semua rekening bank, minus Kas Tunai) yang
+ * BELUM ter-link, untuk
  * Taut Manual (PY6). **TIDAK dibatasi band** — agar transfer kecil di luar band
  * (mis. Bawa Sendiri 250rb) tetap bisa ditangani manual. Read-only. `q` opsional
  * mencocokkan deskripsi / bank_ref / id / nominal (substring, case-insensitive).
@@ -32,12 +33,12 @@ export async function GET(request: NextRequest) {
     const url = new URL(request.url);
     const q = (url.searchParams.get('q') || '').trim().toLowerCase();
 
-    const rekeningId = await resolveRekeningByNama(REKENING_BANK_MUAMALAT);
+    const rekeningIds = await listBankRekeningIds();
     const linked = new Set(
       (await listPembayaranByEdisi(gate.edisi.id)).map((p) => p.skm_transaksi_id).filter(Boolean)
     );
 
-    let rows = (await listTransaksiMasukByRekening(rekeningId)).filter((t) => !linked.has(t.id));
+    let rows = (await listTransaksiMasukByRekeningIds(rekeningIds)).filter((t) => !linked.has(t.id));
     if (q) {
       rows = rows.filter((t) =>
         `${t.id} ${t.deskripsi} ${t.bank_ref} ${t.jumlah}`.toLowerCase().includes(q)

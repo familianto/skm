@@ -118,7 +118,7 @@ function baseDb(over: { pembayaran: Pembayaran[]; transaksi: string[][] }): Shee
     ),
     [QURBAN_SHEETS.PEMBAYARAN]: over.pembayaran.map(mapPembayaranToRow) as string[][],
     [SHEET_NAMES.KATEGORI]: [kategoriRow('KAT-SAPI', 'Qurban Sapi'), kategoriRow('KAT-KMB', 'Qurban Kambing')],
-    [SHEET_NAMES.REKENING_BANK]: [rekeningRow('REK-1', 'Bank Muamalat Indonesia'), rekeningRow('REK-2', 'Kas Tunai')],
+    [SHEET_NAMES.REKENING_BANK]: [rekeningRow('REK-1', 'Bank Dummy Syariah'), rekeningRow('REK-2', 'Kas Tunai')],
     [SHEET_NAMES.TRANSAKSI]: over.transaksi,
   };
 }

@@ -41,7 +41,7 @@ function trx(over: Partial<TransaksiLite>): TransaksiLite {
 function ctxOf(pembayaran: Pembayaran[], transaksi: TransaksiLite[]): RekonContext {
   const kodeIndex = indexPembayaranByKode(pembayaran);
   return {
-    rekeningId: 'REK-1',
+    rekeningIds: ['REK-1'],
     classified: transaksi.map((t) => ({ transaksi: t, result: classifyTransaksi(t, kodeIndex) })),
     scoringKandidat: pembayaran
       .filter((p) => p.metode === 'TRANSFER' && p.status === 'BELUM_BAYAR')

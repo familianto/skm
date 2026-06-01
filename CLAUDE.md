@@ -20,7 +20,7 @@
 > manual). C2 smart-scoring Layer 2 + antrian (PY7). D1 UX registrasi
 > per-metode. D2 halaman `/qurban/pembayaran` + WA "pembayaran confirmed".
 > D3 tab Rekonsiliasi (band-filter code-less, PY8 cari-transaksi, PY9
-> resolve-kategori mixed). 543 tes hijau. Lihat `HANDOFF_SPRINT_F6.md`.
+> resolve-kategori mixed). 547 tes hijau. Lihat `HANDOFF_SPRINT_F6.md`.
 > PR #100 Draft — menunggu verifikasi iPad sebelum Hopy flip ke Ready, lalu
 > migrasi PRODUCTION `migrate_F6A_pembayaran.gs`. Sebelumnya: F5b Pemetaan ✅.
 

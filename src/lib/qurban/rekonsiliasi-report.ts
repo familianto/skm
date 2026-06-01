@@ -2,9 +2,8 @@ import { listPembayaranByEdisi, type Pembayaran } from './pembayaran-repo';
 import { listPesertaByEdisi, STATUS_TERDAFTAR } from './peserta-repo';
 import { listAllMuqorib } from './muqorib-repo';
 import {
-  resolveRekeningByNama,
-  listTransaksiMasukByRekening,
-  REKENING_BANK_MUAMALAT,
+  listBankRekeningIds,
+  listTransaksiMasukByRekeningIds,
   type TransaksiLite,
 } from './skm-bridge';
 import { classifyTransaksi, indexPembayaranByKode, type ClassifyResult } from './rekonsiliasi-engine';
@@ -39,7 +38,8 @@ export interface RekonInput {
 }
 
 export interface RekonContext {
-  rekeningId: string;
+  /** Id rekening bank (tujuan transfer) yang dipindai — dinamis, minus Kas Tunai. */
+  rekeningIds: string[];
   /** Transaksi kandidat (belum ter-link) + hasil klasifikasi engine. */
   classified: Array<{ transaksi: TransaksiLite; result: ClassifyResult }>;
   /** Konteks kandidat Layer 2 (pembayaran TRANSFER+BELUM_BAYAR + muqorib + tgl daftar). */
@@ -49,13 +49,15 @@ export interface RekonContext {
 
 /** Baca + klasifikasi (tanpa apply). Dipakai PY5 & PY7. */
 export async function buildRekonContext(input: RekonInput): Promise<RekonContext> {
-  const rekeningId = await resolveRekeningByNama(REKENING_BANK_MUAMALAT);
+  // Dinamis: semua rekening bank (tujuan transfer) minus Kas Tunai. Tak ada
+  // nama bank hardcode — staging/produksi/rename bank semua jalan.
+  const rekeningIds = await listBankRekeningIds();
 
   const pembayaranEdisi = await listPembayaranByEdisi(input.edisiId);
   const linked = new Set(pembayaranEdisi.map((p) => p.skm_transaksi_id).filter(Boolean));
   const kodeIndex = indexPembayaranByKode(pembayaranEdisi);
 
-  const kandidatTrx = (await listTransaksiMasukByRekening(rekeningId)).filter((t) => !linked.has(t.id));
+  const kandidatTrx = (await listTransaksiMasukByRekeningIds(rekeningIds)).filter((t) => !linked.has(t.id));
 
   // Konteks Layer 2: pembayaran TRANSFER+BELUM_BAYAR + nama/no_hp muqorib +
   // tanggal_daftar paling awal di antara slot kode_bayar.
@@ -79,7 +81,7 @@ export async function buildRekonContext(input: RekonInput): Promise<RekonContext
     });
 
   const classified = kandidatTrx.map((t) => ({ transaksi: t, result: classifyTransaksi(t, kodeIndex) }));
-  return { rekeningId, classified, scoringKandidat, pembayaranEdisi };
+  return { rekeningIds, classified, scoringKandidat, pembayaranEdisi };
 }
 
 /**

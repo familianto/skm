@@ -1,12 +1,14 @@
 import { test, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { SHEET_NAMES } from '@/lib/constants';
+import { SHEET_NAMES, SHEET_HEADERS } from '@/lib/constants';
 import {
   kategoriNamaForTipe,
   decideKategoriNama,
   resolveKategoriIdByNama,
   resolveRekeningByNama,
+  listBankRekeningIds,
+  listTransaksiMasukByRekeningIds,
   createTransaksiPemasukanQurban,
   KATEGORI_QURBAN,
 } from '../skm-bridge';
@@ -70,6 +72,59 @@ test('resolveRekeningByNama: cocok nama_bank/atas_nama → id; tak ketemu → th
   });
   assert.equal(await resolveRekeningByNama('Kas Tunai'), 'REK-2');
   await assert.rejects(() => resolveRekeningByNama('Bank Tak Ada'), /tidak ditemukan/);
+});
+
+test('listBankRekeningIds: DINAMIS — semua rekening minus Kas Tunai, tanpa nama hardcode', async () => {
+  installMockSheets({
+    [SHEET_NAMES.REKENING_BANK]: [
+      // Nama bank SENGAJA bukan "Bank Muamalat Indonesia" (staging) — buktikan
+      // tak ada ketergantungan nama spesifik.
+      rekeningRow('REK-1', 'Bank Dummy Syariah', 'Masjid'),
+      rekeningRow('REK-9', 'Bank Lain BPD', 'Masjid'),
+      rekeningRow('REK-2', 'Kas Tunai', 'Masjid'),
+    ],
+  });
+  const ids = await listBankRekeningIds();
+  assert.deepEqual(ids.sort(), ['REK-1', 'REK-9']); // Kas Tunai dikecualikan
+});
+
+test('listBankRekeningIds: Kas Tunai cocok via atas_nama juga dikecualikan; inactive di-skip', async () => {
+  const inactive = (() => { const r = rekeningRow('REK-OFF', 'Bank Mati', 'Masjid'); r[5] = 'FALSE'; return r; })();
+  installMockSheets({
+    [SHEET_NAMES.REKENING_BANK]: [
+      rekeningRow('REK-1', 'Bank Dummy Syariah', 'Masjid'),
+      rekeningRow('REK-KAS', 'Rekening Tunai', 'Kas Tunai'), // Kas Tunai di atas_nama
+      inactive,
+    ],
+  });
+  assert.deepEqual(await listBankRekeningIds(), ['REK-1']);
+});
+
+test('listBankRekeningIds: tak ada rekening bank → [] (degradasi anggun)', async () => {
+  installMockSheets({ [SHEET_NAMES.REKENING_BANK]: [rekeningRow('REK-2', 'Kas Tunai', 'Masjid')] });
+  assert.deepEqual(await listBankRekeningIds(), []);
+});
+
+test('listTransaksiMasukByRekeningIds: pindai MASUK/AKTIF lintas banyak rekening; [] bila kosong', async () => {
+  const h = SHEET_HEADERS[SHEET_NAMES.TRANSAKSI];
+  const trx = (id: string, jenis: string, status: string, rek: string): string[] => {
+    const row = new Array(h.length).fill('');
+    row[h.indexOf('id')] = id; row[h.indexOf('jenis')] = jenis; row[h.indexOf('status')] = status;
+    row[h.indexOf('rekening_id')] = rek; row[h.indexOf('jumlah')] = '1000';
+    return row;
+  };
+  installMockSheets({
+    [SHEET_NAMES.TRANSAKSI]: [
+      trx('T1', 'MASUK', 'AKTIF', 'REK-1'),
+      trx('T2', 'MASUK', 'AKTIF', 'REK-9'),
+      trx('T3', 'KELUAR', 'AKTIF', 'REK-1'), // bukan MASUK
+      trx('T4', 'MASUK', 'VOID', 'REK-1'),   // bukan AKTIF
+      trx('T5', 'MASUK', 'AKTIF', 'REK-2'),  // rekening tak termasuk
+    ],
+  });
+  const out = await listTransaksiMasukByRekeningIds(['REK-1', 'REK-9']);
+  assert.deepEqual(out.map((t) => t.id).sort(), ['T1', 'T2']);
+  assert.deepEqual(await listTransaksiMasukByRekeningIds([]), []);
 });
 
 // ── createTransaksiPemasukanQurban ───────────────────────────────────────────

@@ -63,6 +63,8 @@ export function RekonsiliasiTab({ edisiId, onChanged }: Props) {
 
   // Mixed-resolve list (TRANSFER LUNAS ber-flag mixed).
   const [mixedRows, setMixedRows] = useState<PembayaranRow[]>([]);
+  // Jumlah rekening bank yang dipindai (dinamis). 0 → tampilkan notice.
+  const [bankCount, setBankCount] = useState<number | null>(null);
 
   const loadQueue = useCallback(async () => {
     setLoading(true);
@@ -73,8 +75,11 @@ export function RekonsiliasiTab({ edisiId, onChanged }: Props) {
         fetch(`/api/qurban/pembayaran?edisi_id=${ep}`),
       ]);
       const qJson = await qRes.json().catch(() => ({}));
-      if (qRes.ok && qJson?.ok) setQueue(qJson.data as QueueData);
-      else setError(qJson?.error?.message || 'Gagal memuat antrian rekonsiliasi.');
+      if (qRes.ok && qJson?.ok) {
+        setQueue(qJson.data as QueueData);
+        const ids = qJson.meta?.filters_applied?.rekening_ids as string[] | undefined;
+        setBankCount(Array.isArray(ids) ? ids.length : null);
+      } else setError(qJson?.error?.message || 'Gagal memuat antrian rekonsiliasi.');
 
       const pJson = await pRes.json().catch(() => ({}));
       if (pRes.ok && pJson?.ok) {
@@ -149,7 +154,7 @@ export function RekonsiliasiTab({ edisiId, onChanged }: Props) {
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-2">
         <p className="text-sm text-gray-500">
-          Cocokkan transfer bank (Bank Muamalat) ke pembayaran qurban. Auto-match memakai
+          Cocokkan transfer bank masuk ke pembayaran qurban. Auto-match memakai
           kode bayar di berita; sisanya ditriase manual.
         </p>
         <Button onClick={runAutoMatch} disabled={running}>
@@ -157,7 +162,18 @@ export function RekonsiliasiTab({ edisiId, onChanged }: Props) {
         </Button>
       </div>
 
-      {nothing && <Card><p className="text-sm text-gray-500">Tidak ada item rekonsiliasi. 🎉</p></Card>}
+      {bankCount === 0 && (
+        <Card>
+          <p className="text-sm text-amber-700">
+            Belum ada rekening bank untuk dipindai. Tambahkan rekening bank (selain
+            Kas Tunai) di Pengaturan → Rekening agar transfer masuk bisa direkonsiliasi.
+          </p>
+        </Card>
+      )}
+
+      {bankCount !== 0 && nothing && (
+        <Card><p className="text-sm text-gray-500">Tidak ada item rekonsiliasi. 🎉</p></Card>
+      )}
 
       {/* Mixed kategori — paling penting (uang sudah masuk, kategori salah). */}
       {mixedRows.length > 0 && (

@@ -86,7 +86,7 @@ function db(transaksi: string[][]): SheetDb {
     [QURBAN_SHEETS.PEMBAYARAN]: [mapPembayaranToRow(pay({ id: 'BYR-1', kode_bayar: 'QRB-1448-001' }))] as string[][],
     [QURBAN_SHEETS.KONFIGURASI_EDISI]: [konfigurasiToRow(konfig())],
     [SHEET_NAMES.KATEGORI]: [kategoriRow('KAT-SAPI', 'Qurban Sapi')],
-    [SHEET_NAMES.REKENING_BANK]: [rekeningRow('REK-1', 'Bank Muamalat Indonesia'), rekeningRow('REK-2', 'Kas Tunai')],
+    [SHEET_NAMES.REKENING_BANK]: [rekeningRow('REK-1', 'Bank Dummy Syariah'), rekeningRow('REK-2', 'Kas Tunai')],
     [SHEET_NAMES.TRANSAKSI]: transaksi,
   };
 }

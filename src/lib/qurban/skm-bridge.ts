@@ -30,11 +30,14 @@ export const KATEGORI_QURBAN = {
   JASA_TITIP: 'Qurban Jasa Titip & Pakan',
 } as const;
 
-/** Nama rekening Kas Tunai (Model A) di sheet `rekening_bank`. */
+/**
+ * Nama rekening Kas Tunai (Model A) di sheet `rekening_bank`. SATU titik
+ * konstanta untuk pengecualian "bukan tujuan transfer" — JANGAN tebar literal
+ * "Kas Tunai" di tempat lain. Rekening bank (tujuan transfer) di-resolve DINAMIS
+ * via `listBankRekeningIds()` (semua rekening minus ini); tak ada nama bank
+ * produksi yang di-hardcode (pelajaran `migrate_F01`).
+ */
 export const REKENING_KAS_TUNAI = 'Kas Tunai';
-
-/** Nama rekening bank utama (sumber transfer masuk) untuk rekonsiliasi F6 M-C. */
-export const REKENING_BANK_MUAMALAT = 'Bank Muamalat Indonesia';
 
 /**
  * Tentukan NAMA kategori income untuk satu slot qurban.
@@ -114,6 +117,34 @@ export async function resolveRekeningByNama(nama: string): Promise<string> {
     }
   }
   throw new Error(`Rekening "${nama}" tidak ditemukan di sheet rekening_bank.`);
+}
+
+/**
+ * Resolve id SEMUA rekening "bank" (tujuan transfer) secara DINAMIS — yaitu
+ * seluruh `rekening_bank` aktif MINUS Kas Tunai. Dipakai rekonsiliasi untuk
+ * memindai transaksi MASUK kandidat tanpa meng-hardcode nama bank tertentu
+ * (mis. "Bank Muamalat Indonesia"), konsisten dengan blok transfer di WA publik.
+ *
+ * Kas Tunai dikecualikan via `REKENING_KAS_TUNAI` (satu titik konstanta) karena
+ * itu rekening setoran cash (Model A), bukan tujuan transfer. Kembalikan `[]`
+ * bila tak ada rekening bank — caller wajib degradasi anggun (jangan crash).
+ */
+export async function listBankRekeningIds(): Promise<string[]> {
+  const rows = await sheetsService.getRows(SHEET_NAMES.REKENING_BANK);
+  const headers = SHEET_HEADERS[SHEET_NAMES.REKENING_BANK];
+  const idIdx = headers.indexOf('id');
+  const bankIdx = headers.indexOf('nama_bank');
+  const anIdx = headers.indexOf('atas_nama');
+  const activeIdx = headers.indexOf('is_active');
+  const ids: string[] = [];
+  for (const r of rows) {
+    if (!r[idIdx]) continue;
+    if (activeIdx !== -1 && String(r[activeIdx] ?? '').toUpperCase() === 'FALSE') continue;
+    // Kecualikan Kas Tunai (cocok di nama_bank atau atas_nama).
+    if (r[bankIdx] === REKENING_KAS_TUNAI || r[anIdx] === REKENING_KAS_TUNAI) continue;
+    ids.push(r[idIdx]);
+  }
+  return ids;
 }
 
 export interface CreateTransaksiPemasukanArgs {
@@ -209,11 +240,22 @@ function rowToTransaksiLite(row: string[]): TransaksiLite {
  * Read-only — TIDAK menyentuh schema.
  */
 export async function listTransaksiMasukByRekening(rekeningId: string): Promise<TransaksiLite[]> {
+  return listTransaksiMasukByRekeningIds([rekeningId]);
+}
+
+/**
+ * Kandidat rekonsiliasi lintas-beberapa rekening bank (transaksi `MASUK`+`AKTIF`).
+ * `rekeningIds` kosong → `[]` (tak ada rekening bank → tak ada kandidat).
+ * Read-only.
+ */
+export async function listTransaksiMasukByRekeningIds(rekeningIds: string[]): Promise<TransaksiLite[]> {
+  if (rekeningIds.length === 0) return [];
+  const allow = new Set(rekeningIds);
   const rows = await sheetsService.getRows(SHEET_NAMES.TRANSAKSI);
   return rows
     .map(rowToTransaksiLite)
     .filter(
-      (t) => t.id && t.jenis === TransaksiJenis.MASUK && t.status === TransaksiStatus.AKTIF && t.rekening_id === rekeningId
+      (t) => t.id && t.jenis === TransaksiJenis.MASUK && t.status === TransaksiStatus.AKTIF && allow.has(t.rekening_id)
     );
 }
 

@@ -2237,8 +2237,9 @@ filters_applied }`.
 
 Roles `[SUPER_ADMIN, BENDAHARA]` (domain finansial). **Pass rekonsiliasi
 TRANSFER.** Pass TERPISAH yang **membaca** sheet `transaksi` — BUKAN disuntik ke
-alur import. Baca transaksi `MASUK`/`AKTIF` rekening **Bank Muamalat** yang
-**belum ter-link** (idempoten).
+alur import. Baca transaksi `MASUK`/`AKTIF` di **semua rekening bank** (resolve
+DINAMIS via `listBankRekeningIds()` = `rekening_bank` aktif minus Kas Tunai; tak
+ada nama bank hardcode) yang **belum ter-link** (idempoten).
 
 **Layer 1 (auto, engine `rekonsiliasi-engine.ts`):** ekstrak `QRB-\d{4}-\d{3}`
 dari `deskripsi`, cocokkan ke pembayaran `TRANSFER`+`BELUM_BAYAR`. **C2 (Q3):**
@@ -2302,8 +2303,9 @@ dicatat di `match_metadata`.
 ### PY8 — `GET /api/qurban/pembayaran/rekonsiliasi/cari-transaksi?edisi_id=&q=` (M-D3)
 
 Roles `[SUPER_ADMIN, BENDAHARA]`. **Pencarian transaksi untuk Taut Manual** —
-transaksi Bank Muamalat `MASUK`/`AKTIF` yang belum ter-link. **TIDAK dibatasi
-band** (agar transfer di luar rentang qurban, mis. Bawa Sendiri, tetap bisa
+transaksi `MASUK`/`AKTIF` di semua rekening bank (dinamis, minus Kas Tunai) yang
+belum ter-link. **TIDAK dibatasi band** (agar transfer di luar rentang qurban,
+mis. Bawa Sendiri, tetap bisa
 ditaut manual). `q` opsional cocokkan `deskripsi`/`bank_ref`/`id`/`jumlah`
 (substring). Maks 50 hasil, urut tanggal desc. Read-only.
 
@@ -2359,7 +2361,7 @@ default `TRANSFER` bila absen).
 
 **Layar sukses bercabang:**
 - TRANSFER → Kode Bayar + Total + **Nominal transfer** (suffix, di-highlight) +
-  rekening **Bank Muamalat** (Kas Tunai disaring) + "tulis kode bayar di berita".
+  rekening bank (Kas Tunai disaring) + "tulis kode bayar di berita".
 - TUNAI → Kode Bayar + **Total** (`nominal_total`, tanpa suffix) + instruksi
   "datang ke masjid, bayar ke panitia". Tanpa rekening/nominal-suffix.
 

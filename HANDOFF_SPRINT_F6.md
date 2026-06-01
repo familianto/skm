@@ -586,12 +586,49 @@ scored — kode tetap otoritatif, hanya nominal yang perlu mata manusia.
 
 ---
 
+## Hotfix D3 — Rekening bank rekonsiliasi DINAMIS (no-hardcode)
+
+**Bug (verifikasi iPad staging):** tab Rekonsiliasi error merah & seluruh UI tak
+tampil — `Rekening "Bank Muamalat Indonesia" tidak ditemukan` (staging pakai
+"Bank Dummy Syariah"). Nama bank produksi **di-hardcode** di jalur rekonsiliasi
+→ kelas bug yang sama dengan Sheet-ID hardcode `migrate_F01`.
+
+**Hardcode yang dihapus:**
+- `rekonsiliasi-report.ts` `buildRekonContext` → `resolveRekeningByNama(REKENING_BANK_MUAMALAT)`.
+- `cari-transaksi/route.ts` (PY8) → `resolveRekeningByNama(REKENING_BANK_MUAMALAT)`.
+- Konstanta `REKENING_BANK_MUAMALAT` di `skm-bridge.ts` **dihapus** (tak ada lagi
+  nama bank produksi di kode). UI copy "Bank Muamalat" → "transfer bank masuk".
+
+**Resolusi dinamis baru** (`skm-bridge.ts`):
+- `listBankRekeningIds()` — id SEMUA `rekening_bank` aktif **minus Kas Tunai**
+  (sumber sama dengan blok transfer WA publik). Kas Tunai dikecualikan via SATU
+  konstanta `REKENING_KAS_TUNAI` (cocok `nama_bank` ATAU `atas_nama`); rekening
+  `is_active=FALSE` di-skip. **>1 rekening bank → dipindai semua.**
+- `listTransaksiMasukByRekeningIds(ids[])` — scan MASUK/AKTIF lintas rekening;
+  `[]` bila tak ada → caller degradasi anggun.
+- `RekonContext.rekeningId` → `rekeningIds: string[]`; PY5/PY7 `meta.filters_applied`
+  kini `rekening_ids`.
+
+**Degradasi anggun:** backend tak lagi throw (return `[]`). UI tab tetap render
+penuh (Auto-match + grup antrian + Cari Transaksi); bila tak ada rekening bank →
+notice "Belum ada rekening bank untuk dipindai" (baca `meta.rekening_ids.length`).
+
+**Prinsip ditegakkan:** TIDAK ada identifier produksi (nama rekening/bank, Sheet
+ID) di-hardcode. Rekening tujuan transfer selalu di-resolve dinamis dari sheet.
+
+**Tes:** fixture recon di-rename ke "Bank Dummy Syariah" (buktikan tak bergantung
+nama) + `listBankRekeningIds`/`listTransaksiMasukByRekeningIds` (dinamis, Kas
+Tunai via nama/atas_nama, inactive skip, empty → `[]`). **547 pass / 0 fail**
+(+4) · type-check/lint/build ✅.
+
+---
+
 ## Sprint F6 — LENGKAP
 
 End-to-end: registrasi (metode) → auto-create BELUM_BAYAR → TUNAI
 (terima-panitia → setor Kas Model A) / TRANSFER (rekonsiliasi auto Layer 1 +
 smart-scoring Layer 2 + triase manual) → LUNAS + WA confirmed + koreksi kategori
-ledger. Total **543 tes** hijau. Menunggu verifikasi iPad Hopy → flip PR #100
+ledger. Total **547 tes** hijau. Menunggu verifikasi iPad Hopy → flip PR #100
 ke Ready → merge → migrasi PRODUCTION `migrate_F6A_pembayaran.gs`.
 
 ---
