@@ -2233,22 +2233,49 @@ Response: baris pembayaran + enrichment `{ muqorib_nama, jumlah_slot }` (slot
 `TERDAFTAR` per `kode_bayar`). Urut `created_at` ASC. `meta: { total,
 filters_applied }`.
 
-### PY5 — `POST /api/qurban/pembayaran/rekonsiliasi?edisi_id=EDS-...` (M-C)
+### PY5 — `POST /api/qurban/pembayaran/rekonsiliasi?edisi_id=EDS-...` (M-C/C2)
 
 Roles `[SUPER_ADMIN, BENDAHARA]` (domain finansial). **Pass rekonsiliasi
-TRANSFER Layer 1 (deterministik).** Pass TERPISAH yang **membaca** sheet
-`transaksi` — BUKAN disuntik ke alur import. Baca transaksi `MASUK`/`AKTIF`
-rekening **Bank Muamalat** yang **belum ter-link** (idempoten). Engine
-(`rekonsiliasi-engine.ts`): ekstrak `QRB-\d{4}-\d{3}` dari `deskripsi`, cocokkan
-ke pembayaran `TRANSFER`+`BELUM_BAYAR` + **nominal == `nominal_transfer`** →
-**AUTO_MATCH**. AUTO-apply: **koreksi `kategori_id` transaksi** (import meng-auto
-"QRB"→`Qurban Sapi`; dikoreksi per-tipe via resolver — kambing→`Qurban Kambing`,
-dst.) lewat jalur UPDATE kanonik SKM + audit, lalu set pembayaran `LUNAS` +
-`skm_transaksi_id` + `bank_ref` + `match_metadata`. **Campur-tipe** (pasca
-Pemetaan): koreksi kategori **di-skip** + flag `mixed` di `match_metadata`, uang
-tetap `LUNAS`. Response: `{ auto_lunas[], anomali[{transaksi_id, kode_bayar,
-alasan}], unmatched[{transaksi_id, jumlah, deskripsi, tanggal}] }`. Audit
-`pembayaran.lunas_via_rekonsiliasi`.
+TRANSFER.** Pass TERPISAH yang **membaca** sheet `transaksi` — BUKAN disuntik ke
+alur import. Baca transaksi `MASUK`/`AKTIF` rekening **Bank Muamalat** yang
+**belum ter-link** (idempoten).
+
+**Layer 1 (auto, engine `rekonsiliasi-engine.ts`):** ekstrak `QRB-\d{4}-\d{3}`
+dari `deskripsi`, cocokkan ke pembayaran `TRANSFER`+`BELUM_BAYAR`. **C2 (Q3):**
+AUTO_MATCH bila `jumlah ∈ { nominal_total, nominal_transfer }` (mencakup "lupa
+suffix" → bayar nominal bulat). AUTO-apply: **koreksi `kategori_id` transaksi**
+(import meng-auto "QRB"→`Qurban Sapi`; dikoreksi per-tipe — kambing→`Qurban
+Kambing`, dst.) lewat jalur UPDATE kanonik SKM + audit, lalu set pembayaran
+`LUNAS` + `skm_transaksi_id` + `bank_ref` + `match_metadata`. Campur-tipe: koreksi
+kategori di-skip + flag `mixed`, uang tetap `LUNAS`.
+
+**Suggestions (C2, BUKAN auto):**
+- **kode cocok tapi nominal di luar {total, transfer}** → kandidat confidence
+  tinggi (`reason` = selisih nominal), dikonfirmasi BD via PY6.
+- **tanpa kode** → **Layer 2 smart-scoring** (`rekonsiliasi-scoring.ts`): skor
+  tiap pembayaran `TRANSFER`+`BELUM_BAYAR`, ambang **≥ 50**, top kandidat
+  descending. Bobot sinyal:
+
+  | Sinyal | Bobot | Logika |
+  |---|---|---|
+  | Suffix nominal | +30 | `jumlah mod 1000 === payment_suffix` (per-edisi, bukan hardcode) |
+  | Keyword QRB/QURBAN/KURBAN | +30 | regex di `deskripsi` |
+  | Nominal cocok ±1% | +25 | vs `nominal_total` / `nominal_transfer` |
+  | Tanggal ≤ 14 hari | +15 | sejak `tanggal_daftar` paling awal kode_bayar |
+  | Fuzzy nama (JW ≥ 0.8) | +20 | token berita (kode/angka/keyword dibuang) ↔ token `muqorib.nama` |
+  | Phone match | +10 | `no_hp` muqorib (ter-normalisasi) muncul di berita |
+
+**Anomali:** kode → pembayaran sudah `LUNAS` / metode `TUNAI`. **Unmatched:**
+tanpa kode & skor < 50. Response: `{ auto_lunas[], suggestions[{ transaksi,
+kandidat[{pembayaran_id, kode_bayar, muqorib_nama, score, sinyal[], reason}] }],
+anomali[], unmatched[] }`. Audit `pembayaran.lunas_via_rekonsiliasi`.
+
+### PY7 — `GET /api/qurban/pembayaran/rekonsiliasi/queue?edisi_id=EDS-...` (C2)
+
+Roles `[SUPER_ADMIN, BENDAHARA]`. **Antrian rekonsiliasi READ-ONLY** (tab triase
+M-D) — **tidak meng-apply apa pun**. Struktur sama dengan PY5 minus `auto_lunas`,
+plus `pending_auto[]` (AUTO_MATCH yang akan dituntaskan bila PY5 dijalankan).
+Response: `{ pending_auto[], suggestions[], anomali[], unmatched[] }`.
 
 ### PY6 — `POST /api/qurban/pembayaran/[id]/link-transaksi?edisi_id=EDS-...` (M-C)
 

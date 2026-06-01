@@ -8,7 +8,7 @@ Status per milestone. Modul Qurban = **island pelengkap**; schema `transaksi`,
 | **A** | Fondasi `qurban_pembayaran` + auto-create saat registrasi | ✅ **Done** (PR Draft `claude/f6-pembayaran`) |
 | **B** | Transisi status TUNAI (`TERIMA_PANITIA`/`LUNAS`) + Cash Model A (PY2–PY4) | ✅ **Done** (akumulasi PR #100) |
 | **C** | Rekonsiliasi TRANSFER Layer 1 (auto) + link manual + koreksi kategori (PY5/PY6) | ✅ **Done** (akumulasi PR #100) |
-| C2 | Smart-scoring Layer 2 + antrian Layer 3 | ⏳ Belum |
+| **C2** | Smart-scoring Layer 2 + antrian Layer 3 (PY5 diperluas, PY7) | ✅ **Done** (akumulasi PR #100) |
 | D | UI pembayaran (form metode, dashboard status) + WA "pembayaran confirmed" | ⏳ Belum |
 
 ---
@@ -306,24 +306,95 @@ Tidak perlu ubah `permissions.ts` (allowlist path = superset; pembatasan ketat d
 
 ---
 
-## Untuk Helper/Hopy — diputuskan sebelum C2 / M-D
+## Milestone C2 — Selesai
 
-1. **Migrasi:** kolom lengkap sejak M-A; B & C tanpa migrasi baru. PRODUCTION
+### Apa yang dibangun
+
+1. **Engine diperluas** (`rekonsiliasi-engine.ts`): `classifyTransaksi` kini
+   mengembalikan `auto` (jumlah ∈ {`nominal_total`, `nominal_transfer`} — Q3
+   "lupa suffix", `via_nominal: 'total'|'transfer'`), `suggestion_high` (kode
+   cocok tapi nominal janggal + `selisih`), `anomali`, `unmatched`.
+2. **Skorer Layer 2 murni** (`rekonsiliasi-scoring.ts`): `scoreTransaksi` +
+   `rankKandidat` + `extractNameTokens`/`bestNameSimilarity`. Bobot suffix(+30,
+   `payment_suffix` per-edisi)/keyword(+30)/nominal±1%(+25)/tanggal≤14h(+15)/
+   fuzzy-nama JW≥0.8(+20)/phone(+10); ambang **≥ 50**; rank descending.
+3. **Pengumpul bersama** (`rekonsiliasi-report.ts`): `buildRekonContext` (baca +
+   klasifikasi, tanpa apply) + `buildSuggestionBuckets` (suggestions/anomali/
+   unmatched). Dipakai PY5 & PY7.
+4. **PY5 diperluas**: tetap auto-apply Layer 1 (kini termasuk lupa-suffix) +
+   kembalikan `suggestions[]` berperingkat. Idempoten.
+5. **PY7** `GET /rekonsiliasi/queue`: antrian READ-ONLY (`pending_auto`,
+   `suggestions`, `anomali`, `unmatched`) untuk tab triase M-D — tidak menulis.
+
+### File dibuat / diubah (C2)
+
+**Baru:** `rekonsiliasi-scoring.ts`, `rekonsiliasi-report.ts`,
+`pembayaran/rekonsiliasi/queue/route.ts`,
+`__tests__/rekonsiliasi-scoring.test.ts`, `__tests__/rekonsiliasi-queue.handler.test.ts`.
+
+**Diubah:** `rekonsiliasi-engine.ts` (reshape hasil + Q3), `rekonsiliasi/route.ts`
+(PY5 pakai report + suggestions), `__tests__/rekonsiliasi-engine.test.ts` +
+`__tests__/rekonsiliasi.handler.test.ts` (sesuaikan ke Q3/suggestions),
+`package.json`, docs.
+
+### Ekstraksi nama untuk fuzzy match (C2-2)
+
+`extractNameTokens(deskripsi)`: buang token kode (`QRB-\d{4}-\d{3}`), non-alfabet
+(angka/phone), dan stop-word qurban/bank (`qrb|qurban|kurban|trf|transfer|biaya|
+an|bin|binti`); sisakan token ≥3 huruf. `bestNameSimilarity` ambil **JW terbaik
+antar token berita × token `muqorib.nama`** (token-level, tahan urutan/atribut
+bank seperti "TRF an"). Sinyal nama menyala bila JW ≥ 0.8.
+
+### Tuning bobot
+
+Bobot dipakai **persis** dari arsitektur (tidak ditune). Catatan: `suggestion_high`
+(kode cocok) diberi `score: 100` sintetis di output agar selalu di atas kandidat
+scored — kode tetap otoritatif, hanya nominal yang perlu mata manusia.
+
+### Divergensi (C2)
+
+- **`suggestion_high` dimasukkan ke `suggestions[]`** (bukan bucket terpisah) agar
+  UI triase M-D punya satu daftar seragam; dibedakan via `reason` + `score:100`.
+- **PY7 menambah `pending_auto[]`** (tak diminta eksplisit) — informasional, agar
+  tab queue menunjukkan transaksi yang akan auto-lunas saat PY5 dijalankan;
+  konsisten dengan sifat read-only.
+- Engine sekarang **butuh nominal benar di fixture** — 2 tes lama (M-B/M-C) yang
+  memakai `nominal_total` default 1.5jt ikut berubah klasifikasinya; tes
+  disesuaikan ke perilaku Q3.
+
+### Verifikasi (C2)
+
+`npm ci` ✅ · `type-check` ✅ · `lint` ✅ · `test` ✅ **521 pass / 0 fail**
+(+12 tes C2) · `build` ✅ (6 route `/api/qurban/pembayaran*` termasuk
+`rekonsiliasi/queue`).
+
+---
+
+## Untuk Helper/Hopy — diputuskan sebelum M-D
+
+1. **Migrasi:** kolom lengkap sejak M-A; B/C/C2 tanpa migrasi baru. PRODUCTION
    jalankan `migrate_F6A_pembayaran.gs` **segera setelah merge** PR #100.
-2. **Method PY2/PY3/PY5/PY6: POST** (ikut konvensi in-repo) vs PATCH (prompt).
-   Konfirmasi sebelum UI M-D (memengaruhi pemanggilan fetch).
-3. **Anomali rekonsiliasi → Layer 3 (C2):** PY5 saat ini hanya *melaporkan*
-   `anomali`/`unmatched` (tanpa antrian persist). C2 perlu antrian + smart-scoring
-   (Jaro-Winkler nama, toleransi nominal) + UI triase. Konfirmasi scope C2.
-4. **Campur-kategori pasca-pemetaan:** PY3 menolak (`MIXED_KATEGORI`); PY5/PY6
-   tetap `LUNAS` + flag `mixed`. UX M-D: tombol "set kategori manual" pada
-   transaksi ber-flag, atau larang Pemetaan lintas-jenis bila sudah ada pembayaran.
-5. **Toleransi nominal-beda TRANSFER:** PY5 menandai anomali (tak auto); BD pakai
-   PY6 (link manual, selisih dicatat). Konfirmasi perlu/tidaknya ambang auto
-   (mis. selisih ≤ suffix) di C2.
-6. **WA "pembayaran confirmed":** flag `wa_send_on_pembayaran_confirmed` ada;
+2. **Method PY2/PY3/PY5/PY6/PY7: POST/GET** (ikut konvensi in-repo) vs PATCH
+   (prompt). Konfirmasi sebelum UI M-D (memengaruhi pemanggilan fetch).
+3. **Antrian Layer 3 = in-memory, BUKAN persist.** PY7 menghitung ulang saat
+   dibuka (tak ada sheet antrian). Konfirmasi ini cukup untuk M-D, atau perlu
+   persist status triase (mis. "ditunda"/"diabaikan") di sheet?
+4. **Ambang & bobot scoring:** ambang ≥50 + bobot dari arsitektur (belum ditune
+   dgn data nyata). Setelah M-D dipakai, tuning mungkin perlu. Konfirmasi apakah
+   bobot/ambang harus configurable (mis. di konfigurasi edisi).
+5. **`suggestion_high` (kode cocok, nominal janggal):** apakah perlu ambang auto
+   toleransi (mis. selisih ≤ suffix → auto) atau biarkan selalu manual (sekarang
+   manual via PY6).
+6. **Campur-kategori pasca-pemetaan:** PY3 menolak; PY5/PY6 `LUNAS` + flag
+   `mixed`. UX M-D: tombol "set kategori manual" pada transaksi ber-flag, atau
+   larang Pemetaan lintas-jenis bila sudah ada pembayaran.
+7. **WA "pembayaran confirmed":** flag `wa_send_on_pembayaran_confirmed` ada;
    template belum. Kirim saat `LUNAS` (TUNAI & TRANSFER) di M-D.
-7. **Drift bridge SKM-core:** create (M-B) & update-kategori (M-C) transaksi
+8. **Drift bridge SKM-core:** create (M-B) & update-kategori (M-C) transaksi
    mereplikasi route inti (tak ada service reusable). Putuskan apakah refactor
    route `transaksi` → service bersama (di luar F6) sebelum island makin banyak
    menulis ke ledger.
+9. **Scope M-D (UI):** halaman/tab Pembayaran, badge status, dropdown metode di
+   form daftar, layar sukses per metode, template WA confirmed, UI triase
+   rekonsiliasi (konsumsi PY7 + konfirmasi via PY6) + resolusi kategori manual
+   untuk transaksi ber-flag `mixed`.

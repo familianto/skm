@@ -13,6 +13,7 @@ import { SESSION_COOKIE_NAME, createSessionToken, type SessionPayload } from '@/
 import { SHEET_NAMES, SHEET_HEADERS } from '@/lib/constants';
 import { QURBAN_SHEETS } from '@/lib/qurban/sheets';
 import { mapPembayaranToRow, type Pembayaran } from '@/lib/qurban/pembayaran-repo';
+import { konfigurasiToRow, type Konfigurasi } from '@/lib/qurban/konfigurasi-repo';
 
 import {
   installMockSheets,
@@ -88,9 +89,20 @@ function trxRow(o: { id: string; tanggal: string; kategori_id: string; deskripsi
 
 const TRX_I = (h: string) => SHEET_HEADERS[SHEET_NAMES.TRANSAKSI].indexOf(h);
 
+function makeKonfig(over: Partial<Konfigurasi> = {}): Konfigurasi {
+  return {
+    id: 'KFG-1', edisi_id: 'EDS-1', bop_per_ekor_sapi: 0, bop_per_ekor_kambing: 0,
+    target_bungkus_total: 0, berat_target_per_bungkus: 0, tanggal_distribusi_mulai: '',
+    tanggal_distribusi_selesai: '', payment_suffix: 3, wa_send_on_pendaftaran: false,
+    wa_send_on_pembayaran_confirmed: false, notes: '', created_at: '2026-05-01T00:00:00.000Z',
+    updated_at: '2026-05-01T00:00:00.000Z', created_by: 'ANG-1', ...over,
+  };
+}
+
 /** Edisi + master data; pembayaran/transaksi diisi per-test. */
 function baseDb(over: { pembayaran: Pembayaran[]; transaksi: string[][] }): SheetDb {
   return {
+    [QURBAN_SHEETS.KONFIGURASI_EDISI]: [konfigurasiToRow(makeKonfig())],
     [SHEETS.EDISI]: edisiRows(makeEdisi({ id: 'EDS-1', tahun_hijriah: '1448H', status: 'AKTIF' })),
     [SHEETS.MUQORIB]: muqoribRows(makeMuqorib({ id: 'MQR-1', nama_lengkap: 'Fulan' })),
     [SHEETS.DAFTAR_HEWAN]: hewanRows(
@@ -138,7 +150,12 @@ test('REKON: AUTO-match Layer 1 → LUNAS + koreksi kategori (Sapi→Kambing); a
   const req = await makeReq('POST', '/api/qurban/pembayaran/rekonsiliasi?edisi_id=EDS-1', PERAN.BENDAHARA);
   const { status, body } = await read(await REKON(req));
   assert.equal(status, 200, JSON.stringify(body));
-  const data = body.data as { auto_lunas: unknown[]; anomali: Array<{ transaksi_id: string }>; unmatched: Array<{ transaksi_id: string }> };
+  const data = body.data as {
+    auto_lunas: unknown[];
+    suggestions: Array<{ transaksi: { id: string }; kandidat: Array<{ kode_bayar: string }> }>;
+    anomali: Array<{ transaksi_id: string }>;
+    unmatched: Array<{ transaksi_id: string }>;
+  };
 
   assert.equal(data.auto_lunas.length, 1);
   const am = data.auto_lunas[0] as { transaksi_id: string; pembayaran_id: string; kode_bayar: string; kategori_corrected: boolean; mixed: boolean };
@@ -147,7 +164,13 @@ test('REKON: AUTO-match Layer 1 → LUNAS + koreksi kategori (Sapi→Kambing); a
   assert.equal(am.kode_bayar, 'QRB-1448-001');
   assert.equal(am.kategori_corrected, true);
   assert.equal(am.mixed, false);
-  assert.deepEqual(data.anomali.map((a) => a.transaksi_id).sort(), ['TRX-2', 'TRX-3', 'TRX-4']);
+  // TRX-2: kode cocok tapi nominal di luar {total, transfer} → suggestion_high (Q3).
+  const sugg2 = data.suggestions.find((s) => s.transaksi.id === 'TRX-2');
+  assert.ok(sugg2, 'TRX-2 jadi suggestion');
+  assert.equal(sugg2!.kandidat[0].kode_bayar, 'QRB-1448-002');
+  // TRX-3 (TUNAI) & TRX-4 (sudah LUNAS) → anomali.
+  assert.deepEqual(data.anomali.map((a) => a.transaksi_id).sort(), ['TRX-3', 'TRX-4']);
+  // TRX-5 "Infaq jumat" tak match & skor < 50 → unmatched.
   assert.deepEqual(data.unmatched.map((u) => u.transaksi_id), ['TRX-5']);
 
   // Koreksi kategori transaksi TRX-1 → KAT-KMB (update ke sheet transaksi).

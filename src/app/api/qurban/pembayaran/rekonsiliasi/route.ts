@@ -7,25 +7,21 @@ import { getClientIp } from '@/lib/api/rate-limit';
 import { PERAN } from '@/lib/api/permissions';
 
 import { resolveEdisiForPeserta } from '@/lib/qurban/peserta-context';
-import { listPembayaranByEdisi } from '@/lib/qurban/pembayaran-repo';
-import {
-  resolveRekeningByNama,
-  listTransaksiMasukByRekening,
-  REKENING_BANK_MUAMALAT,
-} from '@/lib/qurban/skm-bridge';
-import { classifyTransaksi, indexPembayaranByKode } from '@/lib/qurban/rekonsiliasi-engine';
+import { findKonfigurasiByEdisiId } from '@/lib/qurban/konfigurasi-repo';
 import { applyMatch } from '@/lib/qurban/rekonsiliasi-apply';
+import { buildRekonContext, buildSuggestionBuckets } from '@/lib/qurban/rekonsiliasi-report';
 
 // Rekonsiliasi = domain finansial → SA + BD.
 const REKON_ROLES = [PERAN.SUPER_ADMIN, PERAN.BENDAHARA];
 
 /**
- * C-2 — POST /api/qurban/pembayaran/rekonsiliasi?edisi_id=EDS-...
+ * PY5 — POST /api/qurban/pembayaran/rekonsiliasi?edisi_id=EDS-...
  *
- * Pass rekonsiliasi TRANSFER (Layer 1, deterministik). Membaca transaksi
- * `MASUK`/`AKTIF` rekening Bank Muamalat yang BELUM ter-link, mengklasifikasi
- * via engine, lalu AUTO-apply yang `AUTO_MATCH`. Idempoten (run ulang melewati
- * transaksi yang sudah ter-link). TIDAK menyentuh alur import.
+ * Pass rekonsiliasi TRANSFER. AUTO-apply Layer 1 (kode cocok + jumlah ∈
+ * {nominal_total, nominal_transfer}, mencakup "lupa suffix"); kode-off & tanpa
+ * kode (skor Layer 2 ≥ ambang) jadi `suggestions` (dikonfirmasi BD via PY6).
+ * Idempoten (transaksi ter-link dilewati). Pass TERPISAH yang MEMBACA sheet
+ * transaksi — TIDAK menyentuh alur import.
  */
 export async function POST(request: NextRequest) {
   const guard = await requireRole(request, REKON_ROLES);
@@ -37,44 +33,37 @@ export async function POST(request: NextRequest) {
     if (!gate.ok) return gate.response;
     const edisiId = gate.edisi.id;
 
-    const rekeningId = await resolveRekeningByNama(REKENING_BANK_MUAMALAT);
+    const konfig = await findKonfigurasiByEdisiId(edisiId);
+    const payment_suffix = konfig?.payment_suffix ?? 0;
 
-    const pembayaranEdisi = await listPembayaranByEdisi(edisiId);
-    const linked = new Set(pembayaranEdisi.map((p) => p.skm_transaksi_id).filter(Boolean));
-    const kodeIndex = indexPembayaranByKode(pembayaranEdisi);
+    const ctx = await buildRekonContext({ edisiId, payment_suffix });
 
-    const kandidat = (await listTransaksiMasukByRekening(rekeningId)).filter((t) => !linked.has(t.id));
+    // AUTO-apply yang AUTO_MATCH (Layer 1).
+    const auto_lunas: Array<{ transaksi_id: string; pembayaran_id: string; kode_bayar: string; via_nominal: string; kategori_corrected: boolean; mixed: boolean }> = [];
+    const applyFailed: Array<{ transaksi_id: string; kode_bayar: string; alasan: string }> = [];
 
-    const auto_lunas: Array<{ transaksi_id: string; pembayaran_id: string; kode_bayar: string; kategori_corrected: boolean; mixed: boolean }> = [];
-    const anomali: Array<{ transaksi_id: string; kode_bayar: string; alasan: string }> = [];
-    const unmatched: Array<{ transaksi_id: string; jumlah: number; deskripsi: string; tanggal: string }> = [];
-
-    for (const t of kandidat) {
-      const c = classifyTransaksi(t, kodeIndex);
-      if (c.kind === 'auto') {
-        const r = await applyMatch(c.pembayaran.id, t, { layer: 'AUTO', via: 'rekonsiliasi', edisiId, actor });
-        if (r.ok) {
-          auto_lunas.push({
-            transaksi_id: t.id,
-            pembayaran_id: c.pembayaran.id,
-            kode_bayar: c.kode_bayar,
-            kategori_corrected: r.kategori_corrected,
-            mixed: r.mixed,
-          });
-        } else {
-          // Gate gagal di apply (mis. ter-link oleh proses lain) → catat anomali.
-          anomali.push({ transaksi_id: t.id, kode_bayar: c.kode_bayar, alasan: r.reason });
-        }
-      } else if (c.kind === 'anomali') {
-        anomali.push({ transaksi_id: t.id, kode_bayar: c.kode_bayar, alasan: c.alasan });
+    for (const { transaksi: t, result: c } of ctx.classified) {
+      if (c.kind !== 'auto') continue;
+      const r = await applyMatch(c.pembayaran.id, t, { layer: 'AUTO', via: 'rekonsiliasi', edisiId, actor });
+      if (r.ok) {
+        auto_lunas.push({
+          transaksi_id: t.id,
+          pembayaran_id: c.pembayaran.id,
+          kode_bayar: c.kode_bayar,
+          via_nominal: c.via_nominal,
+          kategori_corrected: r.kategori_corrected,
+          mixed: r.mixed,
+        });
       } else {
-        unmatched.push({ transaksi_id: t.id, jumlah: t.jumlah, deskripsi: t.deskripsi, tanggal: t.tanggal });
+        applyFailed.push({ transaksi_id: t.id, kode_bayar: c.kode_bayar, alasan: r.reason });
       }
     }
 
+    const { suggestions, anomali, unmatched } = buildSuggestionBuckets(ctx, { payment_suffix });
+
     return success(
-      { auto_lunas, anomali, unmatched },
-      { total: kandidat.length, filters_applied: { edisi_id: edisiId, rekening_id: rekeningId } }
+      { auto_lunas, suggestions, anomali: [...anomali, ...applyFailed], unmatched },
+      { total: ctx.classified.length, filters_applied: { edisi_id: edisiId, rekening_id: ctx.rekeningId } }
     );
   } catch (err) {
     console.error('[POST /api/qurban/pembayaran/rekonsiliasi] error:', err);

@@ -26,18 +26,32 @@ test('extractKodeBayar: hit di tengah berita, miss bila tak ada', () => {
   assert.equal(extractKodeBayar(''), null);
 });
 
-test('classifyTransaksi: AUTO bila kode unik + TRANSFER + BELUM_BAYAR + nominal pas', () => {
+test('classifyTransaksi: AUTO bila kode + jumlah === nominal_transfer', () => {
   const idx = indexPembayaranByKode([pay({})]);
   const c = classifyTransaksi({ deskripsi: 'QRB-1448-001', jumlah: 1_500_003 }, idx);
   assert.equal(c.kind, 'auto');
-  if (c.kind === 'auto') assert.equal(c.pembayaran.id, 'BYR-1');
+  if (c.kind === 'auto') {
+    assert.equal(c.pembayaran.id, 'BYR-1');
+    assert.equal(c.via_nominal, 'transfer');
+  }
 });
 
-test('classifyTransaksi: ANOMALI bila nominal beda / sudah LUNAS / metode TUNAI', () => {
-  const beda = classifyTransaksi({ deskripsi: 'QRB-1448-001', jumlah: 1_500_000 }, indexPembayaranByKode([pay({})]));
-  assert.equal(beda.kind, 'anomali');
-  if (beda.kind === 'anomali') assert.match(beda.alasan, /nominal/);
+test('classifyTransaksi: AUTO bila kode + jumlah === nominal_total (Q3: lupa suffix)', () => {
+  const c = classifyTransaksi({ deskripsi: 'QRB-1448-001', jumlah: 1_500_000 }, indexPembayaranByKode([pay({})]));
+  assert.equal(c.kind, 'auto');
+  if (c.kind === 'auto') assert.equal(c.via_nominal, 'total');
+});
 
+test('classifyTransaksi: SUGGESTION_HIGH bila kode cocok tapi nominal di luar {total, transfer}', () => {
+  const c = classifyTransaksi({ deskripsi: 'QRB-1448-001', jumlah: 1_499_000 }, indexPembayaranByKode([pay({})]));
+  assert.equal(c.kind, 'suggestion_high');
+  if (c.kind === 'suggestion_high') {
+    assert.equal(c.pembayaran.id, 'BYR-1');
+    assert.equal(c.selisih, 1_499_000 - 1_500_003);
+  }
+});
+
+test('classifyTransaksi: ANOMALI bila kode → pembayaran sudah LUNAS / metode TUNAI', () => {
   const lunas = classifyTransaksi({ deskripsi: 'QRB-1448-001', jumlah: 1_500_003 }, indexPembayaranByKode([pay({ status: 'LUNAS' })]));
   assert.equal(lunas.kind, 'anomali');
   if (lunas.kind === 'anomali') assert.match(lunas.alasan, /LUNAS/);

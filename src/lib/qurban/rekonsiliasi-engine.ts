@@ -1,13 +1,17 @@
 import type { Pembayaran } from './pembayaran-repo';
 
 /**
- * Engine rekonsiliasi TRANSFER (F6 M-C, Layer 1 — deterministik).
+ * Engine rekonsiliasi TRANSFER (F6 M-C / C2).
  *
  * `kode_bayar` (`QRB-{tahun}-{NNN}`) unik per edisi & per pendaftaran, ditulis
- * muqorib di berita transfer → tersimpan di `transaksi.deskripsi`. Cocok tepat
- * satu pembayaran TRANSFER + nominal pas = match 1:1. Pure & fully testable.
+ * muqorib di berita transfer → tersimpan di `transaksi.deskripsi`. Klasifikasi
+ * deterministik berbasis kode di sini; smart-scoring tanpa-kode (Layer 2) ada di
+ * `rekonsiliasi-scoring.ts`. Pure & fully testable.
  *
- * Layer 2 (smart-scoring) & Layer 3 (antrian) = Milestone C2.
+ * C2 (Q3 — perluasan kriteria auto): auto-apply bila kode cocok DAN
+ * `jumlah ∈ { nominal_total, nominal_transfer }` (mencakup kasus "lupa suffix" →
+ * bayar nominal bulat). Selisih nominal lain → `suggestion_high` (kode otoritatif
+ * tapi nominal janggal → konfirmasi manusia via PY6), BUKAN auto.
  */
 
 const KODE_BAYAR_RE = /QRB-\d{4}-\d{3}/;
@@ -26,18 +30,18 @@ export interface TransaksiForMatch {
 }
 
 export type ClassifyResult =
-  | { kind: 'auto'; kode_bayar: string; pembayaran: Pembayaran }
+  /** Kode cocok + jumlah ∈ {nominal_total, nominal_transfer} → auto-apply. */
+  | { kind: 'auto'; kode_bayar: string; pembayaran: Pembayaran; via_nominal: 'total' | 'transfer' }
+  /** Kode cocok TRANSFER+BELUM_BAYAR tapi nominal di luar himpunan → suggest high. */
+  | { kind: 'suggestion_high'; kode_bayar: string; pembayaran: Pembayaran; reason: string; selisih: number }
+  /** Kode ketemu pembayaran yang sudah LUNAS / metode TUNAI → anomali. */
   | { kind: 'anomali'; kode_bayar: string; alasan: string; pembayaran: Pembayaran }
+  /** Tanpa kode, atau kode tak punya pembayaran di edisi → bahan Layer 2. */
   | { kind: 'unmatched'; kode_bayar: string | null };
 
 /**
  * Klasifikasi satu transaksi terhadap indeks pembayaran by `kode_bayar`
  * (seluruh pembayaran edisi — kode unik → maks 1 per kode).
- *
- *  - **auto:** kode ada, pembayaran TRANSFER + BELUM_BAYAR + nominal == nominal_transfer.
- *  - **anomali:** kode ketemu pembayaran tapi metode≠TRANSFER / status≠BELUM_BAYAR /
- *    nominal beda (jangan auto-apply; sertakan alasan).
- *  - **unmatched:** tanpa kode, atau kode tak punya pembayaran di edisi ini.
  */
 export function classifyTransaksi(
   transaksi: TransaksiForMatch,
@@ -55,15 +59,24 @@ export function classifyTransaksi(
   if (pembayaran.status !== 'BELUM_BAYAR') {
     return { kind: 'anomali', kode_bayar: kode, alasan: `pembayaran sudah berstatus ${pembayaran.status}`, pembayaran };
   }
-  if (transaksi.jumlah !== pembayaran.nominal_transfer) {
-    return {
-      kind: 'anomali',
-      kode_bayar: kode,
-      alasan: `nominal transaksi ${transaksi.jumlah} ≠ nominal_transfer ${pembayaran.nominal_transfer}`,
-      pembayaran,
-    };
+
+  // Q3: auto bila jumlah cocok salah satu nominal (total = lupa suffix).
+  if (transaksi.jumlah === pembayaran.nominal_transfer) {
+    return { kind: 'auto', kode_bayar: kode, pembayaran, via_nominal: 'transfer' };
   }
-  return { kind: 'auto', kode_bayar: kode, pembayaran };
+  if (transaksi.jumlah === pembayaran.nominal_total) {
+    return { kind: 'auto', kode_bayar: kode, pembayaran, via_nominal: 'total' };
+  }
+
+  // Kode otoritatif tapi nominal janggal → suggestion confidence tinggi.
+  const selisih = transaksi.jumlah - pembayaran.nominal_transfer;
+  return {
+    kind: 'suggestion_high',
+    kode_bayar: kode,
+    pembayaran,
+    reason: `kode cocok tapi nominal ${transaksi.jumlah} ≠ {total ${pembayaran.nominal_total}, transfer ${pembayaran.nominal_transfer}}`,
+    selisih,
+  };
 }
 
 /** Bangun indeks `kode_bayar → pembayaran` (kode unik per edisi). */

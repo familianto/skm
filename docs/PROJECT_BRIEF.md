@@ -339,7 +339,7 @@ Lihat detail di `SPRINT_PLAN.md` dan file individual di `sprints/`.
 | F4c | UI Pendaftaran Qurban (panitia + publik daftar + cek-status) | 6 milestone A–F | ✅ Done |
 | F4d | Phone-primary lookup (PB2 v2 + M7 dual-mode) | 2 milestone A–B | ✅ Done |
 | F5b | Pemetaan Peserta↔Hewan (drag-drop) — A1 infra+PM2, A2 PM1, B UI | 3 milestone A1/A2/B | ✅ Done |
-| F6 | Pembayaran & Rekonsiliasi Qurban (`qurban_pembayaran`) — A fondasi+registrasi, B status TUNAI, C match TRANSFER, D UI | A–D | 🚧 M-A+B+C done |
+| F6 | Pembayaran & Rekonsiliasi Qurban (`qurban_pembayaran`) — A fondasi, B TUNAI, C match Layer 1, C2 scoring+antrian, D UI | A–D | 🚧 M-A+B+C+C2 done |
 | F7 | Hari-H | TBD | ⏳ Planned |
 
 ### Sprint F6 — Pembayaran & Rekonsiliasi Qurban
@@ -371,8 +371,16 @@ yang MEMBACA sheet `transaksi`** (bukan disuntik ke import). **PY5**
 `/[id]/link-transaksi` link manual (nominal beda diizinkan, selisih dicatat).
 Engine murni `rekonsiliasi-engine.ts`; apply bersama `rekonsiliasi-apply.ts`;
 koreksi kategori via jalur UPDATE kanonik SKM (`skm-bridge.correctTransaksiKategori`).
-C-0: peran PY2 tanpa BD, PY4 tanpa DISTRIBUSI. **Belum:** Layer 2/3 (M-C2), UI +
-WA confirmed (M-D). Detail: `HANDOFF_SPRINT_F6.md`, `docs/API_REFERENCE.md`.
+C-0: peran PY2 tanpa BD, PY4 tanpa DISTRIBUSI.
+
+**Milestone C2 (smart-scoring Layer 2 + antrian Layer 3):** Q3 — auto-match
+diperluas (`jumlah ∈ {nominal_total, nominal_transfer}`, mencakup "lupa suffix").
+Kode-cocok-nominal-janggal → **suggestion** (bukan auto). Skorer murni
+`rekonsiliasi-scoring.ts` (suffix +30, keyword +30, nominal±1% +25, tanggal≤14h
++15, fuzzy nama JW≥0.8 +20, phone +10; ambang ≥50) untuk transfer tanpa kode.
+**PY5** kini mengembalikan `suggestions[]` berperingkat; **PY7**
+`/rekonsiliasi/queue` antrian READ-ONLY untuk tab triase. **Belum:** UI + WA
+confirmed (M-D). Detail: `HANDOFF_SPRINT_F6.md`, `docs/API_REFERENCE.md`.
 
 ### Sprint F02 — Qurban Edisi Management
 
