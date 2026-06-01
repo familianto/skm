@@ -2061,20 +2061,27 @@ ASC (tiebreak `id`). `meta: { total, filters_applied }`.
 ### PS2 — `POST /api/qurban/peserta?edisi_id=EDS-...`
 
 **Body:** `{ muqorib_id, master_hewan_id, tipe_qurban, jumlah_slot,
-nama_atas_nama_per_slot?, keterangan_bagian?, allow_additional_qurban? }`.
-`nama_atas_nama_per_slot` (kalau diisi) panjangnya harus = `jumlah_slot`.
+nama_atas_nama_per_slot?, keterangan_bagian?, allow_additional_qurban?,
+metode_pembayaran? }`. `nama_atas_nama_per_slot` (kalau diisi) panjangnya harus =
+`jumlah_slot`. **`metode_pembayaran` (F6, opsional, default `TRANSFER`):** hanya
+`TRANSFER`|`TUNAI` diterima; `VA` → `422 VALIDATION_FAILED` ("segera hadir");
+nilai lain → `422 VALIDATION_FAILED`. Divalidasi **sebelum** menulis apa pun.
 
-**Alur:** (1) validasi + `muqorib_id` harus ada & **aktif** (`is_active`);
-(2) deteksi duplikat Layer 1 — bila muqorib sudah punya peserta `TERDAFTAR` di
-edisi & `allow_additional_qurban=false` → `409 DUPLICATE_PESERTA` (body memuat
-`existing[]`); (3) bekukan `harga_disepakati` dari master; (4) **auto-assign
-slot** (hewan `AKTIF` cocok `master_hewan_id`+`tipe`, urut `nomor_urut` ASC,
-slot kosong terkecil dulu, auto-split antar hewan) — kurang dari diminta →
-`409 BUSINESS_INSUFFICIENT_SLOTS` (`{available, needed}`); (5) generate
-`kode_bayar` berurutan per slot; (6) insert N baris (batch) dengan
-`sumber_pendaftaran=PANITIA`, `status_pendaftaran=TERDAFTAR`. **Response 201**
-(array N peserta). Audit `peserta.created` per baris (flag
-`is_additional_qurban` bila berlaku).
+**Alur:** (1) validasi + `metode_pembayaran` + `muqorib_id` harus ada & **aktif**
+(`is_active`); (2) deteksi duplikat Layer 1 — bila muqorib sudah punya peserta
+`TERDAFTAR` di edisi & `allow_additional_qurban=false` → `409 DUPLICATE_PESERTA`
+(body memuat `existing[]`); (3) bekukan `harga_disepakati` dari master;
+(4) **auto-assign slot** (hewan `AKTIF` cocok `master_hewan_id`+`tipe`, urut
+`nomor_urut` ASC, slot kosong terkecil dulu, auto-split antar hewan) — kurang
+dari diminta → `409 BUSINESS_INSUFFICIENT_SLOTS` (`{available, needed}`);
+(5) generate `kode_bayar` per pendaftaran (dibagi semua baris); (6) insert N
+baris peserta (batch) dengan `sumber_pendaftaran=PANITIA`,
+`status_pendaftaran=TERDAFTAR`; **(7) F6 — auto-create SATU baris
+`qurban_pembayaran`** per pendaftaran (`status=BELUM_BAYAR`,
+`nominal_total = Σ harga_disepakati`, `nominal_transfer = nominal_total +
+payment_suffix`, `metode` dari body). Bila langkah 7 gagal → `500` dengan pesan
+jelas (peserta sudah tertulis; backfill manual menyusul M-C). **Response 201**
+(array N peserta). Audit `peserta.created` per baris + `pembayaran.created`.
 
 ### PS3 — `GET /api/qurban/peserta/[id]?edisi_id=EDS-...`
 
@@ -2092,9 +2099,13 @@ Idempotent no-op bila tak ada perubahan.
 
 **Body:** `{ alasan?, refund_handling? }`. `TERDAFTAR → BATAL` (sudah `BATAL` →
 `422 BUSINESS_PESERTA_NOT_TERDAFTAR`). Slot otomatis kosong (computed via
-okupansi). Pembayaran existing TIDAK dinonaktifkan; bila sheet `qurban_pembayaran`
-(F6) ada & peserta punya pembayaran, response menyertakan `meta.warning`.
-Audit `peserta.status_changed`.
+okupansi). **F6:** bila pembayaran pendaftaran (resolved via `kode_bayar`)
+berstatus `TERIMA_PANITIA`/`LUNAS` → `409 BUSINESS_PEMBAYARAN_EXISTS` (cancel
+**ditolak**, refund di luar sistem). **Kaskade:** setelah `BATAL`, bila tak ada
+lagi slot `TERDAFTAR` untuk `kode_bayar` itu **dan** pembayarannya masih
+`BELUM_BAYAR`, pembayaran di-set `BATAL` (audit `pembayaran.batal`) +
+`meta.warning`. Tahan-banting bila sheet `qurban_pembayaran` belum ada
+(pre-F6 → tidak memblokir). Audit `peserta.status_changed`.
 
 ### PS6 — `POST /api/qurban/peserta/check-duplicate`
 
@@ -2135,6 +2146,7 @@ slots[] }`, tiap slot `{ hewan_id, nomor_urut, slot_number }` (hanya hewan
 | `BUSINESS_EDISI_NOT_AKTIF` | 422 | PS2 — edisi bukan `AKTIF`. |
 | `BUSINESS_EDISI_LOCKED` | 422 | PS4/PS5/PS7 — edisi `SELESAI`. |
 | `BUSINESS_PESERTA_NOT_TERDAFTAR` | 422 | PS4/PS5/PS7 — peserta tidak berstatus `TERDAFTAR`. |
+| `BUSINESS_PEMBAYARAN_EXISTS` | 409 | PS5 — pembayaran pendaftaran sudah `TERIMA_PANITIA`/`LUNAS`; cancel ditolak (F6). |
 
 ### Audit Events (Peserta)
 
@@ -2146,6 +2158,246 @@ slots[] }`, tiap slot `{ hewan_id, nomor_urut, slot_number }` (hanya hewan
 | `peserta.harga_changed` | `UPDATE` | PS7 (skip kalau harga sama) |
 | `peserta.wa_sent_success` | `CREATE` | PS2 (retrofit Fonnte F4b-C; gated `wa_send_on_pendaftaran`) |
 | `peserta.wa_sent_failed` | `CREATE` | PS2 (kirim WA gagal; tidak menggagalkan response) |
+
+---
+
+## Qurban Pembayaran — `qurban_pembayaran` (Sprint F6)
+
+Sprint F6 mencatat pembayaran peserta qurban. **Milestone A = fondasi data +
+auto-create saat registrasi** (belum ada endpoint transisi status / rekonsiliasi
+/ UI). Sheet hidup di **workbook utama** (`GOOGLE_SHEETS_ID`). Migrasi:
+`scripts/migrate_F6A_pembayaran.gs` (jalankan ke STAGING dulu).
+
+**Grain: 1 baris = 1 pendaftaran (`kode_bayar`)**, BUKAN per-slot. Satu
+pendaftaran multi-slot berbagi satu `kode_bayar` → satu baris pembayaran
+menaungi seluruh slotnya.
+
+**Schema `qurban_pembayaran` (19 kolom):** `id` (prefix `BYR-{YYYYMMDD-WIB}-{NNNN}`),
+`edisi_id` (FK), `kode_bayar` (kunci pendaftaran, unik per edisi → menautkan ke
+baris `qurban_peserta`), `muqorib_id` (FK), `nominal_total` (Σ `harga_disepakati`
+semua slot), `nominal_transfer` (`nominal_total + payment_suffix`), `metode`
+(`TRANSFER`|`TUNAI`|`VA`|`IMPORT_1447H`), `status`
+(`BELUM_BAYAR`|`TERIMA_PANITIA`|`LUNAS`|`BATAL`), `tanggal_terima_panitia`
+(ISO-8601 Z | '', TUNAI), `panitia_terima_id` ('' | FK, TUNAI), `tanggal_lunas`
+(ISO-8601 Z | ''), `bank_ref` ('' → diisi saat match TRANSFER, M-C),
+`skm_transaksi_id` ('' → diisi saat `LUNAS`, FK `transaksi.id`), `bukti_url`,
+`match_metadata` (JSON string | '' → M-C), `notes`, `created_at`, `updated_at`,
+`created_by`. Timestamp = **ISO-8601 Z** (konvensi entitas qurban).
+
+**Auto-create di registrasi (M-A):** PS2 (admin) & PB3 (publik) membuat satu
+baris `BELUM_BAYAR` setelah insert peserta sukses, memakai `metode_pembayaran`
+dari body (default `TRANSFER`; `VA`/nilai tak dikenal ditolak `422` sebelum
+menulis). Repo: `src/lib/qurban/pembayaran-repo.ts`
+(`listPembayaranByEdisi`/`getPembayaranById`/`findPembayaranByKodeBayar`/
+`insertPembayaran`/`updatePembayaranAt`). Builder murni:
+`src/lib/qurban/pembayaran-create.ts`. Audit `pembayaran.created` /
+`pembayaran.batal` (`src/lib/qurban/pembayaran-audit.ts`).
+
+### PY2 — `POST /api/qurban/pembayaran/[id]/terima-panitia?edisi_id=EDS-...`
+
+> Catatan method: mengikuti konvensi in-repo endpoint aksi Qurban (`/cancel`,
+> `/activate`, …) yang memakai **POST** (bukan PATCH).
+
+Roles `[SUPER_ADMIN, ADMIN_QURBAN, PENDAFTARAN]` (C-0: **BD dikecualikan** —
+terima cash operasi panitia; BD read-only di Pembayaran). **TUNAI:**
+`BELUM_BAYAR → TERIMA_PANITIA`. Gate: `metode==='TUNAI'` &&
+`status==='BELUM_BAYAR'` (else `409 CONFLICT`). **Body:** `{ panitia_terima_id
+(wajib), tanggal_terima_panitia? (ISO-Z, default now), bukti_url? }`. Set field +
+`updated_at`. Audit `pembayaran.terima_panitia`.
+
+### PY3 — `POST /api/qurban/pembayaran/[id]/lunaskan?edisi_id=EDS-...`
+
+Roles `[SUPER_ADMIN, BENDAHARA]` (menulis transaksi keuangan → ketat). **TUNAI
+Model A:** `TERIMA_PANITIA → LUNAS`. **Gate idempotensi:** `metode==='TUNAI'` &&
+`status==='TERIMA_PANITIA'` && `skm_transaksi_id===''` (else `409`). **Body:**
+`{ tanggal_lunas? (ISO-Z, default now) }`.
+
+**Alur (transaksi-first):** (1) re-baca + gate; (2) resolusi kategori per-tipe
+dari slot peserta `kode_bayar` (BELI→`Qurban Sapi`/`Qurban Kambing`,
+BAWA_SENDIRI→`Qurban Jasa Titip & Pakan`) — bila **campur kategori** (mis.
+pasca-pemetaan) → `409 BUSINESS_PEMBAYARAN_MIXED_KATEGORI` + tandai `notes`
+(penanganan manual, TIDAK auto-create); (3) **buat transaksi pemasukan** lewat
+jalur kanonik SKM (`TRX-`, MASUK, AKTIF) ke rekening **Kas Tunai**,
+**`jumlah = nominal_total`** (BULAT, tanpa suffix), `tanggal = tanggal_lunas`
+(dikonversi ke `YYYY-MM-DD`), deskripsi
+`Qurban {tahun} - {kode_bayar} - {nama} (Cash/Datang Langsung)`; (4) update
+pembayaran `LUNAS` + `skm_transaksi_id`. **Kegagalan langkah 4 setelah transaksi
+terbuat → `500` LOUD** ("Transaksi {id} sudah dibuat … JANGAN ulangi") — jaring
+perbaikan = pass rekonsiliasi M-C. Audit `pembayaran.lunas`.
+
+### PY4 — `GET /api/qurban/pembayaran?edisi_id=EDS-...`
+
+Roles `[SUPER_ADMIN, BENDAHARA, ADMIN_QURBAN, PENDAFTARAN]` (C-0: **DISTRIBUSI
+🔒 dikecualikan**). Filter opsional `status`, `metode`, `panitia_terima_id`.
+Response: baris pembayaran + enrichment `{ muqorib_nama, jumlah_slot }` (slot
+`TERDAFTAR` per `kode_bayar`). Urut `created_at` ASC. `meta: { total,
+filters_applied }`.
+
+### PY5 — `POST /api/qurban/pembayaran/rekonsiliasi?edisi_id=EDS-...` (M-C/C2)
+
+Roles `[SUPER_ADMIN, BENDAHARA]` (domain finansial). **Pass rekonsiliasi
+TRANSFER.** Pass TERPISAH yang **membaca** sheet `transaksi` — BUKAN disuntik ke
+alur import. Baca transaksi `MASUK`/`AKTIF` di **semua rekening bank** (resolve
+DINAMIS via `listBankRekeningIds()` = `rekening_bank` aktif minus Kas Tunai; tak
+ada nama bank hardcode) yang **belum ter-link** (idempoten).
+
+**Layer 1 (auto, engine `rekonsiliasi-engine.ts`):** ekstrak `QRB-\d{4}-\d{3}`
+dari `deskripsi`, cocokkan ke pembayaran `TRANSFER`+`BELUM_BAYAR`. **C2 (Q3):**
+AUTO_MATCH bila `jumlah ∈ { nominal_total, nominal_transfer }` (mencakup "lupa
+suffix" → bayar nominal bulat). AUTO-apply: **koreksi `kategori_id` transaksi**
+(import meng-auto "QRB"→`Qurban Sapi`; dikoreksi per-tipe — kambing→`Qurban
+Kambing`, dst.) lewat jalur UPDATE kanonik SKM + audit, lalu set pembayaran
+`LUNAS` + `skm_transaksi_id` + `bank_ref` + `match_metadata`. Campur-tipe: koreksi
+kategori di-skip + flag `mixed`, uang tetap `LUNAS`.
+
+**Suggestions (C2, BUKAN auto):**
+- **kode cocok tapi nominal di luar {total, transfer}** → kandidat confidence
+  tinggi (`reason` = selisih nominal), dikonfirmasi BD via PY6.
+- **tanpa kode** → **Layer 2 smart-scoring** (`rekonsiliasi-scoring.ts`): skor
+  tiap pembayaran `TRANSFER`+`BELUM_BAYAR`, ambang **≥ 50**, top kandidat
+  descending. Bobot sinyal:
+
+  | Sinyal | Bobot | Logika |
+  |---|---|---|
+  | Suffix nominal | +30 | `jumlah mod 1000 === payment_suffix` (per-edisi, bukan hardcode) |
+  | Keyword QRB/QURBAN/KURBAN | +30 | regex di `deskripsi` |
+  | Nominal cocok ±1% | +25 | vs `nominal_total` / `nominal_transfer` |
+  | Tanggal ≤ 14 hari | +15 | sejak `tanggal_daftar` paling awal kode_bayar |
+  | Fuzzy nama (JW ≥ 0.8) | +20 | token berita (kode/angka/keyword dibuang) ↔ token `muqorib.nama` |
+  | Phone match | +10 | `no_hp` muqorib (ter-normalisasi) muncul di berita |
+
+**Anomali:** kode → pembayaran sudah `LUNAS` / metode `TUNAI`. **Unmatched:**
+tanpa kode & skor < 50. Response: `{ auto_lunas[], suggestions[{ transaksi,
+kandidat[{pembayaran_id, kode_bayar, muqorib_nama, score, sinyal[], reason}] }],
+anomali[], unmatched[] }`. Audit `pembayaran.lunas_via_rekonsiliasi`.
+
+### PY7 — `GET /api/qurban/pembayaran/rekonsiliasi/queue?edisi_id=EDS-...` (C2)
+
+Roles `[SUPER_ADMIN, BENDAHARA]`. **Antrian rekonsiliasi READ-ONLY** (tab triase
+M-D3) — **tidak meng-apply apa pun**. Struktur sama dengan PY5 minus `auto_lunas`,
+plus `pending_auto[]` (AUTO_MATCH yang akan dituntaskan bila PY5 dijalankan).
+Response: `{ pending_auto[], suggestions[], anomali[], unmatched[] }`.
+
+**Band-filter code-less (M-D3, `rekonsiliasi-band.ts`):** kandidat **tanpa kode**
+hanya diauto-antri (saran/unmatched) bila nominal ∈ `[QURBAN_RECON_BAND_MIN
+3.000.000, QURBAN_RECON_BAND_MAX 40.000.000]`. Di luar band → SENGAJA tak diantri
+(transfer kecil mis. Bawa Sendiri ditangani via Taut Manual/PY8). **Layer 1
+(kode_bayar di deskripsi) TIDAK dibatasi band** — transfer ber-kode tetap match
+berapa pun nominalnya. Diterapkan di `buildSuggestionBuckets` (dipakai PY5 & PY7).
+
+### PY6 — `POST /api/qurban/pembayaran/[id]/link-transaksi?edisi_id=EDS-...` (M-C)
+
+Roles `[SUPER_ADMIN, BENDAHARA]`. **Link manual** (transfer tanpa kode / nominal
+beda / bank_ref tak match — BD memutuskan). **Body:** `{ transaksi_id }`. Gate:
+pembayaran `TRANSFER`+`BELUM_BAYAR`+belum ter-link; transaksi `MASUK` & belum
+tertaut pembayaran lain. Memakai `applyMatch` yang sama (koreksi kategori + LUNAS
++ link). **Nominal beda tetap diizinkan** (sengaja) → `meta.warning` + `selisih`
+dicatat di `match_metadata`.
+
+> **Catatan drift bridge:** koreksi `kategori_id` transaksi (M-C) & create
+> transaksi (M-B) memakai helper island (`skm-bridge.ts`) yang **mereplikasi**
+> jalur kanonik SKM (`getNextId`/`updateRow` + `logAudit`) karena route
+> `transaksi` meng-inline logikanya (tak ada service reusable). Schema tak
+> disentuh.
+
+### PY8 — `GET /api/qurban/pembayaran/rekonsiliasi/cari-transaksi?edisi_id=&q=` (M-D3)
+
+Roles `[SUPER_ADMIN, BENDAHARA]`. **Pencarian transaksi untuk Taut Manual** —
+transaksi `MASUK`/`AKTIF` di semua rekening bank (dinamis, minus Kas Tunai) yang
+belum ter-link. **TIDAK dibatasi band** (agar transfer di luar rentang qurban,
+mis. Bawa Sendiri, tetap bisa
+ditaut manual). `q` opsional cocokkan `deskripsi`/`bank_ref`/`id`/`jumlah`
+(substring). Maks 50 hasil, urut tanggal desc. Read-only.
+
+### PY9 — `POST /api/qurban/pembayaran/[id]/resolve-kategori?edisi_id=EDS-...` (M-D3, Q4a)
+
+Roles `[SUPER_ADMIN, BENDAHARA]`. **Selesaikan kategori transaksi TRANSFER
+ber-flag `mixed`** (slot lintas-jenis pasca remap pemetaan F5b; sudah LUNAS tapi
+kategori belum dikoreksi). **Body:** `{ kategori_id }` (panitia memilih; tidak
+auto-tebak). Koreksi `transaksi.kategori_id` lewat `correctTransaksiKategori`
+(jalur kanonik SKM) lalu turunkan flag mixed di `match_metadata`
+(`kategori_resolved: true`). Audit `pembayaran.kategori_resolved`. Gate: pembayaran
+harus sudah tertaut transaksi (`skm_transaksi_id` terisi).
+
+### UI Tab Rekonsiliasi (M-D3 — penutup F6)
+
+Tab **"Rekonsiliasi"** di `/qurban/pembayaran` (untuk `[SA,BD]`;
+`RekonsiliasiTab.tsx`): tombol **Jalankan Auto-match** (PY5) + antrian (PY7)
+dikelompokkan — **Kecocokan Kuat** (`pending_auto` → Terapkan via PY6), **Saran**
+(skor Layer 2 + rincian sinyal → Konfirmasi via PY6), **Tak Cocok** (`unmatched`
+→ Taut Manual via PY6), **Anomali** (informasional), dan **Resolusi Kategori**
+(transaksi mixed → PY9). **Cari Transaksi…** (PY8) untuk taut manual transfer di
+luar band. Badge status pembayaran via `PembayaranStatusBadge`.
+
+### Error Codes (Pembayaran)
+
+| Code | HTTP | Kapan |
+|---|---|---|
+| `NOT_FOUND` | 404 | Pembayaran/edisi tidak ditemukan / beda edisi. |
+| `CONFLICT` | 409 | PY2/PY3 — metode/status tidak sesuai gate, atau sudah tertaut transaksi. |
+| `BUSINESS_PEMBAYARAN_MIXED_KATEGORI` | 409 | PY3 — slot `kode_bayar` lintas kategori; pelunasan manual. |
+| `BUSINESS_PEMBAYARAN_EXISTS` | 409 | PS5 — cancel ditolak karena pembayaran `TERIMA_PANITIA`/`LUNAS`. |
+| `CONFLICT` | 409 | PY6 — transaksi bukan MASUK / sudah tertaut pembayaran lain. |
+| `VALIDATION_REQUIRED`/`VALIDATION_FORMAT` | 422 | Field input wajib/format salah. |
+
+### Audit Events (Pembayaran)
+
+| `event_type` | Aksi | Sumber |
+|---|---|---|
+| `pembayaran.created` | `CREATE` | PS2/PB3 auto-create (M-A) |
+| `pembayaran.terima_panitia` | `UPDATE` | PY2 (TUNAI) |
+| `pembayaran.lunas` | `UPDATE` | PY3 (TUNAI Model A; catat `skm_transaksi_id`) |
+| `pembayaran.lunas_via_rekonsiliasi` | `UPDATE` | PY5/PY6 (TRANSFER; layer AUTO/MANUAL + `bank_ref` + `amount_ok`) |
+| `pembayaran.kategori_resolved` | `UPDATE` | PY9 (resolusi kategori transaksi mixed) |
+| `pembayaran.batal` | `UPDATE` | PS5 kaskade (seluruh slot batal) |
+
+### UI Registrasi per-metode (M-D1)
+
+Form daftar **publik** (`PublikDaftarWizard`) & **admin** (`PesertaForm`) kini
+punya dropdown **Metode Pembayaran** (wajib dipilih): `Transfer` (TRANSFER),
+`Cash · Datang Langsung` (TUNAI), `Virtual Account` (disabled — "segera hadir").
+Field `metode_pembayaran` dikirim di body daftar (kontrak M-A; backend tetap
+default `TRANSFER` bila absen).
+
+**Layar sukses bercabang:**
+- TRANSFER → Kode Bayar + Total + **Nominal transfer** (suffix, di-highlight) +
+  rekening bank (Kas Tunai disaring) + "tulis kode bayar di berita".
+- TUNAI → Kode Bayar + **Total** (`nominal_total`, tanpa suffix) + instruksi
+  "datang ke masjid, bayar ke panitia". Tanpa rekening/nominal-suffix.
+
+**WA pendaftaran** (`publik-wa-template.ts`) bercabang sama per `metode`
+(TRANSFER: nominal_transfer+rekening+berita; TUNAI: nominal_total+datang ke
+masjid). Tetap di-gate `wa_send_on_pendaftaran`. PB3 success payload menambah
+`pembayaran.metode`.
+
+### UI Manajemen Pembayaran admin (M-D2)
+
+Halaman **`/qurban/pembayaran`** (entri sidebar grup QURBAN, akses `[SA,BD,AQ,PD]`
+per `path-rules.ts`). Tab tunggal "Daftar Pembayaran" (struktur tab disiapkan
+untuk "Rekonsiliasi" M-D3). Konsumsi PY4 per-edisi; filter status/metode/cari.
+Komponen badge status `PembayaranStatusBadge` (BELUM_BAYAR netral, TERIMA_PANITIA
+amber, LUNAS hijau, BATAL merah-redup) dipakai di sini **dan** di daftar Peserta
+(per `kode_bayar`).
+
+**Aksi alur TUNAI (RBAC UI mengikuti API):**
+- **Terima Panitia** (PY2, `[SA,AQ,PD]`) — tampil bila TUNAI+BELUM_BAYAR. Modal:
+  panitia penerima (dari `GET /api/qurban/panitia`), tanggal, bukti_url opsional.
+- **Setor ke Kas** (PY3, `[SA,BD]`) — tampil bila TUNAI+TERIMA_PANITIA. Dialog
+  konfirmasi "Mencatat pemasukan Rp {nominal_total} ke Kas Tunai".
+- TRANSFER → tanpa tombol aksi (dilunasi via rekonsiliasi M-D3); badge + hint
+  "Menunggu transfer / rekonsiliasi".
+
+### WA "Pembayaran Confirmed" (M-D2)
+
+`buildPembayaranConfirmedMessage` (`publik-wa-template.ts`) + helper
+`notifyPembayaranLunas(pembayaran)` (`pembayaran-notify.ts`), gated
+`wa_send_on_pembayaran_confirmed`. Dipanggil dari **kedua** jalur LUNAS: PY3
+lunaskan (TUNAI) & `applyMatch` (TRANSFER, M-C). **Best-effort** — semua
+kegagalan (flag off / no_hp / fonnte error) di-swallow + log; pelunasan keuangan
+tidak pernah gagal karena WA.
+
+> **M-D3 (tab Rekonsiliasi + PY8/PY9 + band-filter) selesai — Sprint F6 lengkap
+> end-to-end** (registrasi → pembayaran TUNAI/TRANSFER → rekonsiliasi → triase).
 
 ---
 
@@ -2459,14 +2711,17 @@ Response **TIDAK pernah memuat PII penuh:**
 
 Body: `muqorib_id` (dari PB2) **atau** `muqorib_data {nama_lengkap, alamat, rt,
 no_hp}`; `master_hewan_id`, `tipe_qurban`, `jumlah_slot` (≤ 50), `nama_atas_nama?`,
-`keterangan_bagian?`, + field honeypot `email`.
+`keterangan_bagian?`, `metode_pembayaran?` (F6; default `TRANSFER`; `VA` ditolak
+`422`), + field honeypot `email`.
 
-Alur: rate-limit → honeypot → audit `attempted` → validasi + gate `BUKA` →
-resolusi muqorib (id aktif / match `no_hp` / **auto-create**; **muqorib nonaktif
-ditolak**, konsisten PS2) → duplikat Layer 1 (`409 DUPLICATE_PESERTA`, arahkan ke
-cek-status) → freeze harga → auto-assign slot (`409 BUSINESS_INSUFFICIENT_SLOTS`)
-→ generate `kode_bayar` → insert batch (`sumber_pendaftaran=PUBLIK`) → audit per
-peserta + `succeeded` → **WA Fonnte** (gated `wa_send_on_pendaftaran`). Response
+Alur: rate-limit → honeypot → audit `attempted` → validasi (+ `metode_pembayaran`,
+tolak VA/invalid sebelum menulis) + gate `BUKA` → resolusi muqorib (id aktif /
+match `no_hp` / **auto-create**; **muqorib nonaktif ditolak**, konsisten PS2) →
+duplikat Layer 1 (`409 DUPLICATE_PESERTA`, arahkan ke cek-status) → freeze harga →
+auto-assign slot (`409 BUSINESS_INSUFFICIENT_SLOTS`) → generate `kode_bayar` →
+insert batch (`sumber_pendaftaran=PUBLIK`) → **F6: auto-create `qurban_pembayaran`
+`BELUM_BAYAR`** (gagal → `500` jelas) → audit per peserta + `pembayaran.created` +
+`succeeded` → **WA Fonnte** (gated `wa_send_on_pendaftaran`). Response
 `201`: `{ edisi, muqorib: { id, nama_masked }, peserta[], pembayaran{ total_harga,
 payment_suffix, nominal_transfer, rekening[] } }` — sejak F4d response **tidak
 lagi memuat** `muqorib.nama_lengkap` / `no_hp` penuh (WA tetap dikirim

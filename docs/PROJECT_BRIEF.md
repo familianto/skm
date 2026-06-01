@@ -339,7 +339,70 @@ Lihat detail di `SPRINT_PLAN.md` dan file individual di `sprints/`.
 | F4c | UI Pendaftaran Qurban (panitia + publik daftar + cek-status) | 6 milestone A–F | ✅ Done |
 | F4d | Phone-primary lookup (PB2 v2 + M7 dual-mode) | 2 milestone A–B | ✅ Done |
 | F5b | Pemetaan Peserta↔Hewan (drag-drop) — A1 infra+PM2, A2 PM1, B UI | 3 milestone A1/A2/B | ✅ Done |
-| F6 / F7 | Pembayaran · Hari-H | TBD | ⏳ Planned |
+| F6 | Pembayaran & Rekonsiliasi Qurban (`qurban_pembayaran`) — A fondasi, B TUNAI, C match Layer 1, C2 scoring+antrian, D1/D2/D3 UI | A–D | ✅ Done |
+| F7 | Hari-H | TBD | ⏳ Planned |
+
+### Sprint F6 — Pembayaran & Rekonsiliasi Qurban
+
+**Milestone A (fondasi + integrasi registrasi):** sheet baru `qurban_pembayaran`
+(prefix `BYR-`, grain per-pendaftaran/`kode_bayar`, di workbook utama). Registrasi
+PS2 (admin) & PB3 (publik) kini **auto-create** satu baris pembayaran
+`BELUM_BAYAR` setelah insert peserta (field baru `metode_pembayaran`, default
+`TRANSFER`; `VA` ditolak "segera hadir"). PS5 cancel kini **memblokir** bila
+pembayaran `TERIMA_PANITIA`/`LUNAS` dan **kaskade-batal** pembayaran `BELUM_BAYAR`
+saat seluruh slot pendaftaran dibatalkan. Migrasi `scripts/migrate_F6A_pembayaran.gs`
+(STAGING dulu). Repo/builder/audit: `pembayaran-repo.ts`, `pembayaran-create.ts`,
+`pembayaran-audit.ts`.
+
+**Milestone B (status TUNAI + Cash Model A):** endpoint **PY2** terima-panitia
+(`BELUM_BAYAR → TERIMA_PANITIA`), **PY3** lunaskan (`TERIMA_PANITIA → LUNAS`,
+**Model A** menulis transaksi pemasukan ke Kas Tunai lewat jalur kanonik SKM —
+`jumlah = nominal_total` bulat tanpa suffix; transaksi-first lalu link
+`skm_transaksi_id`), **PY4** list+enrichment. Jembatan island→ledger
+`src/lib/qurban/skm-bridge.ts` (resolve kategori/rekening by-name + create
+transaksi kanonik). Kaskade cancel parsial (B-6) kini **recompute** nominal
+pembayaran `BELUM_BAYAR`.
+
+**Milestone C (rekonsiliasi TRANSFER, Layer 1 + link manual):** pass **terpisah
+yang MEMBACA sheet `transaksi`** (bukan disuntik ke import). **PY5**
+`/pembayaran/rekonsiliasi` auto-match deterministik via `kode_bayar`
+(`QRB-\d{4}-\d{3}`) di `deskripsi` + nominal pas → set `LUNAS` + link + koreksi
+`kategori_id` transaksi per-tipe (import salah auto-kategori "QRB"→Sapi); **PY6**
+`/[id]/link-transaksi` link manual (nominal beda diizinkan, selisih dicatat).
+Engine murni `rekonsiliasi-engine.ts`; apply bersama `rekonsiliasi-apply.ts`;
+koreksi kategori via jalur UPDATE kanonik SKM (`skm-bridge.correctTransaksiKategori`).
+C-0: peran PY2 tanpa BD, PY4 tanpa DISTRIBUSI.
+
+**Milestone C2 (smart-scoring Layer 2 + antrian Layer 3):** Q3 — auto-match
+diperluas (`jumlah ∈ {nominal_total, nominal_transfer}`, mencakup "lupa suffix").
+Kode-cocok-nominal-janggal → **suggestion** (bukan auto). Skorer murni
+`rekonsiliasi-scoring.ts` (suffix +30, keyword +30, nominal±1% +25, tanggal≤14h
++15, fuzzy nama JW≥0.8 +20, phone +10; ambang ≥50) untuk transfer tanpa kode.
+**PY5** kini mengembalikan `suggestions[]` berperingkat; **PY7**
+`/rekonsiliasi/queue` antrian READ-ONLY untuk tab triase.
+
+**Milestone D1 (UX registrasi — UI pertama):** dropdown **Metode Pembayaran**
+(Transfer / Cash·Datang Langsung; VA disabled "segera hadir") di form daftar
+publik (`PublikDaftarWizard`) & admin (`PesertaForm`), wajib dipilih. Layar
+"Pendaftaran Tercatat" bercabang per-metode (TRANSFER: nominal-suffix + rekening
+Bank Muamalat + berita; TUNAI: nominal bulat + "datang ke masjid, bayar ke
+panitia"). WA pendaftaran (`publik-wa-template.ts`) bercabang sama.
+
+**Milestone D2 (manajemen pembayaran admin + WA confirmed):** halaman
+**`/qurban/pembayaran`** (sidebar grup QURBAN, tab "Daftar Pembayaran" + slot tab
+"Rekonsiliasi" M-D3). Daftar (PY4) + filter + badge status (`PembayaranStatusBadge`,
+dipakai juga di daftar Peserta). Aksi alur TUNAI: **Terima Panitia** (PY2, modal)
++ **Setor ke Kas** (PY3, dialog konfirmasi → transaksi Kas Tunai). WA "pembayaran
+confirmed" (`notifyPembayaranLunas`, gated `wa_send_on_pembayaran_confirmed`,
+best-effort) dipanggil dari PY3 & `applyMatch`.
+
+**Milestone D3 (triase rekonsiliasi — penutup F6):** tab **"Rekonsiliasi"**
+(`RekonsiliasiTab`, `[SA,BD]`): Jalankan Auto-match (PY5) + antrian (PY7)
+dikelompokkan (Kecocokan Kuat / Saran skor / Tak Cocok / Anomali) + Taut Manual
+(PY6) + **Cari Transaksi di luar band** (PY8) + **Resolusi Kategori mixed** (PY9).
+**Band-filter** (`rekonsiliasi-band.ts`, `[3jt, 40jt]`) membatasi jalur code-less
+agar antrian tak banjir; Layer 1 (kode_bayar) tak dibatasi band. **Sprint F6
+lengkap end-to-end.** Detail: `HANDOFF_SPRINT_F6.md`, `docs/API_REFERENCE.md`.
 
 ### Sprint F02 — Qurban Edisi Management
 

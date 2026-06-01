@@ -16,4 +16,6 @@ export const QURBAN_SHEETS = {
   DAFTAR_HEWAN: 'qurban_daftar_hewan',
   // F4a — Pendaftaran peserta (1 baris = 1 slot)
   PESERTA: 'qurban_peserta',
+  // F6 — Pembayaran peserta (1 baris = 1 pendaftaran / kode_bayar)
+  PEMBAYARAN: 'qurban_pembayaran',
 } as const;

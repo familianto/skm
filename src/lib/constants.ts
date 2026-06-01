@@ -134,6 +134,17 @@ export const SHEET_HEADERS: Record<string, string[]> = {
     'sumber_pendaftaran', 'status_pendaftaran', 'tanggal_daftar', 'notes',
     'created_at', 'updated_at', 'created_by',
   ],
+
+  // F6 — Pembayaran qurban (1 baris = 1 pendaftaran / kode_bayar, BUKAN per-slot).
+  // Kolom otoritatif di `scripts/migrate_F6A_pembayaran.gs`; mapper di
+  // `lib/qurban/pembayaran-repo.ts` harus memakai urutan yang sama persis (19 kolom).
+  'qurban_pembayaran': [
+    'id', 'edisi_id', 'kode_bayar', 'muqorib_id', 'nominal_total',
+    'nominal_transfer', 'metode', 'status', 'tanggal_terima_panitia',
+    'panitia_terima_id', 'tanggal_lunas', 'bank_ref', 'skm_transaksi_id',
+    'bukti_url', 'match_metadata', 'notes', 'created_at', 'updated_at',
+    'created_by',
+  ],
 };
 
 // Default categories to seed

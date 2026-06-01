@@ -25,6 +25,7 @@ import {
   type QurbanPeserta,
   type StatusFilterValue,
 } from '@/lib/qurban/peserta-display';
+import { PembayaranStatusBadge } from './PembayaranStatusBadge';
 
 /**
  * F4c-A — /qurban/peserta list view (PS1, read-only).
@@ -87,6 +88,8 @@ export function PesertaList({ edisiId }: Props) {
   const [rows, setRows] = useState<PesertaListRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // F6 D2: status pembayaran per kode_bayar (best-effort; PY4).
+  const [payByKode, setPayByKode] = useState<Map<string, string>>(new Map());
 
   const [searchInput, setSearchInput] = useState('');
   const [search, setSearch] = useState('');
@@ -129,6 +132,21 @@ export function PesertaList({ edisiId }: Props) {
         hewan_label: hewanSlotLabel(hewanMap.get(p.hewan_id), p.slot_number, p.hewan_id),
       }));
       setRows(enriched);
+
+      // F6 D2: status pembayaran per kode_bayar — best-effort, tak memblokir list.
+      try {
+        const payRes = await fetch(`/api/qurban/pembayaran?${edisiParam}`);
+        const payJson = await payRes.json().catch(() => ({}));
+        if (payRes.ok && payJson?.ok) {
+          const m = new Map<string, string>();
+          for (const p of (payJson.data as { kode_bayar: string; status: string }[]) || []) {
+            m.set(p.kode_bayar, p.status);
+          }
+          setPayByKode(m);
+        }
+      } catch {
+        // abaikan — kolom status pembayaran sekadar tak tampil.
+      }
     } catch {
       setError('Tidak dapat terhubung ke server.');
     } finally {
@@ -255,8 +273,13 @@ export function PesertaList({ edisiId }: Props) {
                         <td className="px-2 py-3 text-sm text-gray-600">
                           {p.hewan_label}
                         </td>
-                        <td className="px-2 py-3 text-sm text-gray-600 font-mono">
-                          {p.kode_bayar}
+                        <td className="px-2 py-3 text-sm text-gray-600">
+                          <span className="font-mono">{p.kode_bayar}</span>
+                          {payByKode.has(p.kode_bayar) && (
+                            <div className="mt-1">
+                              <PembayaranStatusBadge status={payByKode.get(p.kode_bayar)!} />
+                            </div>
+                          )}
                         </td>
                         <td className="px-2 py-3 text-sm text-gray-900 text-right whitespace-nowrap">
                           {formatRupiah(p.harga_disepakati)}
@@ -297,6 +320,11 @@ export function PesertaList({ edisiId }: Props) {
                         <span className="font-mono">{p.kode_bayar}</span> ·{' '}
                         {formatRupiah(p.harga_disepakati)}
                       </p>
+                      {payByKode.has(p.kode_bayar) && (
+                        <div className="mt-1">
+                          <PembayaranStatusBadge status={payByKode.get(p.kode_bayar)!} />
+                        </div>
+                      )}
                       <p className="text-xs text-gray-400 mt-0.5">
                         {formatPesertaDateID(p.tanggal_daftar)}
                       </p>

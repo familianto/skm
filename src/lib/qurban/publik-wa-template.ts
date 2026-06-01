@@ -2,12 +2,16 @@ import { formatRupiah } from '@/lib/utils';
 import type { TipeQurban } from './peserta-types';
 
 /**
- * Pure WhatsApp message builders for qurban pendaftaran (F4b C1). Data → string,
- * no I/O — sending is the caller's job (via `@/lib/fonnte`). Two variants share
- * the same payment/kode body but differ in framing:
- *   - pendaftaran_publik  → dikirim setelah PB3 (form publik) sukses
- *   - pendaftaran_panitia → dikirim setelah PS2 (input panitia) sukses
+ * Pure WhatsApp message builders for qurban pendaftaran (F4b C1; F6 D1 per-metode).
+ * Data → string, no I/O — sending is the caller's job (via `@/lib/fonnte`). Two
+ * framing variants (publik vs panitia) share the same payment body, which now
+ * branches per `metode`:
+ *   - TRANSFER → nominal-ber-suffix + rekening + "tulis kode bayar di berita".
+ *   - TUNAI    → nominal bulat (nominal_total, tanpa suffix) + "datang ke masjid,
+ *                bayar ke panitia"; tanpa instruksi transfer.
  */
+
+export type MetodePendaftaranWA = 'TRANSFER' | 'TUNAI';
 
 export interface RekeningInfo {
   nama_bank: string;
@@ -24,9 +28,11 @@ export interface PendaftaranWAData {
   /** F4c-C: satu pendaftaran = satu kode bayar (semua slot berbagi kode ini). */
   kode_bayar: string;
   total_harga: number;
-  /** total_harga + payment_suffix — nominal yang harus ditransfer. */
+  /** total_harga + payment_suffix — nominal yang harus ditransfer (TRANSFER). */
   nominal_transfer: number;
   rekening: RekeningInfo[];
+  /** F6 D1: metode terpilih saat pendaftaran. Default TRANSFER (back-compat). */
+  metode?: MetodePendaftaranWA;
 }
 
 /**
@@ -48,15 +54,17 @@ function kodeBayarBlock(kode: string): string {
   return `Kode Bayar: *${kode || '-'}*\n`;
 }
 
+/** Rekening transfer — Kas Tunai (cash) tidak relevan untuk instruksi transfer. */
 function rekeningBlock(rek: RekeningInfo[]): string {
-  if (rek.length === 0) return '_(Info rekening menyusul dari panitia.)_\n';
-  return rek.map((r) => `*${r.nama_bank}* ${r.nomor_rekening}\na.n. ${r.atas_nama}`).join('\n\n') + '\n';
+  const transferable = rek.filter((r) => !/kas tunai/i.test(r.nama_bank));
+  if (transferable.length === 0) return '_(Info rekening menyusul dari panitia.)_\n';
+  return transferable.map((r) => `*${r.nama_bank}* ${r.nomor_rekening}\na.n. ${r.atas_nama}`).join('\n\n') + '\n';
 }
 
-function paymentSection(data: PendaftaranWAData): string {
+function paymentSectionTransfer(data: PendaftaranWAData): string {
   let t = '';
   t += `\u{1F404} ${data.hewan_label} · ${tipeLabel(data.tipe_qurban)} · ${data.jumlah_slot} slot\n\n`;
-  t += '\u{1F4B3} *Pembayaran*\n';
+  t += '\u{1F4B3} *Pembayaran — Transfer*\n';
   t += `Total: ${formatRupiah(data.total_harga)}\n`;
   t += `Nominal transfer: *${formatRupiah(data.nominal_transfer)}*\n`;
   t += '_Mohon transfer TEPAT sesuai nominal di atas (3 digit terakhir adalah kode unik)._\n\n';
@@ -65,6 +73,21 @@ function paymentSection(data: PendaftaranWAData): string {
   t += rekeningBlock(data.rekening) + '\n';
   t += '⚠️ Tulis *kode bayar* Anda pada berita/keterangan transfer.\n';
   return t;
+}
+
+function paymentSectionTunai(data: PendaftaranWAData): string {
+  let t = '';
+  t += `\u{1F404} ${data.hewan_label} · ${tipeLabel(data.tipe_qurban)} · ${data.jumlah_slot} slot\n\n`;
+  t += '\u{1F4B5} *Pembayaran — Cash · Datang Langsung*\n';
+  t += `Total: *${formatRupiah(data.total_harga)}*\n\n`;
+  t += kodeBayarBlock(data.kode_bayar) + '\n';
+  t += '\u{1F54C} Silakan *datang ke masjid* dan serahkan pembayaran ke *panitia*.\n';
+  t += '_Sebutkan kode bayar di atas kepada panitia saat membayar._\n';
+  return t;
+}
+
+function paymentSection(data: PendaftaranWAData): string {
+  return data.metode === 'TUNAI' ? paymentSectionTunai(data) : paymentSectionTransfer(data);
 }
 
 function buildMessage(data: PendaftaranWAData, intro: string): string {
@@ -84,4 +107,33 @@ export function buildPendaftaranPublikMessage(data: PendaftaranWAData): string {
 
 export function buildPendaftaranPanitiaMessage(data: PendaftaranWAData): string {
   return buildMessage(data, 'Pendaftaran qurban Anda telah *dicatat oleh panitia*. Berikut detailnya:');
+}
+
+/** Data minimal untuk konfirmasi pembayaran LUNAS (F6 D2). */
+export interface PembayaranConfirmedWAData {
+  nama: string;
+  tahun_hijriah: string;
+  kode_bayar: string;
+  /** Jumlah yang dicatat lunas (nominal_total). */
+  jumlah: number;
+  /** Metode pelunasan — memengaruhi framing kalimat. */
+  metode?: MetodePendaftaranWA;
+}
+
+/**
+ * Pesan konfirmasi pembayaran LUNAS (F6 D2). Dikirim saat pembayaran ber-status
+ * LUNAS lewat PY3 (TUNAI) atau rekonsiliasi (TRANSFER), gated
+ * `wa_send_on_pembayaran_confirmed`. Ringkas, senada gaya pesan pendaftaran.
+ */
+export function buildPembayaranConfirmedMessage(data: PembayaranConfirmedWAData): string {
+  const cara = data.metode === 'TUNAI' ? 'tunai' : 'transfer';
+  let t = '';
+  t += '\u{2705} *Pembayaran Qurban Diterima*\n';
+  t += `Edisi ${data.tahun_hijriah}\n\n`;
+  t += `Assalamu'alaikum ${data.nama},\n`;
+  t += `Alhamdulillah, pembayaran qurban Anda (${cara}) telah *kami terima* dan tercatat *LUNAS*.\n\n`;
+  t += kodeBayarBlock(data.kode_bayar);
+  t += `Jumlah: *${formatRupiah(data.jumlah)}*\n\n`;
+  t += 'Semoga menjadi amal jariyah yang diterima. Jazakumullah khairan \u{1F319}';
+  return t;
 }

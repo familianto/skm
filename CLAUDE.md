@@ -11,15 +11,18 @@
 
 ## Current Sprint
 
-> **Sprint F5b — Pemetaan Peserta↔Hewan (drag-drop)** selesai (A1 + A2 + B).
-> A1 = kolom `qurban_edisi.pemetaan_version` + PM2 snapshot. A2 = PM1
-> `batch-save` (atomic `batchUpdateRanges` + optimistic concurrency +
-> simulator cross-op + matriks `harga_decision` + audit). B = halaman
-> `/qurban/pemetaan` papan drag-drop (`@dnd-kit`, TouchSensor delay 200ms
-> iPad-first), modal harga cross-class, sticky save, mode "Atur Urutan
-> Hewan". Lihat `HANDOFF_SPRINT_F5b.md`. PR #93 Draft — menunggu
-> verifikasi screenshot iPad sebelum Hopy flip ke Ready. Sebelumnya:
-> F4d Phone-Primary Lookup ✅.
+> **Sprint F6 — Pembayaran & Rekonsiliasi Qurban** selesai (A–D3, akumulasi
+> PR #100 Draft). Sheet `qurban_pembayaran` (BYR-) + lifecycle BELUM_BAYAR →
+> TERIMA_PANITIA → LUNAS/BATAL. A fondasi+auto-create registrasi (field
+> `metode_pembayaran`). B TUNAI Model A (PY2 terima-panitia, PY3 setor Kas
+> Tunai via jalur kanonik SKM `skm-bridge.ts`, PY4 list). C rekonsiliasi
+> TRANSFER Layer 1 (PY5 auto-match `kode_bayar` + koreksi kategori, PY6 link
+> manual). C2 smart-scoring Layer 2 + antrian (PY7). D1 UX registrasi
+> per-metode. D2 halaman `/qurban/pembayaran` + WA "pembayaran confirmed".
+> D3 tab Rekonsiliasi (band-filter code-less, PY8 cari-transaksi, PY9
+> resolve-kategori mixed). 547 tes hijau. Lihat `HANDOFF_SPRINT_F6.md`.
+> PR #100 Draft — menunggu verifikasi iPad sebelum Hopy flip ke Ready, lalu
+> migrasi PRODUCTION `migrate_F6A_pembayaran.gs`. Sebelumnya: F5b Pemetaan ✅.
 
 Update baris ini setiap kali sprint berganti.
 

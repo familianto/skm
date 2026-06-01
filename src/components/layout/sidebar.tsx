@@ -44,6 +44,10 @@ const QURBAN_PESERTA_ICON =
 const QURBAN_PEMETAAN_ICON =
   'M4 5a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1V5zm10 0a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1V5zM4 15a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1v-4zm10 0a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z';
 
+// "Pembayaran" — banknote/cash glyph
+const QURBAN_PEMBAYARAN_ICON =
+  'M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m3-6h8a2 2 0 012 2v6a2 2 0 01-2 2h-8a2 2 0 01-2-2v-6a2 2 0 012-2zm5 5a1 1 0 11-2 0 1 1 0 012 0z';
+
 const navSections: NavSection[] = [
   {
     label: 'Utama',
@@ -98,6 +102,12 @@ const navSections: NavSection[] = [
         icon: QURBAN_PESERTA_ICON,
         visibleRoles: ['SUPER_ADMIN', 'BENDAHARA', 'ADMIN_QURBAN', 'PENDAFTARAN'],
         readOnlyRoles: ['BENDAHARA'],
+      },
+      {
+        href: '/qurban/pembayaran',
+        label: 'Pembayaran',
+        icon: QURBAN_PEMBAYARAN_ICON,
+        visibleRoles: ['SUPER_ADMIN', 'BENDAHARA', 'ADMIN_QURBAN', 'PENDAFTARAN'],
       },
     ],
   },
