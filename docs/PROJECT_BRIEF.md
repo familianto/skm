@@ -339,7 +339,7 @@ Lihat detail di `SPRINT_PLAN.md` dan file individual di `sprints/`.
 | F4c | UI Pendaftaran Qurban (panitia + publik daftar + cek-status) | 6 milestone A–F | ✅ Done |
 | F4d | Phone-primary lookup (PB2 v2 + M7 dual-mode) | 2 milestone A–B | ✅ Done |
 | F5b | Pemetaan Peserta↔Hewan (drag-drop) — A1 infra+PM2, A2 PM1, B UI | 3 milestone A1/A2/B | ✅ Done |
-| F6 | Pembayaran & Rekonsiliasi Qurban (`qurban_pembayaran`) — A fondasi, B TUNAI, C match Layer 1, C2 scoring+antrian, D UI | A–D | 🚧 A+B+C+C2+D1 done |
+| F6 | Pembayaran & Rekonsiliasi Qurban (`qurban_pembayaran`) — A fondasi, B TUNAI, C match Layer 1, C2 scoring+antrian, D UI | A–D | 🚧 A+B+C+C2+D1+D2 done |
 | F7 | Hari-H | TBD | ⏳ Planned |
 
 ### Sprint F6 — Pembayaran & Rekonsiliasi Qurban
@@ -386,9 +386,16 @@ Kode-cocok-nominal-janggal → **suggestion** (bukan auto). Skorer murni
 publik (`PublikDaftarWizard`) & admin (`PesertaForm`), wajib dipilih. Layar
 "Pendaftaran Tercatat" bercabang per-metode (TRANSFER: nominal-suffix + rekening
 Bank Muamalat + berita; TUNAI: nominal bulat + "datang ke masjid, bayar ke
-panitia"). WA pendaftaran (`publik-wa-template.ts`) bercabang sama. **Belum:**
-halaman pembayaran admin + WA confirmed (M-D2), UI triase rekonsiliasi (M-D3).
-Detail: `HANDOFF_SPRINT_F6.md`, `docs/API_REFERENCE.md`.
+panitia"). WA pendaftaran (`publik-wa-template.ts`) bercabang sama.
+
+**Milestone D2 (manajemen pembayaran admin + WA confirmed):** halaman
+**`/qurban/pembayaran`** (sidebar grup QURBAN, tab "Daftar Pembayaran" + slot tab
+"Rekonsiliasi" M-D3). Daftar (PY4) + filter + badge status (`PembayaranStatusBadge`,
+dipakai juga di daftar Peserta). Aksi alur TUNAI: **Terima Panitia** (PY2, modal)
++ **Setor ke Kas** (PY3, dialog konfirmasi → transaksi Kas Tunai). WA "pembayaran
+confirmed" (`notifyPembayaranLunas`, gated `wa_send_on_pembayaran_confirmed`,
+best-effort) dipanggil dari PY3 & `applyMatch`. **Belum:** UI triase rekonsiliasi
+(M-D3). Detail: `HANDOFF_SPRINT_F6.md`, `docs/API_REFERENCE.md`.
 
 ### Sprint F02 — Qurban Edisi Management
 

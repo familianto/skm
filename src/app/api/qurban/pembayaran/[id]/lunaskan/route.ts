@@ -9,6 +9,7 @@ import { PERAN } from '@/lib/api/permissions';
 import { resolveEdisiForPeserta } from '@/lib/qurban/peserta-context';
 import { getPembayaranRecordById, updatePembayaranAt } from '@/lib/qurban/pembayaran-repo';
 import { auditPembayaranLunas } from '@/lib/qurban/pembayaran-audit';
+import { notifyPembayaranLunas } from '@/lib/qurban/pembayaran-notify';
 import { listPesertaByEdisi, STATUS_TERDAFTAR } from '@/lib/qurban/peserta-repo';
 import { getDaftarHewanById } from '@/lib/qurban/daftar-hewan-repo';
 import { getMuqoribById } from '@/lib/qurban/muqorib-repo';
@@ -150,6 +151,9 @@ export async function POST(
       tanggal_lunas,
       jumlah: current.nominal_total,
     });
+
+    // F6 D2: WA "pembayaran confirmed" (gated). Best-effort — tak menggagalkan.
+    await notifyPembayaranLunas(updated);
 
     return success(updated);
   } catch (err) {

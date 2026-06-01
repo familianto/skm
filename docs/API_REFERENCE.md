@@ -2332,8 +2332,34 @@ default `TRANSFER` bila absen).
 masjid). Tetap di-gate `wa_send_on_pendaftaran`. PB3 success payload menambah
 `pembayaran.metode`.
 
-> **Belum diimplementasi:** halaman manajemen pembayaran admin + WA "pembayaran
-> confirmed" = **M-D2**; UI triase rekonsiliasi = **M-D3**.
+### UI Manajemen Pembayaran admin (M-D2)
+
+Halaman **`/qurban/pembayaran`** (entri sidebar grup QURBAN, akses `[SA,BD,AQ,PD]`
+per `path-rules.ts`). Tab tunggal "Daftar Pembayaran" (struktur tab disiapkan
+untuk "Rekonsiliasi" M-D3). Konsumsi PY4 per-edisi; filter status/metode/cari.
+Komponen badge status `PembayaranStatusBadge` (BELUM_BAYAR netral, TERIMA_PANITIA
+amber, LUNAS hijau, BATAL merah-redup) dipakai di sini **dan** di daftar Peserta
+(per `kode_bayar`).
+
+**Aksi alur TUNAI (RBAC UI mengikuti API):**
+- **Terima Panitia** (PY2, `[SA,AQ,PD]`) — tampil bila TUNAI+BELUM_BAYAR. Modal:
+  panitia penerima (dari `GET /api/qurban/panitia`), tanggal, bukti_url opsional.
+- **Setor ke Kas** (PY3, `[SA,BD]`) — tampil bila TUNAI+TERIMA_PANITIA. Dialog
+  konfirmasi "Mencatat pemasukan Rp {nominal_total} ke Kas Tunai".
+- TRANSFER → tanpa tombol aksi (dilunasi via rekonsiliasi M-D3); badge + hint
+  "Menunggu transfer / rekonsiliasi".
+
+### WA "Pembayaran Confirmed" (M-D2)
+
+`buildPembayaranConfirmedMessage` (`publik-wa-template.ts`) + helper
+`notifyPembayaranLunas(pembayaran)` (`pembayaran-notify.ts`), gated
+`wa_send_on_pembayaran_confirmed`. Dipanggil dari **kedua** jalur LUNAS: PY3
+lunaskan (TUNAI) & `applyMatch` (TRANSFER, M-C). **Best-effort** — semua
+kegagalan (flag off / no_hp / fonnte error) di-swallow + log; pelunasan keuangan
+tidak pernah gagal karena WA.
+
+> **Belum diimplementasi:** UI triase rekonsiliasi (tab "Rekonsiliasi" konsumsi
+> PY7 + konfirmasi PY6) = **M-D3**.
 
 ---
 

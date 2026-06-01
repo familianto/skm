@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import {
   buildPendaftaranPublikMessage,
   buildPendaftaranPanitiaMessage,
+  buildPembayaranConfirmedMessage,
   shouldSendPendaftaranWA,
   type PendaftaranWAData,
 } from '../publik-wa-template';
@@ -90,6 +91,29 @@ test('F6 D1 — TRANSFER rekeningBlock menyaring Kas Tunai', () => {
   });
   assert.match(t, /Bank Muamalat Indonesia/);
   assert.doesNotMatch(t, /Kas Tunai/);
+});
+
+test('F6 D2 — buildPembayaranConfirmedMessage: kode_bayar + LUNAS + jumlah', () => {
+  const t = buildPembayaranConfirmedMessage({
+    nama: 'Hopy',
+    tahun_hijriah: '1448 H',
+    kode_bayar: 'QRB-1448-007',
+    jumlah: 6_000_000,
+    metode: 'TUNAI',
+  });
+  assert.match(t, /Hopy/);
+  assert.match(t, /Kode Bayar: \*QRB-1448-007\*/);
+  assert.match(t, /LUNAS/);
+  assert.match(t, /6\.000\.000/);
+  assert.match(t, /tunai/i);
+});
+
+test('F6 D2 — confirmed message: metode TRANSFER → framing transfer', () => {
+  const t = buildPembayaranConfirmedMessage({
+    nama: 'Budi', tahun_hijriah: '1448 H', kode_bayar: 'QRB-1448-001', jumlah: 1_500_000, metode: 'TRANSFER',
+  });
+  assert.match(t, /transfer/i);
+  assert.doesNotMatch(t, /\btunai\b/i);
 });
 
 test('shouldSendPendaftaranWA gates on flag AND no_hp', () => {

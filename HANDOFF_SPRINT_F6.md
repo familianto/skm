@@ -10,7 +10,7 @@ Status per milestone. Modul Qurban = **island pelengkap**; schema `transaksi`,
 | **C** | Rekonsiliasi TRANSFER Layer 1 (auto) + link manual + koreksi kategori (PY5/PY6) | ✅ **Done** (akumulasi PR #100) |
 | **C2** | Smart-scoring Layer 2 + antrian Layer 3 (PY5 diperluas, PY7) | ✅ **Done** (akumulasi PR #100) |
 | **D1** | UX registrasi: dropdown metode + layar sukses per-metode + WA pendaftaran per-metode | ✅ **Done** (akumulasi PR #100) |
-| D2 | Halaman manajemen pembayaran admin + WA "pembayaran confirmed" | ⏳ Belum |
+| **D2** | Halaman manajemen pembayaran admin + WA "pembayaran confirmed" | ✅ **Done** (akumulasi PR #100) |
 | D3 | UI triase rekonsiliasi (konsumsi PY7 + konfirmasi PY6) | ⏳ Belum |
 
 ---
@@ -434,13 +434,91 @@ scored — kode tetap otoritatif, hanya nominal yang perlu mata manusia.
 
 ---
 
-## Untuk Helper/Hopy — diputuskan sebelum M-D2/M-D3
+## Milestone D2 — Selesai (manajemen pembayaran admin + WA confirmed)
 
-0. **Verifikasi D1 (Hopy):** screenshot iPad Safari preview Vercel — daftar via
-   Transfer → cek layar sukses transfer; daftar via Cash → cek layar sukses cash.
-   (Smart Punctuation OFF bila menempel kode bayar.)
-1. **Migrasi:** kolom lengkap sejak M-A; B/C/C2/D1 tanpa migrasi baru. PRODUCTION
-   jalankan `migrate_F6A_pembayaran.gs` **segera setelah merge** PR #100.
+### Apa yang dibangun
+
+1. **Halaman `/qurban/pembayaran`** (`page.tsx` per-edisi + client
+   `PembayaranList.tsx`) + **entri sidebar "Pembayaran"** di grup QURBAN
+   (`[SA,BD,AQ,PD]`). Konsumsi PY4; kolom kode_bayar/muqorib/metode/nominal/
+   badge/aksi; filter status+metode+cari. **Struktur tab** disiapkan (tab
+   "Daftar Pembayaran" aktif; "Rekonsiliasi" placeholder abu untuk M-D3).
+2. **`PembayaranStatusBadge`** (+ helper murni `pembayaran-display.ts`):
+   BELUM_BAYAR netral / TERIMA_PANITIA amber / LUNAS hijau / BATAL merah-redup.
+   Dipakai di halaman Pembayaran **dan** disuntik ke **daftar Peserta**
+   (`PesertaList`) per `kode_bayar` (fetch PY4 best-effort).
+3. **Aksi alur TUNAI** (kondisional metode+status+peran via util murni
+   `canTerimaPanitia`/`canLunaskan`):
+   - **Terima Panitia** (`TerimaPanitiaModal`, PY2) — pilih panitia (GET
+     `/api/qurban/panitia`), tanggal (default hari ini), bukti_url opsional.
+   - **Setor ke Kas** (`ConfirmDialog`, PY3) — "Mencatat pemasukan Rp X ke Kas
+     Tunai — lanjutkan?".
+   - TRANSFER → tanpa tombol; badge + hint "Menunggu transfer / rekonsiliasi".
+4. **WA "pembayaran confirmed"**: `buildPembayaranConfirmedMessage` +
+   `notifyPembayaranLunas` (gated `wa_send_on_pembayaran_confirmed`, best-effort
+   swallow+log), dipanggil dari **PY3 lunaskan** & **`applyMatch`** (TRANSFER M-C).
+
+### File dibuat / diubah (D2)
+
+**Baru:** `src/app/(dashboard)/qurban/pembayaran/page.tsx`,
+`src/components/qurban/PembayaranList.tsx`,
+`src/components/qurban/PembayaranStatusBadge.tsx`,
+`src/components/qurban/TerimaPanitiaModal.tsx`,
+`src/lib/qurban/pembayaran-display.ts`, `src/lib/qurban/pembayaran-notify.ts`,
+`__tests__/pembayaran-display.test.ts`, `__tests__/pembayaran-notify.test.ts`.
+
+**Diubah:** `src/components/layout/sidebar.tsx` (+entri Pembayaran),
+`src/components/qurban/PesertaList.tsx` (+badge status pembayaran),
+`src/lib/qurban/publik-wa-template.ts` (+confirmed builder),
+`src/app/api/qurban/pembayaran/[id]/lunaskan/route.ts` +
+`src/lib/qurban/rekonsiliasi-apply.ts` (wiring notify),
+`__tests__/publik-wa-template.test.ts`, `package.json`, docs.
+
+### Deskripsi layar/aksi (untuk verifikasi iPad Hopy)
+
+- **Halaman Pembayaran** — tabel: Kode Bayar · Muqorib (+jumlah slot) · Metode ·
+  Nominal (+sub "transfer Rp…" utk TRANSFER) · **badge status** (+hint TRANSFER) ·
+  kolom Aksi. Filter: dropdown status, dropdown metode, kotak cari.
+- **Modal Terima Panitia** (TUNAI BELUM_BAYAR) — ringkasan kode/muqorib/jumlah +
+  dropdown panitia + tanggal + bukti opsional + tombol "Tandai Diterima".
+  Sukses → badge jadi **Diterima Panitia** (amber).
+- **Dialog Setor ke Kas** (TUNAI TERIMA_PANITIA) — konfirmasi "Mencatat pemasukan
+  Rp X ke Kas Tunai". Sukses → badge **Lunas** (hijau) + transaksi PEMASUKAN
+  muncul di Transaksi (Kas Tunai, kategori per-tipe) + WA confirmed (bila flag on).
+- **Daftar Peserta** — badge status pembayaran muncul di bawah kode_bayar.
+
+### Divergensi (D2)
+
+- **Badge dasar repo (`ui/badge.tsx`) tidak diperluas** — varian status
+  pembayaran ditaruh di helper qurban (`pembayaran-display.ts`) + komponen tipis
+  `PembayaranStatusBadge`, agar tak mengubah enum badge global SKM-core.
+- **Status pembayaran di Peserta = fetch terpisah PY4** (peserta row tak memuat
+  status pembayaran). Best-effort: bila PY4 gagal, kolom badge sekadar kosong —
+  list peserta tetap jalan.
+- **`panitia_terima_id`** diisi dari daftar panitia edisi (anggota_id). Bila
+  daftar gagal dimuat, dropdown kosong (BD bisa retry) — tak ada free-text agar
+  id valid.
+- Tidak ada unit-test render UI (verifikasi via screenshot); tes = builder WA +
+  notify gating + util visibility/filters.
+
+### Verifikasi (D2)
+
+`npm ci` ✅ · `type-check` ✅ · `lint` ✅ · `test` ✅ **537 pass / 0 fail**
+(+12 tes D2) · `build` ✅ (halaman `/qurban/pembayaran` terdaftar).
+
+---
+
+## Untuk Helper/Hopy — diputuskan sebelum M-D3
+
+0. **Verifikasi D1/D2 (Hopy, iPad Safari, preview Vercel):**
+   - D1: daftar via Transfer → layar sukses transfer; daftar via Cash → layar
+     sukses cash. (Smart Punctuation OFF bila menempel kode bayar.)
+   - D2: buka **Pembayaran**; pendaftaran TUNAI → **Terima Panitia** → badge
+     Diterima Panitia → **Setor ke Kas** → badge Lunas + transaksi PEMASUKAN
+     muncul di Transaksi (Kas Tunai, kategori per-tipe) + WA confirmed (flag on).
+     Cek badge status di halaman Peserta.
+1. **Migrasi:** kolom lengkap sejak M-A; B/C/C2/D1/D2 tanpa migrasi baru.
+   PRODUCTION jalankan `migrate_F6A_pembayaran.gs` **segera setelah merge** PR #100.
 2. **Method PY2/PY3/PY5/PY6/PY7: POST/GET** (ikut konvensi in-repo) vs PATCH
    (prompt). Konfirmasi sebelum UI M-D (memengaruhi pemanggilan fetch).
 3. **Antrian Layer 3 = in-memory, BUKAN persist.** PY7 menghitung ulang saat

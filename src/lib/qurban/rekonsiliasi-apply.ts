@@ -16,6 +16,7 @@ import {
   type TransaksiLite,
 } from './skm-bridge';
 import { auditPembayaranLunasViaRekonsiliasi } from './pembayaran-audit';
+import { notifyPembayaranLunas } from './pembayaran-notify';
 
 /**
  * Apply-match TRANSFER (F6 M-C) — dipakai bersama oleh pass auto-rekonsiliasi
@@ -132,6 +133,9 @@ export async function applyMatch(
     bank_ref: transaksi.bank_ref,
     amount_ok,
   });
+
+  // (5) F6 D2: WA "pembayaran confirmed" (gated). Best-effort — tak menggagalkan.
+  await notifyPembayaranLunas(updated);
 
   return { ok: true, pembayaran: updated, kategori_corrected, mixed, amount_ok, transaksi_id: transaksi.id };
 }

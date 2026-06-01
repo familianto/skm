@@ -108,3 +108,32 @@ export function buildPendaftaranPublikMessage(data: PendaftaranWAData): string {
 export function buildPendaftaranPanitiaMessage(data: PendaftaranWAData): string {
   return buildMessage(data, 'Pendaftaran qurban Anda telah *dicatat oleh panitia*. Berikut detailnya:');
 }
+
+/** Data minimal untuk konfirmasi pembayaran LUNAS (F6 D2). */
+export interface PembayaranConfirmedWAData {
+  nama: string;
+  tahun_hijriah: string;
+  kode_bayar: string;
+  /** Jumlah yang dicatat lunas (nominal_total). */
+  jumlah: number;
+  /** Metode pelunasan — memengaruhi framing kalimat. */
+  metode?: MetodePendaftaranWA;
+}
+
+/**
+ * Pesan konfirmasi pembayaran LUNAS (F6 D2). Dikirim saat pembayaran ber-status
+ * LUNAS lewat PY3 (TUNAI) atau rekonsiliasi (TRANSFER), gated
+ * `wa_send_on_pembayaran_confirmed`. Ringkas, senada gaya pesan pendaftaran.
+ */
+export function buildPembayaranConfirmedMessage(data: PembayaranConfirmedWAData): string {
+  const cara = data.metode === 'TUNAI' ? 'tunai' : 'transfer';
+  let t = '';
+  t += '\u{2705} *Pembayaran Qurban Diterima*\n';
+  t += `Edisi ${data.tahun_hijriah}\n\n`;
+  t += `Assalamu'alaikum ${data.nama},\n`;
+  t += `Alhamdulillah, pembayaran qurban Anda (${cara}) telah *kami terima* dan tercatat *LUNAS*.\n\n`;
+  t += kodeBayarBlock(data.kode_bayar);
+  t += `Jumlah: *${formatRupiah(data.jumlah)}*\n\n`;
+  t += 'Semoga menjadi amal jariyah yang diterima. Jazakumullah khairan \u{1F319}';
+  return t;
+}
