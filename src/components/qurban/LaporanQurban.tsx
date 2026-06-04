@@ -4,12 +4,14 @@ import { useCallback, useEffect, useState } from 'react';
 
 import { Card } from '@/components/ui/card';
 import { PageLoading } from '@/components/ui/loading';
+import { formatRupiah } from '@/lib/utils';
 import type {
   LaporanPesertaDTO,
   TipeGroup,
   JenisKelasGroup,
   RtGroup,
 } from '@/lib/qurban/laporan-peserta';
+import type { LaporanHewanDTO, InventarisRow } from '@/lib/qurban/laporan-hewan';
 
 /**
  * F8 Milestone B — Laporan Qurban bertab. Tab Peserta mengkonsumsi LP1
@@ -60,7 +62,7 @@ export function LaporanQurban({ edisiId }: Props) {
       </div>
 
       {tab === 'peserta' && <TabPeserta edisiId={edisiId} />}
-      {tab === 'hewan' && <Placeholder label="Laporan Hewan" milestone="Milestone C" />}
+      {tab === 'hewan' && <TabHewan edisiId={edisiId} />}
       {tab === 'keuangan' && <Placeholder label="Laporan Keuangan" milestone="Milestone D" />}
     </div>
   );
@@ -284,4 +286,145 @@ function TabelRt({ rows, total }: { rows: RtGroup[]; total: number }) {
 function fmtPct(p: number): string {
   if (Number.isInteger(p)) return `${p}%`;
   return `${p.toString().replace('.', ',')}%`;
+}
+
+// ── Tab Hewan (LP2) ──────────────────────────────────────────────────────────
+
+function TabHewan({ edisiId }: { edisiId: string }) {
+  const [data, setData] = useState<LaporanHewanDTO | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch(
+        `/api/qurban/laporan/hewan?edisi_id=${encodeURIComponent(edisiId)}`
+      );
+      const json = await res.json().catch(() => ({}));
+      if (res.ok && json?.ok) {
+        setData(json.data as LaporanHewanDTO);
+      } else {
+        setError(json?.error?.message || 'Gagal memuat laporan hewan.');
+      }
+    } catch {
+      setError('Tidak dapat terhubung ke server.');
+    } finally {
+      setLoading(false);
+    }
+  }, [edisiId]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  if (loading) return <PageLoading />;
+
+  if (error || !data) {
+    return (
+      <Card>
+        <p className="text-sm text-red-600">{error || 'Data tidak tersedia.'}</p>
+        <button
+          onClick={() => void load()}
+          className="mt-3 text-sm font-medium text-emerald-700 hover:text-emerald-800"
+        >
+          Coba lagi
+        </button>
+      </Card>
+    );
+  }
+
+  const r = data.ringkasan;
+  return (
+    <div className="space-y-4">
+      {/* Ringkasan kecil. */}
+      <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1 text-sm text-gray-600">
+        <span className="text-lg font-bold text-gray-900">{r.total}</span>
+        <span>hewan</span>
+        <span className="text-xs text-gray-400">
+          · {r.aktif} aktif · {r.batal} batal
+        </span>
+      </div>
+
+      {/* Matriks inventaris. */}
+      <Card className="!p-0 overflow-x-auto">
+        <table className="w-full min-w-[560px] text-sm">
+          <thead>
+            <tr className="border-b border-gray-200 text-left text-xs text-gray-500">
+              <th className="px-4 py-2.5 font-medium">Hewan</th>
+              <th className="px-3 py-2.5 text-right font-medium">Total</th>
+              <th className="px-3 py-2.5 text-right font-medium">Aktif</th>
+              <th className="px-3 py-2.5 text-right font-medium">Beli</th>
+              <th className="px-3 py-2.5 text-right font-medium">Bawa Sendiri</th>
+              <th className="px-4 py-2.5 text-right font-medium">Biaya Pengadaan</th>
+            </tr>
+          </thead>
+          <tbody>
+            {data.inventaris.map((row) => (
+              <InventarisTr key={`${row.jenis}-${row.kelas}`} row={row} />
+            ))}
+          </tbody>
+          <tfoot>
+            <tr className="bg-gray-50 font-semibold text-gray-900">
+              <td className="px-4 py-2.5">Total</td>
+              <td className="px-3 py-2.5 text-right">{r.total}</td>
+              <td className="px-3 py-2.5 text-right">{r.aktif}</td>
+              <td className="px-3 py-2.5 text-right">{r.beli}</td>
+              <td className="px-3 py-2.5 text-right">{r.bawa_sendiri}</td>
+              <td className="px-4 py-2.5 text-right">
+                {r.biaya_pengadaan_total > 0 ? formatRupiah(r.biaya_pengadaan_total) : '—'}
+              </td>
+            </tr>
+          </tfoot>
+        </table>
+      </Card>
+
+      {/* Ringkasan Biaya Pengadaan. */}
+      <Card className="space-y-2">
+        <p className="text-sm font-semibold text-gray-900">Ringkasan Biaya Pengadaan</p>
+        <div className="flex items-baseline justify-between">
+          <span className="text-sm text-gray-600">Total</span>
+          <span className="text-lg font-bold text-emerald-700">
+            {r.biaya_pengadaan_total > 0 ? formatRupiah(r.biaya_pengadaan_total) : 'Rp 0'}
+          </span>
+        </div>
+        <div className="flex justify-between border-t border-gray-100 pt-2 text-sm text-gray-600">
+          <span>Sapi</span>
+          <span className="font-medium text-gray-800">
+            {r.biaya_pengadaan_sapi > 0 ? formatRupiah(r.biaya_pengadaan_sapi) : '—'}
+          </span>
+        </div>
+        <div className="flex justify-between text-sm text-gray-600">
+          <span>Kambing</span>
+          <span className="font-medium text-gray-800">
+            {r.biaya_pengadaan_kambing > 0 ? formatRupiah(r.biaya_pengadaan_kambing) : '—'}
+          </span>
+        </div>
+        {r.hewan_beli_tanpa_harga > 0 && (
+          <p className="border-t border-gray-100 pt-2 text-xs text-amber-600">
+            {r.hewan_beli_tanpa_harga} hewan beli belum ada harga pengadaan
+          </p>
+        )}
+        <p className="text-xs text-gray-400">
+          Biaya dihitung dari hewan beli berstatus aktif (bawa sendiri tanpa biaya).
+        </p>
+      </Card>
+    </div>
+  );
+}
+
+function InventarisTr({ row }: { row: InventarisRow }) {
+  return (
+    <tr className="border-b border-gray-100">
+      <td className="px-4 py-2.5 text-gray-700">{row.label}</td>
+      <td className="px-3 py-2.5 text-right font-medium text-gray-900">{row.total}</td>
+      <td className="px-3 py-2.5 text-right text-gray-600">{row.aktif}</td>
+      <td className="px-3 py-2.5 text-right text-gray-600">{row.beli}</td>
+      <td className="px-3 py-2.5 text-right text-gray-600">{row.bawa_sendiri}</td>
+      <td className="px-4 py-2.5 text-right text-gray-700">
+        {row.biaya_pengadaan > 0 ? formatRupiah(row.biaya_pengadaan) : '—'}
+      </td>
+    </tr>
+  );
 }
