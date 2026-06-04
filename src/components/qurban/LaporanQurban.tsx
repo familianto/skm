@@ -12,6 +12,7 @@ import type {
   RtGroup,
 } from '@/lib/qurban/laporan-peserta';
 import type { LaporanHewanDTO, InventarisRow } from '@/lib/qurban/laporan-hewan';
+import type { LaporanKeuanganDTO } from '@/lib/qurban/laporan-keuangan';
 
 /**
  * F8 Milestone B — Laporan Qurban bertab. Tab Peserta mengkonsumsi LP1
@@ -63,16 +64,7 @@ export function LaporanQurban({ edisiId }: Props) {
 
       {tab === 'peserta' && <TabPeserta edisiId={edisiId} />}
       {tab === 'hewan' && <TabHewan edisiId={edisiId} />}
-      {tab === 'keuangan' && <Placeholder label="Laporan Keuangan" milestone="Milestone D" />}
-    </div>
-  );
-}
-
-function Placeholder({ label, milestone }: { label: string; milestone: string }) {
-  return (
-    <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-gray-300 bg-gray-50 px-6 py-12 text-center">
-      <p className="text-sm font-medium text-gray-600">{label}</p>
-      <p className="mt-1 text-xs text-gray-400">Segera — {milestone}</p>
+      {tab === 'keuangan' && <TabKeuangan edisiId={edisiId} />}
     </div>
   );
 }
@@ -426,5 +418,169 @@ function InventarisTr({ row }: { row: InventarisRow }) {
         {row.biaya_pengadaan > 0 ? formatRupiah(row.biaya_pengadaan) : '—'}
       </td>
     </tr>
+  );
+}
+
+// ── Tab Keuangan (LP4) ───────────────────────────────────────────────────────
+
+function TabKeuangan({ edisiId }: { edisiId: string }) {
+  const [data, setData] = useState<LaporanKeuanganDTO | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch(
+        `/api/qurban/laporan/keuangan?edisi_id=${encodeURIComponent(edisiId)}`
+      );
+      const json = await res.json().catch(() => ({}));
+      if (res.ok && json?.ok) {
+        setData(json.data as LaporanKeuanganDTO);
+      } else {
+        setError(json?.error?.message || 'Gagal memuat laporan keuangan.');
+      }
+    } catch {
+      setError('Tidak dapat terhubung ke server.');
+    } finally {
+      setLoading(false);
+    }
+  }, [edisiId]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  if (loading) return <PageLoading />;
+
+  if (error || !data) {
+    return (
+      <Card>
+        <p className="text-sm text-red-600">{error || 'Data tidak tersedia.'}</p>
+        <button
+          onClick={() => void load()}
+          className="mt-3 text-sm font-medium text-emerald-700 hover:text-emerald-800"
+        >
+          Coba lagi
+        </button>
+      </Card>
+    );
+  }
+
+  const dana = data.dana_terhimpun;
+  const biaya = data.biaya_pengadaan;
+  const kor = data.korelasi_ledger;
+  const arsip = data.mode === 'arsip';
+  const lunasPct =
+    dana.nilai_pendaftaran > 0
+      ? Math.round((dana.total / dana.nilai_pendaftaran) * 100)
+      : 0;
+
+  return (
+    <div className="space-y-4">
+      {/* Banner mode arsip. */}
+      {arsip && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          <span className="font-semibold">Mode Arsip — tak tertaut ledger SKM.</span>{' '}
+          Pembayaran {data.edisi.nama} diimpor sebagai histori; sengaja tidak
+          ditautkan ke ledger. Dana Terhimpun berdiri sendiri — tidak ada selisih
+          untuk dialarmkan.
+        </div>
+      )}
+
+      {/* Dana Terhimpun per kategori. */}
+      <Card className="!p-0 overflow-x-auto">
+        <table className="w-full min-w-[420px] text-sm">
+          <thead>
+            <tr className="border-b border-gray-200 text-left text-xs text-gray-500">
+              <th className="px-4 py-2.5 font-medium">Kategori</th>
+              <th className="px-3 py-2.5 text-right font-medium">Peserta</th>
+              <th className="px-4 py-2.5 text-right font-medium">Nominal</th>
+            </tr>
+          </thead>
+          <tbody>
+            {dana.per_kategori.map((k) => (
+              <tr key={k.key} className="border-b border-gray-100">
+                <td className="px-4 py-2.5 text-gray-700">{k.label}</td>
+                <td className="px-3 py-2.5 text-right text-gray-600">{k.peserta}</td>
+                <td className="px-4 py-2.5 text-right text-gray-900">{formatRupiah(k.nominal)}</td>
+              </tr>
+            ))}
+          </tbody>
+          <tfoot>
+            <tr className="bg-gray-50 font-semibold text-gray-900">
+              <td className="px-4 py-2.5">Dana Terhimpun</td>
+              <td className="px-3 py-2.5 text-right" />
+              <td className="px-4 py-2.5 text-right">{formatRupiah(dana.total)}</td>
+            </tr>
+          </tfoot>
+        </table>
+        <p className="px-4 py-2 text-xs text-gray-400">
+          {dana.jumlah_pembayaran_lunas} pembayaran · {lunasPct}% LUNAS
+        </p>
+      </Card>
+
+      {/* Biaya Pengadaan. */}
+      <Card className="space-y-2">
+        <p className="text-sm font-semibold text-gray-900">Biaya Pengadaan</p>
+        <div className="flex justify-between text-sm text-gray-600">
+          <span>Sapi</span>
+          <span className="font-medium text-gray-800">
+            {biaya.sapi > 0 ? formatRupiah(biaya.sapi) : '—'}
+          </span>
+        </div>
+        <div className="flex justify-between text-sm text-gray-600">
+          <span>Kambing</span>
+          <span className="font-medium text-gray-800">
+            {biaya.kambing > 0 ? formatRupiah(biaya.kambing) : '—'}
+          </span>
+        </div>
+        <div className="flex items-baseline justify-between border-t border-gray-100 pt-2">
+          <span className="text-sm font-medium text-gray-700">Total</span>
+          <span className="text-base font-bold text-gray-900">
+            {biaya.total > 0 ? formatRupiah(biaya.total) : 'Rp 0'}
+          </span>
+        </div>
+        {biaya.hewan_beli_tanpa_harga > 0 && (
+          <p className="text-xs text-amber-600">
+            {biaya.hewan_beli_tanpa_harga} hewan beli belum ada harga pengadaan
+          </p>
+        )}
+      </Card>
+
+      {/* Saldo Qurban. */}
+      <div className="rounded-xl bg-gradient-to-br from-emerald-600 to-emerald-700 p-5 text-white shadow-sm">
+        <p className="text-sm font-medium text-emerald-50/90">
+          Saldo Qurban (Dana Terhimpun − Biaya Pengadaan)
+        </p>
+        <p className="mt-1 text-3xl font-bold tracking-tight">{formatRupiah(data.saldo_qurban)}</p>
+        <p className="mt-1 text-xs text-emerald-50/80">belum termasuk BOP &amp; biaya operasional</p>
+      </div>
+
+      {/* Korelasi Ledger SKM. */}
+      <Card className="space-y-2">
+        <div className="flex items-center justify-between">
+          <p className="text-sm font-semibold text-gray-900">Korelasi Ledger SKM</p>
+          <span
+            className={
+              kor.mode === 'arsip'
+                ? 'inline-flex items-center rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-medium text-amber-700'
+                : 'inline-flex items-center rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-medium text-emerald-700'
+            }
+          >
+            {kor.mode === 'arsip' ? 'N/A · Arsip' : 'Live'}
+          </span>
+        </div>
+        <p className="text-sm text-gray-600">
+          Pembayaran tertaut ledger: {kor.pembayaran_tertaut} / {kor.pembayaran_total}
+        </p>
+        <p className="text-xs text-gray-400">
+          {kor.mode === 'arsip'
+            ? 'Untuk edisi live, blok ini berisi korelasi nyata Dana Terhimpun ↔ ledger SKM.'
+            : 'Rekonsiliasi penuh Dana Terhimpun ↔ ledger SKM menyusul saat ada edisi live.'}
+        </p>
+      </Card>
+    </div>
   );
 }
