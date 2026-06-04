@@ -32,7 +32,9 @@ import {
   type SlotFieldConfig,
 } from '@/lib/qurban/peserta-form';
 import type { TipeQurban } from '@/lib/qurban/peserta-types';
+import { composeBagian } from '@/lib/qurban/bagian-options';
 import { MuqoribLookup, type MuqoribCandidate } from '@/components/qurban/MuqoribLookup';
+import { BagianChecklist } from '@/components/qurban/BagianChecklist';
 
 /**
  * F4c-B — /qurban/peserta/baru panitia registration form (PS2 create).
@@ -104,7 +106,9 @@ export function PesertaForm({ edisiId }: Props) {
   const [atasNamaShared, setAtasNamaShared] = useState('');
   const [atasNamaList, setAtasNamaList] = useState<string[]>([]);
   const [sameForAll, setSameForAll] = useState(false);
-  const [keteranganBagian, setKeteranganBagian] = useState('');
+  // Bagian hewan → checklist + Lainnya; dirakit jadi string saat submit.
+  const [bagianSelected, setBagianSelected] = useState<string[]>([]);
+  const [bagianLainnya, setBagianLainnya] = useState('');
   const [notes, setNotes] = useState('');
   // F6 D1 — metode pembayaran (wajib dipilih; tanpa default tersembunyi).
   const [metode, setMetode] = useState<MetodePembayaranOpt | ''>('');
@@ -316,7 +320,7 @@ export function PesertaForm({ edisiId }: Props) {
             sharedNama: atasNamaShared,
             perSlot: atasNamaList,
           }),
-          keterangan_bagian: keteranganBagian.trim() || undefined,
+          keterangan_bagian: composeBagian(bagianSelected, bagianLainnya) || undefined,
           metode_pembayaran: metode,
           allow_additional_qurban: allowAdd,
         }),
@@ -439,7 +443,8 @@ export function PesertaForm({ edisiId }: Props) {
     setAtasNamaShared('');
     setAtasNamaList([]);
     setSameForAll(false);
-    setKeteranganBagian('');
+    setBagianSelected([]);
+    setBagianLainnya('');
     setNotes('');
     setMetode('');
     setConfirmed(false);
@@ -653,12 +658,20 @@ export function PesertaForm({ edisiId }: Props) {
               )}
             </div>
           )}
-          <Input
-            label="Keterangan Bagian (opsional)"
-            value={keteranganBagian}
-            onChange={(e) => setKeteranganBagian(e.target.value)}
-            placeholder="mis. Daging + Jeroan"
-          />
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Keterangan Bagian <span className="text-gray-400 font-normal">(opsional)</span>
+            </label>
+            <BagianChecklist
+              selected={bagianSelected}
+              lainnya={bagianLainnya}
+              onChange={(sel, lain) => {
+                setBagianSelected(sel);
+                setBagianLainnya(lain);
+              }}
+              idPrefix="peserta-bagian"
+            />
+          </div>
           <TextArea label="Catatan (opsional)" value={notes} onChange={setNotes} />
 
           <div>

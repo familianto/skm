@@ -82,3 +82,23 @@ test('daftar: nama_atas_nama trimmed; defaults to empty', () => {
   const r2 = validatePublikDaftar({ muqorib_id: 'MQR-1', master_hewan_id: 'MHW-1', tipe_qurban: 'BELI', jumlah_slot: 1 });
   assert.equal(r2.value?.nama_atas_nama, '');
 });
+
+test('daftar (PB3): keterangan_bagian is optional, trimmed, defaults to empty', () => {
+  const base = { muqorib_id: 'MQR-1', master_hewan_id: 'MHW-1', tipe_qurban: 'BELI', jumlah_slot: 1 };
+  // Accepted + trimmed (the checklist composes a comma-separated string).
+  const r = validatePublikDaftar({ ...base, keterangan_bagian: '  Daging, Hati  ' });
+  assert.equal(r.ok, true);
+  assert.equal(r.value?.keterangan_bagian, 'Daging, Hati');
+  // Omitted → empty string (same as the prior free-text-empty behaviour).
+  const r2 = validatePublikDaftar(base);
+  assert.equal(r2.value?.keterangan_bagian, '');
+});
+
+test('daftar (PB3): keterangan_bagian must be a string when present', () => {
+  const r = validatePublikDaftar({
+    muqorib_id: 'MQR-1', master_hewan_id: 'MHW-1', tipe_qurban: 'BELI', jumlah_slot: 1,
+    keterangan_bagian: 123,
+  });
+  assert.equal(r.ok, false);
+  assert.equal(r.errors[0].field, 'keterangan_bagian');
+});

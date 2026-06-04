@@ -2676,6 +2676,12 @@ Info edisi + `status_pendaftaran`. Saat `BUKA`: `options` memuat `tipe_hewan`
 (kombinasi master×tipe yang `slot_tersedia > 0`, `harga_per_slot`) + `rekening`
 (bank aktif). Selain `BUKA` atau tanpa edisi AKTIF → `options: null`.
 
+> **Pendaftaran penuh (UI).** Karena PB1 menyaring kombinasi ber-slot-0,
+> `status_pendaftaran=BUKA` dengan `tipe_hewan` kosong = semua kuota terisi. Wizard
+> publik menampilkan **banner "Pendaftaran Penuh"** (tombol Lanjut nonaktif),
+> bukan dropdown kosong. Helper murni `hasAvailableOptions()` di
+> `publik-daftar-form.ts` (client-safe) yang memutuskan; kontrak PB1 tidak berubah.
+
 ### PB2 — `POST /api/publik/qurban/daftar/lookup`  ⚠️ Revisi F4d
 
 > **Perubahan F4d (May 2026):** kontrak diubah dari strict-match `{nama_lengkap,
@@ -2711,7 +2717,10 @@ Response **TIDAK pernah memuat PII penuh:**
 
 Body: `muqorib_id` (dari PB2) **atau** `muqorib_data {nama_lengkap, alamat, rt,
 no_hp}`; `master_hewan_id`, `tipe_qurban`, `jumlah_slot` (≤ 50), `nama_atas_nama?`,
-`keterangan_bagian?`, `metode_pembayaran?` (F6; default `TRANSFER`; `VA` ditolak
+`keterangan_bagian?` (string opsional — disimpan apa adanya ke kolom
+`qurban_peserta.keterangan_bagian`; sejak _polish pendaftaran_ wizard publik
+mengisinya lewat **checklist bagian + "Lainnya"**, namun kontrak tetap STRING
+comma-separated), `metode_pembayaran?` (F6; default `TRANSFER`; `VA` ditolak
 `422`), + field honeypot `email`.
 
 Alur: rate-limit → honeypot → audit `attempted` → validasi (+ `metode_pembayaran`,
