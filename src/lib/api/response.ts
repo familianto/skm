@@ -20,6 +20,8 @@ export type ApiSuccess<T> = {
     filters_applied?: Record<string, unknown>;
     /** Non-fatal advisory (e.g. PS5 cancel: peserta masih punya pembayaran). */
     warning?: string;
+    /** ISO-8601 — kapan agregasi/laporan dihasilkan (F8 LP5+). */
+    generated_at?: string;
   };
 };
 
