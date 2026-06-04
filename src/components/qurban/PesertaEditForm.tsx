@@ -12,6 +12,8 @@ import { Loading } from '@/components/ui/loading';
 import { useToast } from '@/components/ui/toast';
 import { cn } from '@/lib/utils';
 import { type QurbanPeserta } from '@/lib/qurban/peserta-display';
+import { composeBagian, parseBagian } from '@/lib/qurban/bagian-options';
+import { BagianChecklist } from '@/components/qurban/BagianChecklist';
 
 /**
  * F4c-D — /qurban/peserta/[id]/edit (PS4 PATCH).
@@ -40,7 +42,9 @@ export function PesertaEditForm({ edisiId, pesertaId }: Props) {
   const [notFound, setNotFound] = useState(false);
 
   const [namaAtasNama, setNamaAtasNama] = useState('');
-  const [keteranganBagian, setKeteranganBagian] = useState('');
+  // Bagian hewan → checklist + Lainnya (string historis di-parse saat load).
+  const [bagianSelected, setBagianSelected] = useState<string[]>([]);
+  const [bagianLainnya, setBagianLainnya] = useState('');
   const [notes, setNotes] = useState('');
 
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -65,7 +69,9 @@ export function PesertaEditForm({ edisiId, pesertaId }: Props) {
       const p = json.data as QurbanPeserta;
       setPeserta(p);
       setNamaAtasNama(p.nama_atas_nama || '');
-      setKeteranganBagian(p.keterangan_bagian || '');
+      const bagian = parseBagian(p.keterangan_bagian || '');
+      setBagianSelected(bagian.selected);
+      setBagianLainnya(bagian.lainnya);
       setNotes(p.notes || '');
     } catch {
       setLoadError('Tidak dapat terhubung ke server.');
@@ -88,7 +94,7 @@ export function PesertaEditForm({ edisiId, pesertaId }: Props) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           nama_atas_nama: namaAtasNama.trim(),
-          keterangan_bagian: keteranganBagian.trim(),
+          keterangan_bagian: composeBagian(bagianSelected, bagianLainnya),
           notes,
         }),
       });
@@ -181,14 +187,24 @@ export function PesertaEditForm({ edisiId, pesertaId }: Props) {
             placeholder="Kosongkan untuk pakai nama muqorib"
             disabled={submitting}
           />
-          <Input
-            label="Keterangan Bagian (opsional)"
-            value={keteranganBagian}
-            onChange={(e) => setKeteranganBagian(e.target.value)}
-            error={fieldErrors.keterangan_bagian}
-            placeholder="mis. Daging + Jeroan"
-            disabled={submitting}
-          />
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Keterangan Bagian <span className="text-gray-400 font-normal">(opsional)</span>
+            </label>
+            <BagianChecklist
+              selected={bagianSelected}
+              lainnya={bagianLainnya}
+              onChange={(sel, lain) => {
+                setBagianSelected(sel);
+                setBagianLainnya(lain);
+              }}
+              idPrefix="peserta-edit-bagian"
+              disabled={submitting}
+            />
+            {fieldErrors.keterangan_bagian && (
+              <p className="mt-1 text-sm text-red-600">{fieldErrors.keterangan_bagian}</p>
+            )}
+          </div>
           <div>
             <label htmlFor="peserta-notes" className="block text-sm font-medium text-gray-700 mb-1">
               Catatan <span className="text-gray-400 font-normal">(opsional)</span>

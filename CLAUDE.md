@@ -24,6 +24,14 @@
 > PR #100 Draft — menunggu verifikasi iPad sebelum Hopy flip ke Ready, lalu
 > migrasi PRODUCTION `migrate_F6A_pembayaran.gs`. Sebelumnya: F5b Pemetaan ✅.
 
+> **Polish pendaftaran (cabang sendiri, di luar F6).** (A) Wizard publik kini
+> menampilkan banner **"Pendaftaran Penuh"** saat PB1 BUKA tapi semua slot terisi
+> (helper `hasAvailableOptions` di `publik-daftar-form.ts`). (B) `keterangan_bagian`
+> jadi **checklist bagian + "Lainnya"** (panitia PS2/PS4 & publik PB3), via modul
+> shared `lib/qurban/bagian-options.ts` (`composeBagian`/`parseBagian`); **storage
+> tetap STRING comma-separated** (kompatibel data historis). PB3 sudah menerima
+> `keterangan_bagian` (validator in-repo).
+
 Update baris ini setiap kali sprint berganti.
 
 ## Tech Stack

@@ -7,12 +7,15 @@ import { RT_OPTIONS } from '@/lib/qurban/muqorib-display';
 import { slotFieldConfig } from '@/lib/qurban/peserta-form';
 import type { TipeOption } from '@/lib/qurban/publik-options';
 import type { TipeQurban } from '@/lib/qurban/peserta-types';
+import { composeBagian } from '@/lib/qurban/bagian-options';
+import { BagianChecklist } from '@/components/qurban/BagianChecklist';
 import { HONEYPOT_FIELD } from '@/lib/qurban/publik-honeypot';
 import {
   availableTipeQurban,
   dedupeKodeBayar,
   findOption,
   friendlyPublikError,
+  hasAvailableOptions,
   jenisForTipe,
   kelasForTipeJenis,
   tipeQurbanLabel,
@@ -91,7 +94,10 @@ export function PublikDaftarWizard() {
   const [kelas, setKelas] = useState('');
   const [jumlahSlotStr, setJumlahSlotStr] = useState('1');
   const [atasNama, setAtasNama] = useState('');
-  const [keteranganBagian, setKeteranganBagian] = useState('');
+  // Bagian hewan (in-repo: field "Keterangan" Step-1 memetakan ke
+  // `keterangan_bagian`) → checklist + Lainnya, dirakit jadi string saat submit.
+  const [bagianSelected, setBagianSelected] = useState<string[]>([]);
+  const [bagianLainnya, setBagianLainnya] = useState('');
   // F6 D1 — metode pembayaran (wajib dipilih; tanpa default tersembunyi).
   const [metode, setMetode] = useState<MetodePembayaran | ''>('');
   const [step1Error, setStep1Error] = useState<string | null>(null);
@@ -285,7 +291,7 @@ export function PublikDaftarWizard() {
           tipe_qurban: tipeQurban,
           jumlah_slot: jumlahSlot,
           nama_atas_nama: atasNama.trim(),
-          keterangan_bagian: keteranganBagian.trim(),
+          keterangan_bagian: composeBagian(bagianSelected, bagianLainnya),
           metode_pembayaran: metode,
           [HONEYPOT_FIELD]: honeypot,
         }),
@@ -334,6 +340,23 @@ export function PublikDaftarWizard() {
           <p className="text-sm text-gray-500 mt-2">
             Mohon maaf, pendaftaran qurban sedang tidak dibuka saat ini. Silakan hubungi panitia
             masjid untuk informasi lebih lanjut.
+          </p>
+        </div>
+      </CenterCard>
+    );
+  }
+
+  // Pendaftaran BUKA tapi semua slot terisi (PB1 menyaring opsi ber-slot-0, jadi
+  // daftar kosong = penuh). Tampilkan banner ramah, BUKAN dropdown kosong.
+  if (!hasAvailableOptions(pb1.options.tipe_hewan)) {
+    return (
+      <CenterCard>
+        <div className="text-center">
+          <div className="text-4xl mb-3">🕌</div>
+          <h2 className="text-lg font-semibold text-gray-900">Pendaftaran Penuh</h2>
+          <p className="text-sm text-gray-500 mt-2">
+            Mohon maaf, kuota pendaftaran qurban untuk edisi ini sudah penuh. Silakan hubungi panitia
+            masjid jika ada pertanyaan.
           </p>
         </div>
       </CenterCard>
@@ -397,9 +420,13 @@ export function PublikDaftarWizard() {
             )}
           </Field>
 
-          <Field label="Keterangan (opsional)">
-            <input value={keteranganBagian} onChange={(e) => setKeteranganBagian(e.target.value)}
-              placeholder="mis. atas nama keluarga" className={inputClass(false)} />
+          <Field label="Bagian (opsional)">
+            <BagianChecklist
+              selected={bagianSelected}
+              lainnya={bagianLainnya}
+              onChange={(sel, lain) => { setBagianSelected(sel); setBagianLainnya(lain); }}
+              idPrefix="publik-bagian"
+            />
           </Field>
 
           <Field label="Metode Pembayaran">
@@ -544,6 +571,9 @@ export function PublikDaftarWizard() {
             <SummaryRow label="Tipe" value={tipeQurbanLabel(tipeQurban)} />
             <SummaryRow label="Jumlah Slot" value={String(jumlahSlot)} />
             <SummaryRow label="Atas Nama" value={atasNama.trim() || '(pakai nama Anda)'} />
+            {composeBagian(bagianSelected, bagianLainnya) && (
+              <SummaryRow label="Bagian" value={composeBagian(bagianSelected, bagianLainnya)} />
+            )}
             <SummaryRow
               label="Pendaftar"
               value={

@@ -21,6 +21,21 @@ export function tipeQurbanLabel(tipe: string): string {
   return TIPE_QURBAN_LABEL[tipe as TipeQurban] ?? tipe;
 }
 
+/**
+ * True bila masih ada minimal satu kombinasi yang dapat dibooking (`slot_tersedia
+ * > 0`). `buildTipeOptions` (PB1) sudah menyaring kombinasi ber-slot-0, jadi
+ * daftar kosong = semua penuh; pengecekan eksplisit ini agar wizard publik bisa
+ * memutuskan menampilkan banner "pendaftaran penuh" tanpa menebak. Pendaftaran
+ * "penuh" = status BUKA tetapi `hasAvailableOptions` false. (Live di modul
+ * client-safe ini, bukan `publik-options.ts`, agar tak menyeret google-sheets
+ * ke bundle klien.)
+ */
+export function hasAvailableOptions(
+  options: readonly Pick<TipeOption, 'slot_tersedia'>[]
+): boolean {
+  return options.some((o) => o.slot_tersedia > 0);
+}
+
 /** Distinct tipe_qurban present among bookable options, BELI before BAWA_SENDIRI. */
 export function availableTipeQurban(options: TipeOption[]): TipeQurban[] {
   const set = new Set<TipeQurban>(options.map((o) => o.tipe_qurban));

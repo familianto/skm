@@ -6,6 +6,7 @@ import {
   dedupeKodeBayar,
   findOption,
   friendlyPublikError,
+  hasAvailableOptions,
   jenisForTipe,
   kelasForTipeJenis,
   tipeQurbanLabel,
@@ -36,6 +37,18 @@ const OPTIONS: TipeOption[] = [
   opt({ master_hewan_id: 'MH-2', jenis: 'SAPI', kelas: 'B', tipe_qurban: 'BELI', harga_per_slot: 2_500_000 }),
   opt({ master_hewan_id: 'MH-3', jenis: 'KAMBING', kelas: 'A', tipe_qurban: 'BELI', kapasitas_slot: 1, harga_per_slot: 2_000_000 }),
 ];
+
+// ── hasAvailableOptions — drives the public "pendaftaran penuh" banner ───────
+
+test('hasAvailableOptions: true when at least one option has slots (form shown)', () => {
+  assert.equal(hasAvailableOptions(OPTIONS), true);
+  assert.equal(hasAvailableOptions([opt({ slot_tersedia: 0 }), opt({ slot_tersedia: 3 })]), true);
+});
+
+test('hasAvailableOptions: false when empty or every option reports zero slots (banner)', () => {
+  assert.equal(hasAvailableOptions([]), false);
+  assert.equal(hasAvailableOptions([opt({ slot_tersedia: 0 }), opt({ slot_tersedia: 0 })]), false);
+});
 
 test('tipeQurbanLabel maps known tipe', () => {
   assert.equal(tipeQurbanLabel('BELI'), 'Beli (disediakan panitia)');
