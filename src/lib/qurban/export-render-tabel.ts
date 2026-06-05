@@ -119,7 +119,7 @@ export async function renderTabelExcel(
   ws.getCell('A2').value = meta.title;
   ws.getCell('A2').font = { bold: true, size: 11 };
   ws.mergeCells(`A3:${lastColLetter}3`);
-  ws.getCell('A3').value = `Qurban ${meta.edisiNama} · Diekspor ${fmtTanggalEkspor(meta.generatedAt)}`;
+  ws.getCell('A3').value = `Qurban ${meta.edisiNama} - Diunduh ${fmtTanggalEkspor(meta.generatedAt)}`;
   ws.getCell('A3').font = { italic: true, size: 9, color: { argb: 'FF666666' } };
   ws.addRow([]);
 
@@ -180,7 +180,7 @@ export function renderTabelPdf(built: BuiltExportTabel, meta: ExportDocMeta): Ar
   doc.setFontSize(9);
   doc.setFont('helvetica', 'normal');
   doc.text(
-    `Qurban ${meta.edisiNama} · Diekspor ${fmtTanggalEkspor(meta.generatedAt)}`,
+    `Qurban ${meta.edisiNama} - Diunduh ${fmtTanggalEkspor(meta.generatedAt)}`,
     pageWidth / 2,
     27,
     { align: 'center' }

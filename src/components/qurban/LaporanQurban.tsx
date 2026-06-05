@@ -485,10 +485,10 @@ function TabKeuangan({ edisiId }: { edisiId: string }) {
       {/* Banner mode arsip. */}
       {arsip && (
         <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-          <span className="font-semibold">Mode Arsip — tak tertaut ledger SKM.</span>{' '}
-          Pembayaran {data.edisi.nama} diimpor sebagai histori; sengaja tidak
-          ditautkan ke ledger. Dana Terhimpun berdiri sendiri — tidak ada selisih
-          untuk dialarmkan.
+          <span className="font-semibold">Data Arsip — belum dicocokkan dengan Buku Kas SKM.</span>{' '}
+          Pembayaran {data.edisi.nama} adalah catatan lama yang sengaja tidak
+          dihubungkan ke buku kas. Dana Terhimpun berdiri sendiri — tidak ada
+          selisih yang perlu dikhawatirkan.
         </div>
       )}
 
@@ -558,13 +558,13 @@ function TabKeuangan({ edisiId }: { edisiId: string }) {
           Saldo Qurban (Dana Terhimpun − Biaya Pengadaan)
         </p>
         <p className="mt-1 text-3xl font-bold tracking-tight">{formatRupiah(data.saldo_qurban)}</p>
-        <p className="mt-1 text-xs text-emerald-50/80">belum termasuk BOP &amp; biaya operasional</p>
+        <p className="mt-1 text-xs text-emerald-50/80">belum termasuk biaya operasional panitia</p>
       </div>
 
-      {/* Korelasi Ledger SKM. */}
+      {/* Pencocokan dengan Buku Kas SKM. */}
       <Card className="space-y-2">
         <div className="flex items-center justify-between">
-          <p className="text-sm font-semibold text-gray-900">Korelasi Ledger SKM</p>
+          <p className="text-sm font-semibold text-gray-900">Pencocokan dengan Buku Kas SKM</p>
           <span
             className={
               kor.mode === 'arsip'
@@ -572,16 +572,16 @@ function TabKeuangan({ edisiId }: { edisiId: string }) {
                 : 'inline-flex items-center rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-medium text-emerald-700'
             }
           >
-            {kor.mode === 'arsip' ? 'N/A · Arsip' : 'Live'}
+            {kor.mode === 'arsip' ? 'Belum dicek · Arsip' : 'Sudah dicocokkan'}
           </span>
         </div>
         <p className="text-sm text-gray-600">
-          Pembayaran tertaut ledger: {kor.pembayaran_tertaut} / {kor.pembayaran_total}
+          Pembayaran tercocok dengan buku kas: {kor.pembayaran_tertaut} / {kor.pembayaran_total}
         </p>
         <p className="text-xs text-gray-400">
           {kor.mode === 'arsip'
-            ? 'Untuk edisi live, blok ini berisi korelasi nyata Dana Terhimpun ↔ ledger SKM.'
-            : 'Rekonsiliasi penuh Dana Terhimpun ↔ ledger SKM menyusul saat ada edisi live.'}
+            ? 'Untuk edisi berjalan, bagian ini menampilkan pencocokan nyata Dana Terhimpun dengan buku kas SKM.'
+            : 'Pencocokan penuh Dana Terhimpun dengan buku kas SKM menyusul saat ada edisi berjalan.'}
         </p>
       </Card>
     </div>

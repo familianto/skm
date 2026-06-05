@@ -45,7 +45,7 @@ export async function renderSummaryExcel(doc: SummaryDoc, meta: ExportDocMeta): 
   ws.getCell('A2').value = meta.title;
   ws.getCell('A2').font = { bold: true, size: 11 };
   ws.mergeCells('A3:F3');
-  ws.getCell('A3').value = `Qurban ${meta.edisiNama} · Diekspor ${fmtTanggalEkspor(meta.generatedAt)}`;
+  ws.getCell('A3').value = `Qurban ${meta.edisiNama} - Diunduh ${fmtTanggalEkspor(meta.generatedAt)}`;
   ws.getCell('A3').font = { italic: true, size: 9, color: { argb: 'FF666666' } };
 
   for (const section of doc.sections) {
@@ -91,7 +91,7 @@ export function renderSummaryPdf(doc: SummaryDoc, meta: ExportDocMeta): ArrayBuf
   pdf.setFontSize(9);
   pdf.setFont('helvetica', 'normal');
   pdf.text(
-    `Qurban ${meta.edisiNama} · Diekspor ${fmtTanggalEkspor(meta.generatedAt)}`,
+    `Qurban ${meta.edisiNama} - Diunduh ${fmtTanggalEkspor(meta.generatedAt)}`,
     pageWidth / 2,
     29,
     { align: 'center' }
