@@ -29,8 +29,11 @@ import {
   buildSummaryExecutive,
   buildSummaryInventaris,
   buildSummaryKeuangan,
+  buildSummaryRekapBagian,
   type SummaryDoc,
 } from '@/lib/qurban/export-summary';
+import { buildRekapBagian } from '@/lib/qurban/rekap-bagian';
+import { loadBagianMap } from '@/lib/qurban/bagian-kanonik-repo';
 import { renderTabelExcel, renderTabelPdf, type ExportDocMeta } from '@/lib/qurban/export-render-tabel';
 import { renderSummaryExcel, renderSummaryPdf } from '@/lib/qurban/export-render-summary';
 
@@ -63,12 +66,12 @@ export async function POST(request: NextRequest) {
   try {
     const body = (await request.json().catch(() => ({}))) as Record<string, unknown>;
 
-    // Shape: milestone E hanya "tabel".
+    // Bentuk: "tabel" (E) atau "rekap" (F). Kartu/Label (G) ditolak.
     const shape = (typeof body.shape === 'string' ? body.shape : 'tabel').toLowerCase();
-    if (shape !== 'tabel') {
+    if (shape !== 'tabel' && shape !== 'rekap') {
       return error(
         ErrorCodes.VALIDATION_FAILED,
-        `Bentuk "${shape}" belum didukung. Milestone ini hanya mendukung bentuk Tabel.`,
+        `Bentuk "${shape}" belum didukung. Pilih "tabel" atau "rekap".`,
         400,
         { field: 'shape' }
       );
@@ -94,6 +97,41 @@ export async function POST(request: NextRequest) {
     const generatedAt = new Date();
     const stamp = fileStamp(generatedAt);
     const today = generatedAt.toISOString().slice(0, 10);
+
+    // ── Bentuk REKAP (Rekap Bagian) ────────────────────────────────────────
+    if (shape === 'rekap') {
+      const jenisRaw = readJenisFilter(body);
+      const [peserta, hewan, map] = await Promise.all([
+        listPesertaByEdisi(resolved.id),
+        listDaftarHewanByEdisi(resolved.id),
+        loadBagianMap(),
+      ]);
+
+      // Filter jenis (join hewan) bila diminta.
+      const scoped =
+        jenisRaw === 'SAPI' || jenisRaw === 'KAMBING'
+          ? (() => {
+              const hewanById = new Map(hewan.map((h) => [h.id, h]));
+              return peserta.filter((p) => hewanById.get(p.hewan_id)?.jenis === jenisRaw);
+            })()
+          : peserta;
+
+      const rekap = buildRekapBagian({ peserta: scoped, map });
+      const jenisLabel = jenisRaw === 'SAPI' ? 'Sapi' : jenisRaw === 'KAMBING' ? 'Kambing' : undefined;
+      const docSummary = buildSummaryRekapBagian(rekap, jenisLabel);
+
+      const meta: ExportDocMeta = {
+        title: 'Rekap Bagian Hewan',
+        edisiNama: resolved.tahun_hijriah,
+        masjidName,
+        generatedAt,
+      };
+      const filename = `rekap_bagian_Qurban_${slug(resolved.tahun_hijriah)}_${stamp}.${format}`;
+      if (format === 'xlsx') {
+        return fileResponse(await renderSummaryExcel(docSummary, meta), 'xlsx', filename);
+      }
+      return fileResponse(Buffer.from(renderSummaryPdf(docSummary, meta)), 'pdf', filename);
+    }
 
     // ── Preset RINGKASAN (reuse LP, layout tetap) ──────────────────────────
     if (presetId && isSummaryPreset(presetId)) {
@@ -154,7 +192,7 @@ export async function POST(request: NextRequest) {
 
     const presetLabel = presetId ? getRowLevelPreset(presetId)?.label : undefined;
     const meta: ExportDocMeta = {
-      title: presetLabel || 'Tabel Kustom',
+      title: presetLabel || 'Tabel Pilihan Sendiri',
       edisiNama: resolved.tahun_hijriah,
       masjidName,
       generatedAt,
@@ -207,6 +245,12 @@ function resolveTabelConfig(body: Record<string, unknown>, presetId: string): Ex
 /** Buang karakter kontrol & batasi panjang nama kolom isi-tangan. */
 function sanitizeManual(s: string): string {
   return s.replace(/[\u0000-\u001F\u007F]/g, '').trim().slice(0, 40);
+}
+
+function readJenisFilter(body: Record<string, unknown>): string {
+  const f = body.filter && typeof body.filter === 'object' ? (body.filter as Record<string, unknown>) : {};
+  const j = typeof f.jenis === 'string' ? f.jenis.toUpperCase() : 'SEMUA';
+  return j === 'SAPI' || j === 'KAMBING' ? j : 'SEMUA';
 }
 
 function slug(s: string): string {

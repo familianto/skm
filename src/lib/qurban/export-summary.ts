@@ -1,6 +1,7 @@
 import type { DashboardDTO } from './laporan-dashboard';
 import type { LaporanHewanDTO } from './laporan-hewan';
 import type { LaporanKeuanganDTO } from './laporan-keuangan';
+import type { RekapBagianResult } from './rekap-bagian';
 
 /**
  * Builder DOKUMEN ringkasan (F8 Milestone E) — bentuk netral-renderer untuk
@@ -76,6 +77,27 @@ export function buildSummaryExecutive(d: DashboardDTO): SummaryDoc {
   };
 }
 
+/** Rekap Bagian → tabel No·Bagian·Jumlah + catatan kaki. */
+export function buildSummaryRekapBagian(r: RekapBagianResult, jenisLabel?: string): SummaryDoc {
+  const rows: SummaryCell[][] = r.rows.map((row) => [t(row.no), t(row.nama), t(row.jumlah)]);
+  rows.push([t(''), t('Total Permintaan', { bold: true }), t(r.total_permintaan, { bold: true })]);
+
+  const catatan: SummaryCell[][] = [
+    [t('Peserta valid'), t(r.peserta_valid)],
+    [t('Dengan permintaan'), t(r.dengan_permintaan)],
+    [t('Tanpa permintaan'), t(r.tanpa_permintaan)],
+    [t('Total bungkus kupon (di luar bagian)'), t(r.total_bungkus_kupon)],
+  ];
+  if (jenisLabel) catatan.unshift([t('Filter jenis'), t(jenisLabel)]);
+
+  return {
+    sections: [
+      { title: 'Permintaan Bagian', header: ['No', 'Bagian', 'Jumlah'], rows },
+      { title: 'Catatan', rows: catatan },
+    ],
+  };
+}
+
 /** LP2 → Inventaris: matriks jenis–kelas + ringkasan biaya. */
 export function buildSummaryInventaris(d: LaporanHewanDTO): SummaryDoc {
   const r = d.ringkasan;
@@ -128,7 +150,7 @@ export function buildSummaryKeuangan(d: LaporanKeuanganDTO): SummaryDoc {
   danaRows.push([t('Dana Terhimpun', { bold: true }), t(''), rp(dana.total, { bold: true })]);
 
   const korelasiLabel =
-    d.korelasi_ledger.mode === 'arsip' ? 'N/A · Arsip' : d.korelasi_ledger.status;
+    d.korelasi_ledger.mode === 'arsip' ? 'Belum dicek - Arsip' : 'Sudah dicocokkan';
 
   return {
     sections: [
@@ -147,14 +169,14 @@ export function buildSummaryKeuangan(d: LaporanKeuanganDTO): SummaryDoc {
       },
       {
         title: 'Saldo Qurban',
-        rows: [[t('Saldo Qurban (Dana − Biaya)', { bold: true }), rp(d.saldo_qurban, { bold: true })]],
+        rows: [[t('Saldo Qurban (Dana - Biaya)', { bold: true }), rp(d.saldo_qurban, { bold: true })]],
       },
       {
-        title: 'Korelasi Ledger SKM',
+        title: 'Pencocokan dengan Buku Kas SKM',
         rows: [
           [t('Status'), t(korelasiLabel)],
           [
-            t('Pembayaran tertaut'),
+            t('Pembayaran tercocok'),
             t(`${d.korelasi_ledger.pembayaran_tertaut} / ${d.korelasi_ledger.pembayaran_total}`),
           ],
         ],

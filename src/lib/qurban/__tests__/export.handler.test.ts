@@ -105,10 +105,27 @@ test('LP6: tanpa sesi → 401', async () => {
   assert.equal(res.status, 401);
 });
 
-test('LP6: shape selain tabel → 400 (Rekap/Kartu ditolak)', async () => {
+test('LP6: shape Kartu/Label (di luar tabel|rekap) → 400', async () => {
   installMockSheets(archiveDb());
-  const res = await POST(await makeReq(PERAN.ADMIN_QURBAN, { shape: 'rekap', columns: ['kode_peserta'], format: 'pdf' }));
+  const res = await POST(await makeReq(PERAN.ADMIN_QURBAN, { shape: 'kartu', columns: ['kode_peserta'], format: 'pdf' }));
   assert.equal(res.status, 400);
+});
+
+test('LP6: shape rekap PDF → 200 application/pdf', async () => {
+  installMockSheets(archiveDb());
+  const res = await POST(await makeReq(PERAN.ADMIN_QURBAN, { shape: 'rekap', format: 'pdf' }));
+  assert.equal(res.status, 200);
+  assert.equal(res.headers.get('content-type'), 'application/pdf');
+});
+
+test('LP6: shape rekap Excel + filter jenis → 200 spreadsheet', async () => {
+  installMockSheets(archiveDb());
+  const res = await POST(await makeReq(PERAN.BENDAHARA, { shape: 'rekap', format: 'xlsx', filter: { jenis: 'SAPI' } }));
+  assert.equal(res.status, 200);
+  assert.equal(
+    res.headers.get('content-type'),
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+  );
 });
 
 test('LP6: format invalid → 400', async () => {

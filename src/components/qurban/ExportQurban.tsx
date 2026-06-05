@@ -1,9 +1,10 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { Card } from '@/components/ui/card';
 import { useToast } from '@/components/ui/toast';
+import { useMe } from '@/hooks/use-me';
 import {
   EXPORT_COLUMN_CATALOG,
   type ColumnDef,
@@ -15,6 +16,7 @@ import {
   SUMMARY_PRESETS,
   type RowLevelPreset,
 } from '@/lib/qurban/export-presets';
+import type { BagianKanonik, RekapBagianResult } from '@/lib/qurban/rekap-bagian';
 
 /**
  * F8 Milestone E — section Export di `/qurban/laporan` (tab "Export").
@@ -70,7 +72,7 @@ export function TabExport({ edisiId }: Props) {
       hanya_ber_urut: p.filter.hanya_ber_urut ?? false,
     });
     setSort(p.sort);
-    toast(`Preset "${p.label}" dimuat ke builder.`, 'success');
+    toast(`Template "${p.label}" siap disesuaikan.`, 'success');
     if (typeof document !== 'undefined') {
       document.getElementById('export-builder')?.scrollIntoView({ behavior: 'smooth' });
     }
@@ -134,8 +136,8 @@ export function TabExport({ edisiId }: Props) {
     <div className="space-y-6">
       {/* Pustaka preset baris-level. */}
       <section>
-        <h2 className="mb-1 text-base font-semibold text-gray-900">Laporan Tabular</h2>
-        <p className="mb-3 text-xs text-gray-500">Tap untuk memuat ke builder, lalu sesuaikan & export.</p>
+        <h2 className="mb-1 text-base font-semibold text-gray-900">Laporan Tabel</h2>
+        <p className="mb-3 text-xs text-gray-500">Tap untuk memuat lalu sesuaikan & unduh.</p>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           {ROW_LEVEL_PRESETS.map((p) => (
             <button
@@ -180,9 +182,12 @@ export function TabExport({ edisiId }: Props) {
         </div>
       </section>
 
-      {/* Builder kolom. */}
+      {/* Rekap Bagian Hewan. */}
+      <RekapBagianPanel edisiId={edisiId} busy={busy} onDownload={(fmt, jenis) => download({ shape: 'rekap', format: fmt, filter: { jenis } }, `rekap_bagian.${fmt}`)} />
+
+      {/* Susun kolom sendiri. */}
       <section id="export-builder">
-        <h2 className="mb-3 text-base font-semibold text-gray-900">Builder Kolom (Tabel)</h2>
+        <h2 className="mb-3 text-base font-semibold text-gray-900">Susun Kolom Sendiri (Tabel)</h2>
         <Card className="space-y-5">
           {/* Cakupan & filter. */}
           <div>
@@ -391,4 +396,223 @@ function triggerDownload(blob: Blob, filename: string) {
   a.click();
   a.remove();
   URL.revokeObjectURL(url);
+}
+
+// ── Panel Rekap Bagian (F8 Milestone F) ──────────────────────────────────────
+
+type RekapJenis = 'SEMUA' | 'SAPI' | 'KAMBING';
+
+function RekapBagianPanel({
+  edisiId,
+  busy,
+  onDownload,
+}: {
+  edisiId: string;
+  busy: boolean;
+  onDownload: (fmt: Format, jenis: RekapJenis) => void;
+}) {
+  const { me } = useMe();
+  const { toast } = useToast();
+  const isAdmin = me?.user.peran === 'SUPER_ADMIN' || me?.user.peran === 'ADMIN_QURBAN';
+
+  const [jenis, setJenis] = useState<RekapJenis>('SEMUA');
+  const [rekap, setRekap] = useState<RekapBagianResult | null>(null);
+  const [map, setMap] = useState<BagianKanonik[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showEditor, setShowEditor] = useState(false);
+  const [aliasDraft, setAliasDraft] = useState<Record<string, string>>({});
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await fetch(
+        `/api/qurban/laporan/rekap-bagian?edisi_id=${encodeURIComponent(edisiId)}&jenis=${jenis}`
+      );
+      const json = await res.json().catch(() => ({}));
+      if (res.ok && json?.ok) {
+        setRekap(json.data.rekap as RekapBagianResult);
+        setMap(json.data.map as BagianKanonik[]);
+      }
+    } finally {
+      setLoading(false);
+    }
+  }, [edisiId, jenis]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const editMap = async (body: Record<string, unknown>) => {
+    const res = await fetch('/api/qurban/laporan/bagian-map', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const json = await res.json().catch(() => ({}));
+    if (res.ok && json?.ok) {
+      toast('Peta bagian diperbarui.', 'success');
+      await load();
+    } else {
+      toast(json?.error?.message || 'Gagal mengubah peta bagian.', 'error');
+    }
+  };
+
+  const baku = map.filter((m) => m.tipe === 'BAKU');
+  const tambahan = map.filter((m) => m.tipe === 'TAMBAHAN');
+
+  return (
+    <section>
+      <h2 className="mb-1 text-base font-semibold text-gray-900">Rekap Bagian Hewan</h2>
+      <p className="mb-3 text-xs text-gray-500">
+        Rekap permintaan bagian (daging, paha, dll) dari data peserta.
+      </p>
+      <Card className="space-y-4">
+        {/* Filter + unduh. */}
+        <div className="flex flex-wrap items-end gap-3">
+          <label className="block">
+            <span className="mb-1 block text-xs font-medium text-gray-500">Jenis</span>
+            <select
+              value={jenis}
+              onChange={(e) => setJenis(e.target.value as RekapJenis)}
+              className="rounded-lg border border-gray-300 px-2.5 py-1.5 text-sm"
+            >
+              <option value="SEMUA">Semua</option>
+              <option value="SAPI">Sapi</option>
+              <option value="KAMBING">Kambing</option>
+            </select>
+          </label>
+          <div className="flex gap-2">
+            <button
+              disabled={busy}
+              onClick={() => onDownload('pdf', jenis)}
+              className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
+            >
+              Unduh PDF
+            </button>
+            <button
+              disabled={busy}
+              onClick={() => onDownload('xlsx', jenis)}
+              className="rounded-lg border border-emerald-600 px-3 py-1.5 text-xs font-medium text-emerald-700 hover:bg-emerald-50 disabled:opacity-50"
+            >
+              Unduh Excel
+            </button>
+          </div>
+        </div>
+
+        {/* Tabel rekap. */}
+        {loading ? (
+          <p className="text-sm text-gray-400">Memuat…</p>
+        ) : rekap ? (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[320px] text-sm">
+              <thead>
+                <tr className="border-b border-gray-200 text-left text-xs text-gray-500">
+                  <th className="px-3 py-2 font-medium">No</th>
+                  <th className="px-3 py-2 font-medium">Bagian</th>
+                  <th className="px-3 py-2 text-right font-medium">Jumlah</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rekap.rows.map((r) => (
+                  <tr key={r.nama} className="border-b border-gray-100">
+                    <td className="px-3 py-2 text-gray-500">{r.no}</td>
+                    <td className="px-3 py-2 text-gray-700">{r.nama}</td>
+                    <td className="px-3 py-2 text-right font-medium text-gray-900">{r.jumlah}</td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr className="bg-gray-50 font-semibold text-gray-900">
+                  <td className="px-3 py-2" />
+                  <td className="px-3 py-2">Total Permintaan</td>
+                  <td className="px-3 py-2 text-right">{rekap.total_permintaan}</td>
+                </tr>
+              </tfoot>
+            </table>
+            <p className="mt-2 text-xs text-gray-400">
+              {rekap.peserta_valid} peserta valid · {rekap.dengan_permintaan} dengan permintaan ·{' '}
+              {rekap.tanpa_permintaan} tanpa permintaan · {rekap.total_bungkus_kupon} bungkus kupon (di luar bagian)
+            </p>
+          </div>
+        ) : (
+          <p className="text-sm text-gray-400">Data tidak tersedia.</p>
+        )}
+
+        {/* Editor peta (admin). */}
+        {isAdmin && (
+          <div className="border-t border-gray-100 pt-3">
+            <button
+              onClick={() => setShowEditor((v) => !v)}
+              className="text-xs font-medium text-emerald-700 hover:text-emerald-800"
+            >
+              {showEditor ? 'Tutup peta bagian' : 'Atur peta bagian (alias)'}
+            </button>
+            {showEditor && (
+              <div className="mt-3 space-y-4">
+                {[
+                  { label: 'Bagian Baku', items: baku },
+                  { label: 'Tambahan (dari data arsip)', items: tambahan },
+                ].map((grp) => (
+                  <div key={grp.label}>
+                    <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-gray-400">{grp.label}</p>
+                    <div className="space-y-2">
+                      {grp.items.map((m) => (
+                        <div key={m.nama_kanonik} className="rounded-lg border border-gray-200 p-2">
+                          <div className="flex items-center justify-between">
+                            <span className={`text-sm font-medium ${m.is_active ? 'text-gray-800' : 'text-gray-400 line-through'}`}>
+                              {m.nama_kanonik}
+                            </span>
+                            <button
+                              onClick={() => editMap({ action: 'set_active', nama_kanonik: m.nama_kanonik, is_active: !m.is_active })}
+                              className="text-xs text-gray-500 hover:text-gray-700"
+                            >
+                              {m.is_active ? 'Nonaktifkan' : 'Aktifkan'}
+                            </button>
+                          </div>
+                          <div className="mt-1 flex flex-wrap gap-1">
+                            {m.aliases.map((a) => (
+                              <span key={a} className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600">
+                                {a}
+                                <button
+                                  onClick={() => editMap({ action: 'remove_alias', nama_kanonik: m.nama_kanonik, alias: a })}
+                                  className="text-gray-400 hover:text-gray-600"
+                                  aria-label={`Hapus alias ${a}`}
+                                >
+                                  ×
+                                </button>
+                              </span>
+                            ))}
+                          </div>
+                          <div className="mt-1 flex gap-1">
+                            <input
+                              value={aliasDraft[m.nama_kanonik] ?? ''}
+                              onChange={(e) => setAliasDraft((d) => ({ ...d, [m.nama_kanonik]: e.target.value }))}
+                              placeholder="+ alias"
+                              className="flex-1 rounded border border-gray-300 px-2 py-1 text-xs"
+                            />
+                            <button
+                              onClick={() => {
+                                const v = (aliasDraft[m.nama_kanonik] ?? '').trim();
+                                if (v) {
+                                  void editMap({ action: 'add_alias', nama_kanonik: m.nama_kanonik, alias: v });
+                                  setAliasDraft((d) => ({ ...d, [m.nama_kanonik]: '' }));
+                                }
+                              }}
+                              className="rounded border border-gray-300 px-2 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50"
+                            >
+                              Tambah
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </Card>
+    </section>
+  );
 }
