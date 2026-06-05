@@ -34,6 +34,13 @@ import {
 } from '@/lib/qurban/export-summary';
 import { buildRekapBagian } from '@/lib/qurban/rekap-bagian';
 import { loadBagianMap } from '@/lib/qurban/bagian-kanonik-repo';
+import { buildKartuPemotongan, buildLabelBagikan } from '@/lib/qurban/export-kartu';
+import {
+  renderKartuPdf,
+  renderKartuExcel,
+  renderLabelPdf,
+  renderLabelExcel,
+} from '@/lib/qurban/export-render-kartu';
 import { renderTabelExcel, renderTabelPdf, type ExportDocMeta } from '@/lib/qurban/export-render-tabel';
 import { renderSummaryExcel, renderSummaryPdf } from '@/lib/qurban/export-render-summary';
 
@@ -66,12 +73,12 @@ export async function POST(request: NextRequest) {
   try {
     const body = (await request.json().catch(() => ({}))) as Record<string, unknown>;
 
-    // Bentuk: "tabel" (E) atau "rekap" (F). Kartu/Label (G) ditolak.
+    // Bentuk: "tabel" (E), "rekap" (F), "kartu"/"label" (G).
     const shape = (typeof body.shape === 'string' ? body.shape : 'tabel').toLowerCase();
-    if (shape !== 'tabel' && shape !== 'rekap') {
+    if (!['tabel', 'rekap', 'kartu', 'label'].includes(shape)) {
       return error(
         ErrorCodes.VALIDATION_FAILED,
-        `Bentuk "${shape}" belum didukung. Pilih "tabel" atau "rekap".`,
+        `Bentuk "${shape}" belum didukung. Pilih "tabel", "rekap", "kartu", atau "label".`,
         400,
         { field: 'shape' }
       );
@@ -131,6 +138,63 @@ export async function POST(request: NextRequest) {
         return fileResponse(await renderSummaryExcel(docSummary, meta), 'xlsx', filename);
       }
       return fileResponse(Buffer.from(renderSummaryPdf(docSummary, meta)), 'pdf', filename);
+    }
+
+    // ── Bentuk KARTU (Kartu Pemotongan, grid per-hewan) ────────────────────
+    if (shape === 'kartu') {
+      const jenisRaw = readJenisFilter(body);
+      const jenis: 'SAPI' | 'KAMBING' = jenisRaw === 'KAMBING' ? 'KAMBING' : 'SAPI';
+      const [peserta, hewan, muqorib] = await Promise.all([
+        listPesertaByEdisi(resolved.id),
+        listDaftarHewanByEdisi(resolved.id),
+        listAllMuqorib(),
+      ]);
+      const kartu = buildKartuPemotongan({
+        jenis,
+        peserta,
+        hewan,
+        muqoribById: new Map(muqorib.map((m) => [m.id, m])),
+      });
+      const meta: ExportDocMeta = {
+        title: `Kartu Pemotongan ${jenis === 'SAPI' ? 'Sapi' : 'Kambing'}`,
+        edisiNama: resolved.tahun_hijriah,
+        masjidName,
+        generatedAt,
+      };
+      const filename = `kartu_${jenis.toLowerCase()}_Qurban_${slug(resolved.tahun_hijriah)}_${stamp}.${format}`;
+      if (format === 'xlsx') {
+        return fileResponse(await renderKartuExcel(kartu, meta), 'xlsx', filename);
+      }
+      return fileResponse(Buffer.from(renderKartuPdf(kartu, meta, jenis)), 'pdf', filename);
+    }
+
+    // ── Bentuk LABEL (Label Bagikan, 1 per peserta) ────────────────────────
+    if (shape === 'label') {
+      const jenisRaw = readJenisFilter(body);
+      const jenis: 'SAPI' | 'KAMBING' | 'SEMUA' =
+        jenisRaw === 'SAPI' ? 'SAPI' : jenisRaw === 'KAMBING' ? 'KAMBING' : 'SEMUA';
+      const [peserta, hewan, muqorib] = await Promise.all([
+        listPesertaByEdisi(resolved.id),
+        listDaftarHewanByEdisi(resolved.id),
+        listAllMuqorib(),
+      ]);
+      const labels = buildLabelBagikan({
+        jenis,
+        peserta,
+        hewan,
+        muqoribById: new Map(muqorib.map((m) => [m.id, m])),
+      });
+      const meta: ExportDocMeta = {
+        title: 'Label Bagikan',
+        edisiNama: resolved.tahun_hijriah,
+        masjidName,
+        generatedAt,
+      };
+      const filename = `label_Qurban_${slug(resolved.tahun_hijriah)}_${stamp}.${format}`;
+      if (format === 'xlsx') {
+        return fileResponse(await renderLabelExcel(labels, meta), 'xlsx', filename);
+      }
+      return fileResponse(Buffer.from(renderLabelPdf(labels, meta)), 'pdf', filename);
     }
 
     // ── Preset RINGKASAN (reuse LP, layout tetap) ──────────────────────────
