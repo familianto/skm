@@ -18,4 +18,6 @@ export const QURBAN_SHEETS = {
   PESERTA: 'qurban_peserta',
   // F6 — Pembayaran peserta (1 baris = 1 pendaftaran / kode_bayar)
   PEMBAYARAN: 'qurban_pembayaran',
+  // F8-F — Peta bagian kanonik (Rekap Bagian)
+  BAGIAN_KANONIK: 'qurban_bagian_kanonik',
 } as const;

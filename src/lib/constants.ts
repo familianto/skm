@@ -145,6 +145,14 @@ export const SHEET_HEADERS: Record<string, string[]> = {
     'bukti_url', 'match_metadata', 'notes', 'created_at', 'updated_at',
     'created_by',
   ],
+
+  // F8-F — Peta bagian kanonik (Rekap Bagian). Alias → nama kanonik untuk
+  // menormalkan `keterangan_bagian` lintas-rezim (1448H checklist + 1447H arsip
+  // free-text). Editable & tersimpan; di-seed dari default `rekap-bagian.ts`.
+  'qurban_bagian_kanonik': [
+    'id', 'nama_kanonik', 'aliases', 'tipe', 'is_active',
+    'created_at', 'updated_at', 'created_by',
+  ],
 };
 
 // Default categories to seed
