@@ -13,6 +13,7 @@ import type {
 } from '@/lib/qurban/laporan-peserta';
 import type { LaporanHewanDTO, InventarisRow } from '@/lib/qurban/laporan-hewan';
 import type { LaporanKeuanganDTO } from '@/lib/qurban/laporan-keuangan';
+import { TabExport } from './ExportQurban';
 
 /**
  * F8 Milestone B — Laporan Qurban bertab. Tab Peserta mengkonsumsi LP1
@@ -25,13 +26,14 @@ interface Props {
   edisiId: string;
 }
 
-type Tab = 'peserta' | 'hewan' | 'keuangan';
+type Tab = 'peserta' | 'hewan' | 'keuangan' | 'export';
 type Grouping = 'tipe' | 'jenis_kelas' | 'rt';
 
 const TABS: { value: Tab; label: string }[] = [
   { value: 'peserta', label: 'Peserta' },
   { value: 'hewan', label: 'Hewan' },
   { value: 'keuangan', label: 'Keuangan' },
+  { value: 'export', label: 'Export' },
 ];
 
 const GROUPINGS: { value: Grouping; label: string }[] = [
@@ -65,6 +67,7 @@ export function LaporanQurban({ edisiId }: Props) {
       {tab === 'peserta' && <TabPeserta edisiId={edisiId} />}
       {tab === 'hewan' && <TabHewan edisiId={edisiId} />}
       {tab === 'keuangan' && <TabKeuangan edisiId={edisiId} />}
+      {tab === 'export' && <TabExport edisiId={edisiId} />}
     </div>
   );
 }
