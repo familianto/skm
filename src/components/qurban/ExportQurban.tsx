@@ -182,6 +182,35 @@ export function TabExport({ edisiId }: Props) {
         </div>
       </section>
 
+      {/* Kartu Pemotongan & Label Bagikan. */}
+      <section>
+        <h2 className="mb-1 text-base font-semibold text-gray-900">Kartu Pemotongan & Label</h2>
+        <p className="mb-3 text-xs text-gray-500">Poster kartu per hewan (Hari-H) & label tempel per peserta.</p>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <KartuCard
+            title="Kartu Pemotongan Sapi"
+            desc="Grid 3×3, sampai 7 nama/kartu, urut potong."
+            busy={busy}
+            onPdf={() => download({ shape: 'kartu', jenis: 'sapi', filter: { jenis: 'SAPI' }, format: 'pdf' }, 'kartu_sapi.pdf')}
+            onXlsx={() => download({ shape: 'kartu', jenis: 'sapi', filter: { jenis: 'SAPI' }, format: 'xlsx' }, 'kartu_sapi.xlsx')}
+          />
+          <KartuCard
+            title="Kartu Pemotongan Kambing"
+            desc="Grid 3×6, 1 nama/kartu, urut potong."
+            busy={busy}
+            onPdf={() => download({ shape: 'kartu', jenis: 'kambing', filter: { jenis: 'KAMBING' }, format: 'pdf' }, 'kartu_kambing.pdf')}
+            onXlsx={() => download({ shape: 'kartu', jenis: 'kambing', filter: { jenis: 'KAMBING' }, format: 'xlsx' }, 'kartu_kambing.xlsx')}
+          />
+          <KartuCard
+            title="Label Bagikan"
+            desc="Label tempel per peserta (nama + hewan + urut)."
+            busy={busy}
+            onPdf={() => download({ shape: 'label', filter: { jenis: 'SEMUA' }, format: 'pdf' }, 'label_bagikan.pdf')}
+            onXlsx={() => download({ shape: 'label', filter: { jenis: 'SEMUA' }, format: 'xlsx' }, 'label_bagikan.xlsx')}
+          />
+        </div>
+      </section>
+
       {/* Rekap Bagian Hewan. */}
       <RekapBagianPanel edisiId={edisiId} busy={busy} onDownload={(fmt, jenis) => download({ shape: 'rekap', format: fmt, filter: { jenis } }, `rekap_bagian.${fmt}`)} />
 
@@ -350,6 +379,43 @@ function ColumnChip({ col, active, onClick }: { col: ColumnDef; active: boolean;
   );
 }
 
+function KartuCard({
+  title,
+  desc,
+  busy,
+  onPdf,
+  onXlsx,
+}: {
+  title: string;
+  desc: string;
+  busy: boolean;
+  onPdf: () => void;
+  onXlsx: () => void;
+}) {
+  return (
+    <Card className="!p-4">
+      <p className="text-sm font-semibold text-gray-900">{title}</p>
+      <p className="mt-1 text-xs text-gray-500">{desc}</p>
+      <div className="mt-3 flex gap-2">
+        <button
+          disabled={busy}
+          onClick={onPdf}
+          className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
+        >
+          Unduh PDF
+        </button>
+        <button
+          disabled={busy}
+          onClick={onXlsx}
+          className="rounded-lg border border-emerald-600 px-3 py-1.5 text-xs font-medium text-emerald-700 hover:bg-emerald-50 disabled:opacity-50"
+        >
+          Excel
+        </button>
+      </div>
+    </Card>
+  );
+}
+
 function SelectField({
   label,
   value,
@@ -513,13 +579,21 @@ function RekapBagianPanel({
                 </tr>
               </thead>
               <tbody>
-                {rekap.rows.map((r) => (
-                  <tr key={r.nama} className="border-b border-gray-100">
-                    <td className="px-3 py-2 text-gray-500">{r.no}</td>
-                    <td className="px-3 py-2 text-gray-700">{r.nama}</td>
-                    <td className="px-3 py-2 text-right font-medium text-gray-900">{r.jumlah}</td>
+                {rekap.rows.length === 0 ? (
+                  <tr className="border-b border-gray-100">
+                    <td className="px-3 py-2 text-gray-400" colSpan={3}>
+                      Belum ada permintaan bagian
+                    </td>
                   </tr>
-                ))}
+                ) : (
+                  rekap.rows.map((r) => (
+                    <tr key={r.nama} className="border-b border-gray-100">
+                      <td className="px-3 py-2 text-gray-500">{r.no}</td>
+                      <td className="px-3 py-2 text-gray-700">{r.nama}</td>
+                      <td className="px-3 py-2 text-right font-medium text-gray-900">{r.jumlah}</td>
+                    </tr>
+                  ))
+                )}
               </tbody>
               <tfoot>
                 <tr className="bg-gray-50 font-semibold text-gray-900">
