@@ -66,14 +66,22 @@ function drawPageHeader(doc: jsPDF, meta: ExportDocMeta, pageWidth: number): num
   return 28;
 }
 
-function drawPageFooter(doc: jsPDF, pageWidth: number, pageHeight: number) {
-  const total = doc.getNumberOfPages();
-  const cur = doc.getCurrentPageInfo().pageNumber;
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(8);
-  doc.setTextColor(120);
-  doc.text(`Halaman ${cur} / ${total}`, pageWidth - 10, pageHeight - 6, { align: 'right' });
-  doc.setTextColor(0);
+/**
+ * Stempel footer "Halaman i / n" pada SEMUA halaman dalam pass kedua — setelah
+ * seluruh halaman dibuat — agar total `n` benar (jspdf: `getNumberOfPages()`
+ * saat menggambar inline masih menghitung halaman yang sudah ada saja → "1/1").
+ * ASCII aman.
+ */
+function stampFooters(doc: jsPDF, pageWidth: number, pageHeight: number) {
+  const n = doc.getNumberOfPages();
+  for (let i = 1; i <= n; i++) {
+    doc.setPage(i);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
+    doc.setTextColor(120);
+    doc.text(`Halaman ${i} / ${n}`, pageWidth - 10, pageHeight - 6, { align: 'right' });
+    doc.setTextColor(0);
+  }
 }
 
 // ── Kartu Pemotongan (PDF) ───────────────────────────────────────────────────
@@ -83,11 +91,12 @@ export function renderKartuPdf(kartu: Kartu[], meta: ExportDocMeta, jenis: 'SAPI
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
 
-  // Sapi: 3x3 (kartu tinggi, ≤7 nama). Kambing: 3x6 (kartu pendek, 1 nama).
+  // Sapi: 3x3 (kartu tinggi, ≤7 nama). Kambing: 3x6 (kartu RINGKAS 1 nama →
+  // tinggi pas isi, tanpa ruang kosong berlebih).
   const spec: GridSpec =
     jenis === 'SAPI'
       ? { cols: 3, rows: 3, marginX: 10, marginTop: 28, gutter: 4, cellH: 84 }
-      : { cols: 3, rows: 6, marginX: 10, marginTop: 28, gutter: 4, cellH: 41 };
+      : { cols: 3, rows: 6, marginX: 10, marginTop: 28, gutter: 6, cellH: 28 };
 
   const usableW = pageWidth - spec.marginX * 2 - spec.gutter * (spec.cols - 1);
   const cellW = usableW / spec.cols;
@@ -97,7 +106,7 @@ export function renderKartuPdf(kartu: Kartu[], meta: ExportDocMeta, jenis: 'SAPI
     drawPageHeader(doc, meta, pageWidth);
     doc.setFontSize(11);
     doc.text('Belum ada hewan ber-urut potong untuk dicetak.', pageWidth / 2, 60, { align: 'center' });
-    drawPageFooter(doc, pageWidth, pageHeight);
+    stampFooters(doc, pageWidth, pageHeight);
     return doc.output('arraybuffer');
   }
 
@@ -112,13 +121,10 @@ export function renderKartuPdf(kartu: Kartu[], meta: ExportDocMeta, jenis: 'SAPI
     const x = spec.marginX + col * (cellW + spec.gutter);
     const y = spec.marginTop + row * (spec.cellH + spec.gutter);
     drawKartu(doc, k, x, y, cellW, spec.cellH);
-
-    // Footer setelah kartu terakhir di halaman / kartu terakhir total.
-    const lastOnPage = posInPage === perPage - 1;
-    const lastOverall = idx === kartu.length - 1;
-    if (lastOnPage || lastOverall) drawPageFooter(doc, pageWidth, pageHeight);
   });
 
+  // Pass kedua: footer dengan total halaman yang benar.
+  stampFooters(doc, pageWidth, pageHeight);
   return doc.output('arraybuffer');
 }
 
@@ -178,7 +184,7 @@ export function renderLabelPdf(labels: LabelItem[], meta: ExportDocMeta): ArrayB
     drawPageHeader(doc, meta, pageWidth);
     doc.setFontSize(11);
     doc.text('Belum ada peserta untuk dicetak label.', pageWidth / 2, 60, { align: 'center' });
-    drawPageFooter(doc, pageWidth, pageHeight);
+    stampFooters(doc, pageWidth, pageHeight);
     return doc.output('arraybuffer');
   }
 
@@ -193,12 +199,10 @@ export function renderLabelPdf(labels: LabelItem[], meta: ExportDocMeta): ArrayB
     const x = marginX + col * (cellW + gutter);
     const y = marginTop + row * (cellH + gutter);
     drawLabel(doc, lab, x, y, cellW, cellH);
-
-    if (posInPage === perPage - 1 || idx === labels.length - 1) {
-      drawPageFooter(doc, pageWidth, pageHeight);
-    }
   });
 
+  // Pass kedua: footer dengan total halaman yang benar.
+  stampFooters(doc, pageWidth, pageHeight);
   return doc.output('arraybuffer');
 }
 
