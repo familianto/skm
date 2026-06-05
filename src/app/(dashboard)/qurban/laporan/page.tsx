@@ -4,22 +4,20 @@ import { getSessionFromCookieStore } from '@/lib/api/auth';
 import { getEdisiContext } from '@/lib/qurban/edisi-context';
 import { PageTitle } from '@/components/layout/page-title';
 import { Card, CardTitle } from '@/components/ui/card';
-import { DashboardQurban } from '@/components/qurban/DashboardQurban';
+import { LaporanQurban } from '@/components/qurban/LaporanQurban';
 
 /**
- * F8 Milestone A — Dashboard Qurban (`/qurban`).
+ * F8 Milestone B — Laporan Qurban (`/qurban/laporan`), shell bertab.
  *
- * Server resolve edisi terpilih via edisi-context (selektor edisi sendiri
- * dirender oleh `./layout.tsx`), lalu serahkan `edisiId` ke client
- * `DashboardQurban` yang mengkonsumsi LP5
- * (`GET /api/qurban/laporan/dashboard`). Empty-state "belum ada edisi"
- * dipertahankan agar panitia tak pernah jatuh ke 404.
+ * Server resolve edisi terpilih via edisi-context (selektor edisi dirender oleh
+ * `../layout.tsx`), lalu serahkan `edisiId` ke client `LaporanQurban`. Tab:
+ * Peserta (penuh, LP1) · Hewan · Keuangan (placeholder, Milestone C/D).
+ * Distribusi TIDAK ditampilkan. Empty-state "belum ada edisi" dipertahankan.
  *
- * Page-level access sudah di-gate middleware allow-list (`/qurban` untuk lima
- * peran). Sadar-arsip (badge "Arsip", label "Aktif", placeholder F7) di-handle
- * di komponen client.
+ * Access di-gate middleware (`path-rules.ts`, pola `laporan`) untuk kelima
+ * peran.
  */
-export default async function QurbanDashboardPage({
+export default async function LaporanQurbanPage({
   searchParams,
 }: {
   searchParams: Promise<{ edisi?: string }>;
@@ -36,17 +34,16 @@ export default async function QurbanDashboardPage({
 
   return (
     <div>
-      <PageTitle title="Modul Qurban" subtitle="Ringkasan edisi terpilih" />
+      <PageTitle title="Laporan Qurban" subtitle="Ringkasan & rekap per edisi" />
 
       {edisi ? (
-        <DashboardQurban edisiId={edisi.id} />
+        <LaporanQurban edisiId={edisi.id} />
       ) : (
         <Card>
           <CardTitle>Belum ada edisi Qurban</CardTitle>
           <p className="mt-2 text-sm text-gray-600">
-            Mulai dengan membuat edisi baru untuk tahun hijriah berikutnya.
-            Setiap edisi mengelola peserta, hewan, dan distribusi secara
-            terpisah.
+            Laporan dihitung per edisi. Buat atau aktifkan sebuah edisi terlebih
+            dahulu untuk melihat laporan.
           </p>
           <Link
             href="/qurban/edisi"
