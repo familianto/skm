@@ -79,7 +79,10 @@ export function buildSummaryExecutive(d: DashboardDTO): SummaryDoc {
 
 /** Rekap Bagian → tabel No·Bagian·Jumlah + catatan kaki. */
 export function buildSummaryRekapBagian(r: RekapBagianResult, jenisLabel?: string): SummaryDoc {
-  const rows: SummaryCell[][] = r.rows.map((row) => [t(row.no), t(row.nama), t(row.jumlah)]);
+  const rows: SummaryCell[][] =
+    r.rows.length > 0
+      ? r.rows.map((row) => [t(row.no), t(row.nama), t(row.jumlah)])
+      : [[t(''), t('Belum ada permintaan bagian'), t('')]];
   rows.push([t(''), t('Total Permintaan', { bold: true }), t(r.total_permintaan, { bold: true })]);
 
   const catatan: SummaryCell[][] = [

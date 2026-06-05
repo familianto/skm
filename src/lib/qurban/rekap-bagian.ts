@@ -160,6 +160,8 @@ export function buildRekapBagian(input: BuildInput): RekapBagianResult {
 
   const rows: RekapBagianRow[] = [...counts.entries()]
     .map(([nama, jumlah]) => ({ nama, jumlah }))
+    // F8-G: sembunyikan bagian ber-jumlah 0; "No" di-renumber rapat.
+    .filter((r) => r.jumlah > 0)
     .sort((a, b) => (b.jumlah !== a.jumlah ? b.jumlah - a.jumlah : a.nama < b.nama ? -1 : 1))
     .map((r, i) => ({ no: i + 1, nama: r.nama, jumlah: r.jumlah }));
 

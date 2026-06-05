@@ -105,9 +105,9 @@ test('LP6: tanpa sesi → 401', async () => {
   assert.equal(res.status, 401);
 });
 
-test('LP6: shape Kartu/Label (di luar tabel|rekap) → 400', async () => {
+test('LP6: shape tak dikenal (di luar tabel|rekap|kartu|label) → 400', async () => {
   installMockSheets(archiveDb());
-  const res = await POST(await makeReq(PERAN.ADMIN_QURBAN, { shape: 'kartu', columns: ['kode_peserta'], format: 'pdf' }));
+  const res = await POST(await makeReq(PERAN.ADMIN_QURBAN, { shape: 'poster', columns: ['kode_peserta'], format: 'pdf' }));
   assert.equal(res.status, 400);
 });
 
