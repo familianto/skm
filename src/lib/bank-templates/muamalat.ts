@@ -170,8 +170,43 @@ const masukRules: PatternRule[] = [
   },
 ];
 
+/**
+ * Rule "Biaya Admin Bank" untuk biaya/charge transfer bank.
+ *
+ * Cocok bila keterangan mengandung kata utuh `CHARGE` (case-insensitive)
+ * DAN nominal tepat Rp2.500 atau Rp6.500. Karena predikat ini hanya dipakai
+ * di `keluarRules`, syarat jenis = KELUAR otomatis terpenuhi (lihat
+ * `categorize()` yang memilih array rule berdasar debit/kredit).
+ *
+ * Whole-word `\bCHARGE\b` dipakai (BUKAN "TRF CHARGE") karena posisi kata
+ * CHARGE bervariasi di data produksi: "DBT TRF CHARGE", "CHARGE DBT TRF",
+ * "BNF CHARGE", "VA CHARGE". Pakai "TRF CHARGE" akan melewatkan ~34% baris.
+ * Sudah dicek: tidak ada kata lain seperti "SURCHARGE" di data, jadi aman.
+ *
+ * Triple-AND (KELUAR + \bCHARGE\b + nominal∈{2500,6500}) sangat spesifik:
+ * pada 418 baris produksi cocok tepat 53 baris (0 false positive/negative),
+ * sehingga aman diberi prioritas tertinggi di `keluarRules`.
+ */
+export function matchesBiayaAdminBankCharge(
+  keterangan: string,
+  jumlah: number
+): boolean {
+  return /\bCHARGE\b/i.test(keterangan) && (jumlah === 2500 || jumlah === 6500);
+}
+
 // --- KELUAR (Debit) rules ---
 const keluarRules: PatternRule[] = [
+  // ----- Biaya Admin Bank (CHARGE) — PRIORITAS TERTINGGI ⚠️ -----
+  // HARUS dievaluasi paling dulu & short-circuit. Dari 53 baris CHARGE di
+  // produksi: 21 juga mengandung "QURBAN", 8 "HONOR", 3 "LISTRIK". Tanpa
+  // prioritas ini, biaya admin bank bisa salah-kategori ke Qurban/Honor/
+  // Listrik karena rule-rule itu berada di bawah & first-match-wins.
+  {
+    match: (k, j) => matchesBiayaAdminBankCharge(k, j),
+    kategoriName: 'Biaya Admin Bank',
+    status: 'auto',
+  },
+
   // ----- Qurban -----
   // Keyword QRB / QURBAN / KURBAN di keterangan KELUAR → default
   // Qurban Pembelian Hewan. User override ke Operasional / Biaya Jasa
@@ -402,12 +437,14 @@ const keluarRules: PatternRule[] = [
     status: 'auto',
   },
 
-  // ----- Bank transfer charges (always Biaya Admin Bank) -----
+  // ----- BiFast micro-charge fallback (Rp2.500 tanpa kata "CHARGE") -----
+  // Dipertahankan dari rule lama. Charge yang mengandung kata "CHARGE" sudah
+  // ditangani rule prioritas-tertinggi "Biaya Admin Bank" di atas (yang juga
+  // meng-gate nominal ∈ {2500, 6500}); branch lama yang mencocokkan string
+  // "DBT TRF CHARGE …" tanpa cek nominal sengaja dihapus agar transfer ber-
+  // CHARGE bernilai selain 2.500/6.500 tidak ikut ter-auto-kategori.
   {
-    match: (k, j) =>
-      /DBT TRF CHARGE BERSAMA|CHARGE DBT TRF BIFAST|DBT TRF CHARGE PRIMA|DBT TRF CHARGE/i.test(
-        k
-      ) || (/BIFAST/i.test(k) && j === 2500),
+    match: (k, j) => /BIFAST/i.test(k) && j === 2500,
     kategoriName: 'Biaya Admin Bank',
     status: 'auto',
   },
