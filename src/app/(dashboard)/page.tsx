@@ -1,14 +1,30 @@
 'use client';
 
 import { useState } from 'react';
+import dynamic from 'next/dynamic';
 import { Card, CardTitle } from '@/components/ui/card';
 import { PageTitle } from '@/components/layout/page-title';
 import { SummaryCard } from '@/components/ui/summary-card';
-import { MonthlyTrendChart } from '@/components/charts/monthly-trend';
-import { CategoryBreakdownChart } from '@/components/charts/category-breakdown';
-import { YearlyTrendChart } from '@/components/charts/yearly-trend';
-import { CategoryBarChart } from '@/components/charts/category-bar';
 import { Loading } from '@/components/ui/loading';
+
+// Lazy-load chart components to reduce initial bundle size.
+// These pull in recharts (~200 KB gzipped) — only loaded when visible.
+const MonthlyTrendChart = dynamic(
+  () => import('@/components/charts/monthly-trend').then((m) => ({ default: m.MonthlyTrendChart })),
+  { loading: () => <Loading className="h-64" />, ssr: false },
+);
+const CategoryBreakdownChart = dynamic(
+  () => import('@/components/charts/category-breakdown').then((m) => ({ default: m.CategoryBreakdownChart })),
+  { loading: () => <Loading className="h-64" />, ssr: false },
+);
+const YearlyTrendChart = dynamic(
+  () => import('@/components/charts/yearly-trend').then((m) => ({ default: m.YearlyTrendChart })),
+  { loading: () => <Loading className="h-64" />, ssr: false },
+);
+const CategoryBarChart = dynamic(
+  () => import('@/components/charts/category-bar').then((m) => ({ default: m.CategoryBarChart })),
+  { loading: () => <Loading className="h-64" />, ssr: false },
+);
 import { useDashboardSummary, useChartData, useCumulativeDashboard } from '@/hooks/use-dashboard';
 import { useKelompokSummary } from '@/hooks/use-kelompok';
 import { useTransaksi } from '@/hooks/use-transaksi';
