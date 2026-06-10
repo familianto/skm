@@ -2,6 +2,7 @@ import { sheetsService } from './google-sheets';
 import { SHEET_NAMES, ID_PREFIXES } from './constants';
 import { AuditAksi } from '@/types';
 import { nowISO } from './utils';
+import { logger } from './logger';
 
 /**
  * Append an audit log entry to the audit_log sheet.
@@ -44,6 +45,6 @@ export async function logAudit(
     ]);
   } catch (error) {
     // Audit logging should not break the main operation
-    console.error('Failed to write audit log:', error);
+    logger.error({ message: 'Failed to write audit log', error: String(error), entitas, entitasId, aksi });
   }
 }
