@@ -2,6 +2,32 @@ import { z } from 'zod';
 import { TransaksiJenis, UserPeran, DonaturKelompok, ReminderTipe } from '@/types';
 
 // ============================================================
+// Input Sanitization: strip HTML/SVG/math tags to prevent XSS
+// ============================================================
+
+/** Remove HTML tags and common XSS vectors from user-supplied strings. */
+function sanitizeText(input: string): string {
+  return input
+    .replace(/<[^>]*>/g, '')           // strip all HTML tags
+    .replace(/javascript\s*:/gi, '')   // strip javascript: protocol
+    .replace(/on\w+\s*=/gi, '')        // strip event handler attributes
+    .trim();
+}
+
+/**
+ * Zod-safe string transform that strips XSS vectors from output.
+ * Apply as the last method in a z.string() chain.
+ *
+ *   nama: z.string().min(1).max(100).transform(sanitizeText)
+ *
+ * For optional fields, wrap in a null-safe transform:
+ *
+ *   deskripsi: z.string().max(255).optional().transform(
+ *     (v) => v == null ? undefined : sanitizeText(v)
+ *   )
+ */
+
+// ============================================================
 // Auth
 // ============================================================
 
@@ -14,15 +40,15 @@ export const loginSchema = z.object({
 // ============================================================
 
 export const kategoriCreateSchema = z.object({
-  nama: z.string().min(1, 'Nama kategori wajib diisi').max(100),
+  nama: z.string().min(1, 'Nama kategori wajib diisi').max(100).transform(sanitizeText),
   jenis: z.nativeEnum(TransaksiJenis, { error: 'Jenis harus MASUK atau KELUAR' }),
-  deskripsi: z.string().max(255).default(''),
+  deskripsi: z.string().max(255).default('').transform(sanitizeText),
 });
 
 export const kategoriUpdateSchema = z.object({
-  nama: z.string().min(1, 'Nama kategori wajib diisi').max(100).optional(),
+  nama: z.string().min(1, 'Nama kategori wajib diisi').max(100).optional().transform((v) => v == null ? undefined : sanitizeText(v)),
   jenis: z.nativeEnum(TransaksiJenis).optional(),
-  deskripsi: z.string().max(255).optional(),
+  deskripsi: z.string().max(255).optional().transform((v) => v == null ? undefined : sanitizeText(v)),
   is_active: z.boolean().optional(),
 });
 
@@ -31,16 +57,16 @@ export const kategoriUpdateSchema = z.object({
 // ============================================================
 
 export const rekeningCreateSchema = z.object({
-  nama_bank: z.string().min(1, 'Nama bank wajib diisi').max(100),
-  nomor_rekening: z.string().min(1, 'Nomor rekening wajib diisi').max(50),
-  atas_nama: z.string().min(1, 'Atas nama wajib diisi').max(100),
+  nama_bank: z.string().min(1, 'Nama bank wajib diisi').max(100).transform(sanitizeText),
+  nomor_rekening: z.string().min(1, 'Nomor rekening wajib diisi').max(50).transform(sanitizeText),
+  atas_nama: z.string().min(1, 'Atas nama wajib diisi').max(100).transform(sanitizeText),
   saldo_awal: z.number().int('Saldo harus bilangan bulat').min(0, 'Saldo tidak boleh negatif'),
 });
 
 export const rekeningUpdateSchema = z.object({
-  nama_bank: z.string().min(1).max(100).optional(),
-  nomor_rekening: z.string().min(1).max(50).optional(),
-  atas_nama: z.string().min(1).max(100).optional(),
+  nama_bank: z.string().min(1).max(100).optional().transform((v) => v == null ? undefined : sanitizeText(v)),
+  nomor_rekening: z.string().min(1).max(50).optional().transform((v) => v == null ? undefined : sanitizeText(v)),
+  atas_nama: z.string().min(1).max(100).optional().transform((v) => v == null ? undefined : sanitizeText(v)),
   saldo_awal: z.number().int().min(0).optional(),
   is_active: z.boolean().optional(),
 });
@@ -50,14 +76,14 @@ export const rekeningUpdateSchema = z.object({
 // ============================================================
 
 export const anggotaCreateSchema = z.object({
-  nama: z.string().min(1, 'Nama wajib diisi').max(100),
+  nama: z.string().min(1, 'Nama wajib diisi').max(100).transform(sanitizeText),
   telepon: z.string().max(20).default(''),
   email: z.string().email('Email tidak valid').or(z.literal('')).default(''),
   peran: z.nativeEnum(UserPeran, { error: 'Peran harus BENDAHARA, PENGURUS, atau VIEWER' }),
 });
 
 export const anggotaUpdateSchema = z.object({
-  nama: z.string().min(1).max(100).optional(),
+  nama: z.string().min(1).max(100).optional().transform((v) => v == null ? undefined : sanitizeText(v)),
   telepon: z.string().max(20).optional(),
   email: z.string().email().or(z.literal('')).optional(),
   peran: z.nativeEnum(UserPeran).optional(),
@@ -72,14 +98,14 @@ export const transaksiCreateSchema = z.object({
   tanggal: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Tanggal harus format YYYY-MM-DD'),
   jenis: z.nativeEnum(TransaksiJenis, { error: 'Jenis harus MASUK atau KELUAR' }),
   kategori_id: z.string().min(1, 'Kategori wajib dipilih'),
-  deskripsi: z.string().min(1, 'Deskripsi wajib diisi').max(255),
+  deskripsi: z.string().min(1, 'Deskripsi wajib diisi').max(255).transform(sanitizeText),
   jumlah: z.number().int('Jumlah harus bilangan bulat').positive('Jumlah harus lebih dari 0'),
   rekening_id: z.string().min(1, 'Rekening wajib dipilih'),
 });
 
 export const transaksiMutasiCreateSchema = z.object({
   tanggal: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Tanggal harus format YYYY-MM-DD'),
-  deskripsi: z.string().min(1, 'Deskripsi wajib diisi').max(255),
+  deskripsi: z.string().min(1, 'Deskripsi wajib diisi').max(255).transform(sanitizeText),
   jumlah: z.number().int('Jumlah harus bilangan bulat').positive('Jumlah harus lebih dari 0'),
   dari_rekening_id: z.string().min(1, 'Rekening asal wajib dipilih'),
   ke_rekening_id: z.string().min(1, 'Rekening tujuan wajib dipilih'),
@@ -92,7 +118,7 @@ export const transaksiUpdateSchema = z.object({
   tanggal: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Tanggal harus format YYYY-MM-DD').optional(),
   jenis: z.nativeEnum(TransaksiJenis).optional(),
   kategori_id: z.string().min(1).optional(),
-  deskripsi: z.string().min(1).max(255).optional(),
+  deskripsi: z.string().min(1).max(255).optional().transform((v) => v == null ? undefined : sanitizeText(v)),
   jumlah: z.number().int().positive().optional(),
   rekening_id: z.string().min(1).optional(),
 });
@@ -102,21 +128,21 @@ export const transaksiUpdateSchema = z.object({
 // ============================================================
 
 export const donaturCreateSchema = z.object({
-  nama: z.string().min(1, 'Nama donatur wajib diisi').max(100),
+  nama: z.string().min(1, 'Nama donatur wajib diisi').max(100).transform(sanitizeText),
   telepon: z.string().min(1, 'Nomor telepon wajib diisi').max(20).regex(/^[0-9+\-\s]+$/, 'Nomor telepon tidak valid'),
-  alamat: z.string().max(255).default(''),
+  alamat: z.string().max(255).default('').transform(sanitizeText),
   kelompok: z.nativeEnum(DonaturKelompok, { error: 'Kelompok harus TETAP atau INSIDENTAL' }),
   jumlah_komitmen: z.number().int('Jumlah harus bilangan bulat').min(0, 'Jumlah tidak boleh negatif').default(0),
-  catatan: z.string().max(255).default(''),
+  catatan: z.string().max(255).default('').transform(sanitizeText),
 });
 
 export const donaturUpdateSchema = z.object({
-  nama: z.string().min(1).max(100).optional(),
+  nama: z.string().min(1).max(100).optional().transform((v) => v == null ? undefined : sanitizeText(v)),
   telepon: z.string().min(1).max(20).regex(/^[0-9+\-\s]+$/).optional(),
-  alamat: z.string().max(255).optional(),
+  alamat: z.string().max(255).optional().transform((v) => v == null ? undefined : sanitizeText(v)),
   kelompok: z.nativeEnum(DonaturKelompok).optional(),
   jumlah_komitmen: z.number().int().min(0).optional(),
-  catatan: z.string().max(255).optional(),
+  catatan: z.string().max(255).optional().transform((v) => v == null ? undefined : sanitizeText(v)),
   is_active: z.boolean().optional(),
 });
 
@@ -127,13 +153,13 @@ export const donaturUpdateSchema = z.object({
 export const reminderCreateSchema = z.object({
   donatur_id: z.string().min(1, 'Donatur wajib dipilih'),
   tipe: z.nativeEnum(ReminderTipe, { error: 'Tipe reminder tidak valid' }),
-  pesan: z.string().min(1, 'Pesan wajib diisi').max(1000),
+  pesan: z.string().min(1, 'Pesan wajib diisi').max(1000).transform(sanitizeText),
 });
 
 export const reminderBulkSchema = z.object({
   donatur_ids: z.array(z.string().min(1)).min(1, 'Pilih minimal 1 donatur'),
   tipe: z.nativeEnum(ReminderTipe, { error: 'Tipe reminder tidak valid' }),
-  pesan: z.string().min(1, 'Pesan wajib diisi').max(1000),
+  pesan: z.string().min(1, 'Pesan wajib diisi').max(1000).transform(sanitizeText),
 });
 
 // ============================================================
@@ -141,7 +167,7 @@ export const reminderBulkSchema = z.object({
 // ============================================================
 
 export const voidTransaksiSchema = z.object({
-  reason: z.string().min(1, 'Alasan void wajib diisi').max(255),
+  reason: z.string().min(1, 'Alasan void wajib diisi').max(255).transform(sanitizeText),
 });
 
 // ============================================================
@@ -152,7 +178,7 @@ export const koreksiTransaksiSchema = z.object({
   tanggal: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Tanggal harus format YYYY-MM-DD'),
   jenis: z.nativeEnum(TransaksiJenis, { error: 'Jenis harus MASUK atau KELUAR' }),
   kategori_id: z.string().min(1, 'Kategori wajib dipilih'),
-  deskripsi: z.string().min(1, 'Deskripsi wajib diisi').max(255),
+  deskripsi: z.string().min(1, 'Deskripsi wajib diisi').max(255).transform(sanitizeText),
   jumlah: z.number().int('Jumlah harus bilangan bulat').positive('Jumlah harus lebih dari 0'),
   rekening_id: z.string().min(1, 'Rekening wajib dipilih'),
   void_original: z.boolean().default(false),
@@ -166,5 +192,5 @@ export const rekonsiliasiCreateSchema = z.object({
   rekening_id: z.string().min(1, 'Rekening wajib dipilih'),
   tanggal: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Tanggal harus format YYYY-MM-DD'),
   saldo_bank: z.number().int('Saldo harus bilangan bulat').min(0, 'Saldo tidak boleh negatif'),
-  catatan: z.string().max(255).default(''),
+  catatan: z.string().max(255).default('').transform(sanitizeText),
 });

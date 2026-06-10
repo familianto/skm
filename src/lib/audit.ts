@@ -4,14 +4,28 @@ import { AuditAksi } from '@/types';
 import { nowISO } from './utils';
 
 /**
- * Append an audit log entry to the audit_log sheet
+ * Append an audit log entry to the audit_log sheet.
+ *
+ * Columns (order MUST match SHEET_HEADERS['audit_log']):
+ *   id | timestamp | aksi | entitas | entitas_id | detail | user_info |
+ *   user_id | ip_address
+ *
+ * @param aksi       - The action performed (CREATE, UPDATE, DELETE, etc.)
+ * @param entitas    - The entity name (sheet/table name)
+ * @param entitasId  - The ID of the affected entity
+ * @param detail     - Human-readable or JSON detail about the change
+ * @param userId     - The authenticated user ID (from session), or 'System'
+ * @param userInfo   - Human-readable user label (nama/role), for display
+ * @param ipAddress  - Client IP address (from x-forwarded-for header)
  */
 export async function logAudit(
   aksi: AuditAksi,
   entitas: string,
   entitasId: string,
   detail: string,
-  userInfo: string = 'System'
+  userId: string = 'System',
+  userInfo: string = 'System',
+  ipAddress: string = 'unknown'
 ): Promise<void> {
   try {
     const id = await sheetsService.getNextId(ID_PREFIXES.AUDIT_LOG);
@@ -25,6 +39,8 @@ export async function logAudit(
       entitasId,
       detail,
       userInfo,
+      userId,
+      ipAddress,
     ]);
   } catch (error) {
     // Audit logging should not break the main operation

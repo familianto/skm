@@ -182,6 +182,21 @@ export async function middleware(request: NextRequest) {
   response.headers.set('x-user-id', session.user_id);
   response.headers.set('x-user-peran', session.peran);
 
+  // 6b. Inject correlation-ID (UUID) for end-to-end request tracing.
+  //     Route handlers can read this via `request.headers.get('x-correlation-id')`
+  //     and append it to structured logs / audit entries.
+  const correlationId =
+    request.headers.get('x-correlation-id') || crypto.randomUUID();
+  response.headers.set('x-correlation-id', correlationId);
+
+  // 6c. Inject client IP for audit logging. Extract from x-forwarded-for
+  //     (first entry = original client), falling back to x-real-ip.
+  const clientIp =
+    request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
+    request.headers.get('x-real-ip') ||
+    'unknown';
+  response.headers.set('x-client-ip', clientIp);
+
   // 7. Sticky `qurban_edisi` cookie. When a user picks an edisi via the
   //    EditionSwitcher dropdown, the client pushes `?edisi=EDS-…` to the
   //    URL. We persist that choice as a cookie here so subsequent
