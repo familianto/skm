@@ -83,6 +83,52 @@ CLAUDE.md                       # Panduan untuk AI-assisted development
 
 Detail setiap sprint: [`docs/SPRINT_PLAN.md`](docs/SPRINT_PLAN.md)
 
+## Environment Variables
+
+Salin `.env.example` ke `.env.local` dan isi sesuai setup Anda:
+
+| Variable | Wajib | Deskripsi |
+|---|---|---|
+| `SESSION_SECRET` | ✅ | Secret key untuk JWT (min 32 karakter) |
+| `GOOGLE_SHEETS_ID` | ✅ | ID spreadsheet utama Google Sheets |
+| `GOOGLE_SERVICE_ACCOUNT_EMAIL` | ✅ | Email service account Google Cloud |
+| `GOOGLE_PRIVATE_KEY` | ✅ | Private key service account (dengan `\n`) |
+| `FONNTE_API_TOKEN` | ⬜ | Token API WhatsApp Fonnte |
+| `FONNTE_MOCK` | ⬜ | `true` = WhatsApp tidak dikirim sungguhan |
+| `QURBAN_MODULE_ENABLED` | ⬜ | `false` = matikan modul Qurban |
+| `QURBAN_PAYMENT_BANK_NAME` | ⬜ | Nama bank rekening Qurban |
+| `QURBAN_PAYMENT_ACCOUNT_NUMBER` | ⬜ | Nomor rekening Qurban |
+| `QURBAN_PANITIA_HP` | ⬜ | Nomor WA panitia (format 628xx) |
+| `NEXT_PUBLIC_MASJID_NAME` | ⬜ | Nama masjid fallback untuk laporan |
+
+> Lihat `.env.example` untuk daftar lengkap dan nilai default.
+
+## Security
+
+SKM menerapkan beberapa lapis keamanan:
+
+- **CSP (Content Security Policy)** — Mencegah XSS dan injection
+- **HTTP-only cookies** — Session token tidak bisa diakses JavaScript
+- **XSS sanitization** — Semua input text otomatis dibersihkan dari HTML tags
+- **Audit trail** — Setiap perubahan data tercatat dengan user ID dan IP address
+- **Rate limiting** — Proteksi brute-force di endpoint login
+- **Role-based access** — SUPER_ADMIN, ADMIN_QURBAN, PENDAFTARAN, DISTRIBUSI, BENDAHARA, PENGURUS, VIEWER
+
+Jalankan audit keamanan secara berkala:
+```bash
+npm run audit
+```
+
+## Troubleshooting
+
+| Masalah | Solusi |
+|---|---|
+| "SESSION_SECRET is not set" | Pastikan `.env.local` ada dan `SESSION_SECRET` terisi |
+| "Google Sheets API error" | Periksa `GOOGLE_PRIVATE_KEY` — harus mengandung karakter `\n` (bukan newline literal) |
+| WhatsApp tidak terkirim | Set `FONNTE_MOCK=false` dan pastikan token valid |
+| Modul Qurban tidak muncul | Pastikan `QURBAN_MODULE_ENABLED` tidak diset ke `'false'` |
+| Build gagal | Jalankan `npm run type-check` untuk melihat error TypeScript |
+
 ## Untuk Masjid Lain
 
 SKM dapat diadopsi oleh masjid manapun secara **gratis**. Lihat [`docs/ADOPTER_GUIDE.md`](docs/ADOPTER_GUIDE.md) untuk panduan lengkap.
