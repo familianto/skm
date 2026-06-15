@@ -72,7 +72,7 @@ Dari file JSON credentials, catat:
 
 ### 3.3 Buat Sheet Tabs
 
-Buat 7 sheet/tab dengan nama **persis** seperti ini (case-sensitive):
+Buat 10 sheet/tab inti dengan nama **persis** seperti ini (case-sensitive):
 
 1. `master`
 2. `transaksi`
@@ -81,8 +81,25 @@ Buat 7 sheet/tab dengan nama **persis** seperti ini (case-sensitive):
 5. `audit_log`
 6. `anggota`
 7. `rekonsiliasi`
+8. `donatur`
+9. `reminder_log`
+10. `kelompok`
 
 Hapus sheet default "Sheet1" jika ada.
+
+> **Modul Qurban (opsional).** Bila modul Qurban dipakai, ada **9 tab tambahan**
+> (`qurban_edisi`, `qurban_konfigurasi_edisi`, `qurban_panitia`, `qurban_muqorib`,
+> `qurban_master_hewan`, `qurban_daftar_hewan`, `qurban_peserta`,
+> `qurban_pembayaran`, `qurban_bagian_kanonik`) — semuanya berada di **workbook
+> yang sama** (`GOOGLE_SHEETS_ID`), bukan spreadsheet terpisah. Tab ini dibuat
+> via script migrasi Apps Script di `scripts/migrate_*.gs`. Modul diaktifkan/
+> dimatikan dengan env `QURBAN_MODULE_ENABLED`. Daftar kolom lengkap (semua 19
+> tab) ada di `DATABASE_SCHEMA.md`.
+>
+> **Catatan**: jangan keliru dengan env **`GOOGLE_SHEETS_QURBAN_ID`** (lihat
+> bagian "Qurban Public Landing Page" di bawah) — itu workbook LEGACY terpisah
+> yang khusus untuk path baca-saja halaman publik + TV display, bukan tempat
+> data modul Qurban yang terintegrasi.
 
 ### 3.4 Tambah Header
 
@@ -110,12 +127,12 @@ id | nama_bank | nomor_rekening | atas_nama | saldo_awal | is_active | created_a
 
 **Sheet `audit_log`** (Row 1):
 ```
-id | timestamp | aksi | entitas | entitas_id | detail | user_info
+id | timestamp | aksi | entitas | entitas_id | detail | user_info | user_id | ip_address
 ```
 
 **Sheet `anggota`** (Row 1):
 ```
-id | nama | telepon | email | peran | is_active | created_at
+id | nama | telepon | email | peran | is_active | created_at | pin_hash | created_by | updated_at | last_login_at | failed_attempts | locked_until
 ```
 
 **Sheet `rekonsiliasi`** (Row 1):
@@ -123,7 +140,27 @@ id | nama | telepon | email | peran | is_active | created_at
 id | rekening_id | tanggal | saldo_bank | saldo_sistem | selisih | status | catatan | created_at
 ```
 
-> **TIP**: Di Sprint 0, kita akan buat script otomatis untuk setup header dan seed data.
+**Sheet `donatur`** (Row 1):
+```
+id | nama | telepon | alamat | kelompok | jumlah_komitmen | catatan | is_active | created_at | updated_at
+```
+
+**Sheet `reminder_log`** (Row 1):
+```
+id | donatur_id | tanggal_kirim | jenis_reminder | pesan | status_kirim | error_message | created_at
+```
+
+**Sheet `kelompok`** (Row 1):
+```
+id | nama | deskripsi | warna | kategori_masuk | kategori_keluar | created_at | updated_at
+```
+
+> **Header tab Qurban**: untuk 9 tab `qurban_*`, lihat `DATABASE_SCHEMA.md`
+> (sumber otoritatif = `SHEET_HEADERS` di `src/lib/constants.ts`). Tab ini lebih
+> mudah dibuat lewat script migrasi `scripts/migrate_*.gs` daripada manual.
+
+> **TIP**: Header & seed data juga bisa dibuat otomatis lewat `npm run seed`
+> (`scripts/seed.ts`).
 
 ## Langkah 4: Environment Variables
 
@@ -137,31 +174,37 @@ cp .env.example .env.local
 
 ### 4.2 Isi Environment Variables
 
+> **Daftar lengkap & otoritatif ada di `.env.example`** (setiap var di sana
+> benar-benar dibaca kode). Salin lalu isi. SKM memakai login **PIN + JWT**
+> (cookie `skm_session`), **bukan** NextAuth/Google OAuth — jadi tidak ada
+> `GOOGLE_CLIENT_ID/SECRET`, `NEXTAUTH_*`, atau `PIN_SALT`.
+
+Minimal yang **wajib** untuk menjalankan aplikasi:
+
 ```env
-# Google Sheets
+# Google Sheets (database) — satu workbook untuk semua tab (inti + Qurban)
 GOOGLE_SHEETS_ID=your_spreadsheet_id_here
 GOOGLE_SERVICE_ACCOUNT_EMAIL=your-service@your-project.iam.gserviceaccount.com
 GOOGLE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\nYOUR_KEY_HERE\n-----END PRIVATE KEY-----\n"
 
-# Google OAuth
-GOOGLE_CLIENT_ID=your_client_id_here
-GOOGLE_CLIENT_SECRET=your_client_secret_here
-
-# NextAuth
-NEXTAUTH_URL=http://localhost:3000
-NEXTAUTH_SECRET=generate_random_string_32_chars_here
-
-# App Config
-NEXT_PUBLIC_APP_NAME=SKM
-NEXT_PUBLIC_APP_VERSION=2.1
-
-# Auth
-AUTH_SECRET=generate_random_string_32_chars_here
-PIN_SALT=generate_random_string_16_chars_here
-
-# Fonnte WhatsApp API
-FONNTE_API_TOKEN=your_fonnte_api_token_here
+# Auth/Session — penanda-tangan JWT sesi
+# Generate dengan: openssl rand -hex 32
+SESSION_SECRET=generate_random_string_32_chars_here
 ```
+
+Opsional yang umum dipakai (lihat `.env.example` untuk komentar lengkap):
+
+```env
+AUTH_SECRET=                       # fallback bila SESSION_SECRET kosong
+FONNTE_API_TOKEN=                  # WhatsApp; kosong → mode mock
+FONNTE_MOCK=                       # "true" memaksa mode mock
+NEXT_PUBLIC_MASJID_NAME=           # fallback nama masjid utk export
+QURBAN_MODULE_ENABLED=             # "false" mematikan rute Qurban
+QURBAN_LEGACY_LOGIN_ENABLED=       # "true" izinkan login legacy single-PIN
+```
+
+> Variabel khusus halaman publik Qurban + TV (termasuk `GOOGLE_SHEETS_QURBAN_ID`)
+> dijelaskan di bagian "Qurban Public Landing Page" di bawah.
 
 ### 4.3 Catatan Penting untuk `GOOGLE_PRIVATE_KEY`
 
@@ -255,29 +298,40 @@ Halaman publik untuk menampilkan progress Qurban kepada jamaah.
 | `/publik/qurban/tv` | TV display untuk layar masjid (auto-rotate 4 slide, 10 detik) |
 | `/api/publik/qurban` | API endpoint (public, cache 5 menit) |
 
+> **Penting — ini path LEGACY yang terpisah.** Endpoint `/api/publik/qurban`
+> (dipakai landing publik + TV) membaca dari workbook **lain** lewat
+> `GOOGLE_SHEETS_QURBAN_ID`, dengan **3 tab tanpa prefix** (`master_hewan`,
+> `daftar_hewan`, `peserta`). Ini BUKAN data modul Qurban yang terintegrasi
+> (data itu ada di `GOOGLE_SHEETS_ID`, tab `qurban_*`). Kode **tidak punya
+> fallback**: jika landing/TV diakses sementara `GOOGLE_SHEETS_QURBAN_ID` belum
+> di-set, request akan error. Jika kamu tidak memakai landing/TV publik ini,
+> biarkan var-nya kosong. (Lihat Divergensi di deskripsi PR B1 — owner menyatakan
+> sistem kini satu workbook; path publik legacy ini ditandai untuk keputusan
+> manusia.)
+
 ### Environment Variables
 
-Tambahkan ke `.env.local`:
+Tambahkan ke `.env.local` (placeholder — isi nilai aslimu):
 
 ```env
-# Google Sheets Qurban (spreadsheet terpisah dari SKM utama)
-GOOGLE_SHEETS_QURBAN_ID=10tUkEXJlP3ulvaZ798pBq95nLdHrLm5BlYuDFmCLHFU
+# Workbook LEGACY terpisah untuk landing/TV publik (lihat catatan di atas)
+GOOGLE_SHEETS_QURBAN_ID=your_legacy_qurban_spreadsheet_id_here
 
 # Payment info (ditampilkan di landing page & WA share text)
 QURBAN_PAYMENT_BANK_NAME=BSI
-QURBAN_PAYMENT_ACCOUNT_NUMBER=7171234567
-QURBAN_PAYMENT_ACCOUNT_HOLDER=Masjid Al Jabar Jatinegara Baru
-QURBAN_PANITIA_HP=0821-xxxx-xxxx
+QURBAN_PAYMENT_ACCOUNT_NUMBER=your_account_number
+QURBAN_PAYMENT_ACCOUNT_HOLDER=Nama Pemilik Rekening
+QURBAN_PANITIA_HP=08xx-xxxx-xxxx
 ```
 
-### Google Sheets Qurban Structure
+### Google Sheets Qurban Structure (workbook legacy)
 
-Spreadsheet terpisah dengan 3 sheets:
+Workbook legacy terpisah dengan 3 sheets:
 - `master_hewan` — Master data harga per jenis & kelas hewan
 - `daftar_hewan` — List hewan yang ter-register untuk Qurban tahun ini
 - `peserta` — Daftar muqorib yang sudah booking slot
 
-Service account yang sama dengan SKM utama harus di-share ke spreadsheet Qurban ini (Viewer access cukup).
+Service account yang sama dengan SKM utama harus di-share ke workbook legacy ini (Viewer access cukup).
 
 ### Fitur
 

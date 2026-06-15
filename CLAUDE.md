@@ -38,16 +38,16 @@ Update baris ini setiap kali sprint berganti.
 
 | Komponen | Teknologi |
 |---|---|
-| Frontend | Next.js 14+ (App Router) + TypeScript |
-| Styling | Tailwind CSS |
+| Frontend | Next.js 16 (App Router) + React 19 + TypeScript |
+| Styling | Tailwind CSS v4 |
 | Backend/API | Next.js API Route Handlers |
 | Database | Google Sheets API v4 (Google Sheets sebagai DB) |
 | File Storage | Base64 Data URL di Google Sheets (logo & bukti) |
-| Auth | PIN-based (hash disimpan di sheet `master`) |
-| Charts | Chart.js / Recharts |
+| Auth | PIN-based (bcryptjs) + JWT sesi (jose) di cookie `skm_session`; bukan NextAuth |
+| Charts | Recharts |
 | State | React Context + SWR |
 | Hosting | Vercel |
-| Testing | Jest |
+| Testing | Node test runner (`tsx --test`) — `npm test`; bukan Jest |
 | CI/CD | GitHub Actions |
 
 ## Architecture Rule
@@ -67,7 +67,8 @@ Browser → Next.js (Vercel) → API Routes → Google Sheets API → Google She
 - **ID format**: `PREFIX-YYYYMMDD-XXXX` (auto-generated). Contoh: `TRX-20260323-0001`
 - **Transaction types**: `MASUK` (pemasukan) dan `KELUAR` (pengeluaran)
 - **Transaction status**: `AKTIF`, `VOID`
-- **User roles**: `BENDAHARA`, `PENGURUS`, `VIEWER`
+- **User roles** (`UserPeran`, 7 nilai): `SUPER_ADMIN`, `BENDAHARA`, `ADMIN_QURBAN`, `PENDAFTARAN`, `DISTRIBUSI` (F01 multi-user) + `PENGURUS`, `VIEWER` (legacy, backward-compat). Role-guard di `src/middleware.ts`.
+- **Auth**: login PIN (hash bcrypt) → sesi JWT (`jose`) di cookie httpOnly `skm_session`; secret `SESSION_SECRET` (utama) / `AUTH_SECRET` (fallback). Lockout via `failed_attempts`/`locked_until` di sheet `anggota`.
 - **Sheet row 1**: Selalu header, data mulai dari row 2
 - **API response format**: `{ success: boolean, data?: T, error?: string }`
 
@@ -115,30 +116,30 @@ hooks/
 
 ## Environment Variables
 
+> **Sumber kebenaran daftar env var = `.env.example`** (setiap var di sana
+> benar-benar dibaca kode). Tidak ada NextAuth/Google OAuth/`PIN_SALT`.
+
 ```env
-# Google Sheets
-GOOGLE_SHEETS_ID=               # ID spreadsheet dari URL
+# Wajib
+GOOGLE_SHEETS_ID=               # ID spreadsheet utama (10 sheet inti + 9 tab Qurban, satu workbook)
 GOOGLE_SERVICE_ACCOUNT_EMAIL=   # Email service account
-GOOGLE_PRIVATE_KEY=             # Private key dari credentials JSON
+GOOGLE_PRIVATE_KEY=             # Private key dari credentials JSON (\n di-escape)
+SESSION_SECRET=                 # Secret penanda-tangan JWT sesi (cookie skm_session)
 
-# Google OAuth
-GOOGLE_CLIENT_ID=               # Client ID dari Google Cloud Console
-GOOGLE_CLIENT_SECRET=           # Client Secret dari Google Cloud Console
-
-# NextAuth
-NEXTAUTH_URL=                   # URL aplikasi (http://localhost:3000 untuk dev)
-NEXTAUTH_SECRET=                # Secret untuk NextAuth session
-
-# App
-NEXT_PUBLIC_APP_NAME=SKM
-NEXT_PUBLIC_APP_VERSION=2.1
-
-# Auth
-AUTH_SECRET=                    # Secret untuk session/cookie encryption
-PIN_SALT=                       # Salt untuk hashing PIN
-
-# Fonnte WhatsApp API
-FONNTE_API_TOKEN=               # Token API dari fonnte.com
+# Opsional
+AUTH_SECRET=                    # Fallback secret bila SESSION_SECRET kosong
+FONNTE_API_TOKEN=               # Token Fonnte; kosong → mode mock
+FONNTE_MOCK=                    # "true" memaksa mode mock WA
+NEXT_PUBLIC_MASJID_NAME=        # Fallback nama masjid utk export
+QURBAN_MODULE_ENABLED=          # "false" mematikan rute Qurban (kill-switch)
+QURBAN_LEGACY_LOGIN_ENABLED=    # "true" izinkan login legacy single-PIN
+QURBAN_PANITIA_HP=              # Nomor panitia di landing publik
+QURBAN_PAYMENT_BANK_NAME=       # Info rekening landing publik
+QURBAN_PAYMENT_ACCOUNT_NUMBER=
+QURBAN_PAYMENT_ACCOUNT_HOLDER=
+GOOGLE_SHEETS_QURBAN_ID=        # LEGACY: workbook terpisah utk path baca publik/TV (/api/publik/qurban) saja
+DARI_REKENING_ID=               # Hanya utk script migrasi mutasi
+KE_REKENING_ID=                 # Hanya utk script migrasi mutasi
 ```
 
 ## Common Pitfalls
@@ -164,7 +165,7 @@ FONNTE_API_TOKEN=               # Token API dari fonnte.com
 |---|---|---|
 | Project Brief | `docs/PROJECT_BRIEF.md` | Referensi utama proyek |
 | Architecture | `docs/ARCHITECTURE.md` | Arsitektur sistem & data flow |
-| Database Schema | `docs/DATABASE_SCHEMA.md` | **KRITIS** — Schema semua Google Sheets |
+| Database Schema | `docs/DATABASE_SCHEMA.md` | **KRITIS** — Schema 19 tab (10 inti + 9 Qurban) dalam SATU workbook. Sheet baru WAJIB didaftarkan di `SHEET_HEADERS` (`src/lib/constants.ts`). |
 | API Reference | `docs/API_REFERENCE.md` | Semua API routes & kontrak |
 | Setup Guide | `docs/SETUP_GUIDE.md` | Panduan setup development |
 | Sprint Plan | `docs/SPRINT_PLAN.md` | Overview sprint & dependensi |
