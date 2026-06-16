@@ -11,10 +11,12 @@ Karena Google Sheets tidak punya enforced schema, dokumen ini ADALAH schema-nya.
   yang sama (di-resolve via env `GOOGLE_SHEETS_ID`). Pengelompokan "Inti" (10)
   dan "Qurban" (9) di bawah hanyalah pengelompokan **logis**, bukan dua
   spreadsheet fisik.
-  > Pengecualian legacy: endpoint baca-saja `/api/publik/qurban` (landing +
-  > TV) membaca workbook **terpisah** via `GOOGLE_SHEETS_QURBAN_ID` (3 tab tanpa
-  > prefix: `master_hewan`, `daftar_hewan`, `peserta`). Itu jalur publik legacy,
-  > terpisah dari 19 tab terintegrasi di sini.
+  > **Arsip 1447H.** Dulu ada workbook **terpisah** untuk landing/TV publik
+  > Qurban 1447H (via env legacy khusus, 3 tab tanpa prefix:
+  > `master_hewan`/`daftar_hewan`/`peserta`). Jalur kode itu kini
+  > **di-decommission** dan env-nya dipensiunkan; datanya sudah diarsipkan ke
+  > tab `qurban_*` di workbook utama (Sprint F9). Google Sheet lama tetap
+  > disimpan di Drive sebagai backup — tidak lagi dibaca kode mana pun.
 - **Sumber kebenaran kolom** = `SHEET_HEADERS` di `src/lib/constants.ts` (urutan
   kolom = urutan posisi A, B, C, …). Untuk tab Qurban, definisi kolom otoritatif
   juga ada di script migrasi `scripts/migrate_*.gs`.

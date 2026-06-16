@@ -1,9 +1,9 @@
 /**
  * Qurban sheet names per F02 migration (`migrate_F02` Apps Script).
  *
- * These three sheets live in the main SKM spreadsheet (resolved via
- * `GOOGLE_SHEETS_ID`), NOT in the legacy `GOOGLE_SHEETS_QURBAN_ID` workbook
- * used by `lib/qurban-sheets.ts` (publik/TV display read-only path).
+ * All Qurban tabs live in the main SKM spreadsheet (resolved via
+ * `GOOGLE_SHEETS_ID`). The separate legacy 1447H public/TV workbook and its
+ * read-only reader were decommissioned.
  */
 export const QURBAN_SHEETS = {
   EDISI: 'qurban_edisi',

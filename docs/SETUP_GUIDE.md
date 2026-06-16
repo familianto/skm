@@ -95,11 +95,6 @@ Hapus sheet default "Sheet1" jika ada.
 > via script migrasi Apps Script di `scripts/migrate_*.gs`. Modul diaktifkan/
 > dimatikan dengan env `QURBAN_MODULE_ENABLED`. Daftar kolom lengkap (semua 19
 > tab) ada di `DATABASE_SCHEMA.md`.
->
-> **Catatan**: jangan keliru dengan env **`GOOGLE_SHEETS_QURBAN_ID`** (lihat
-> bagian "Qurban Public Landing Page" di bawah) — itu workbook LEGACY terpisah
-> yang khusus untuk path baca-saja halaman publik + TV display, bukan tempat
-> data modul Qurban yang terintegrasi.
 
 ### 3.4 Tambah Header
 
@@ -203,9 +198,6 @@ QURBAN_MODULE_ENABLED=             # "false" mematikan rute Qurban
 QURBAN_LEGACY_LOGIN_ENABLED=       # "true" izinkan login legacy single-PIN
 ```
 
-> Variabel khusus halaman publik Qurban + TV (termasuk `GOOGLE_SHEETS_QURBAN_ID`)
-> dijelaskan di bagian "Qurban Public Landing Page" di bawah.
-
 ### 4.3 Catatan Penting untuk `GOOGLE_PRIVATE_KEY`
 
 Private key dari file JSON credentials perlu di-handle dengan benar:
@@ -286,61 +278,19 @@ Setiap push ke branch `main` akan auto-deploy.
 
 ---
 
-## Qurban Public Landing Page
+## Halaman Publik Qurban 1447H — DECOMMISSIONED
 
-Halaman publik untuk menampilkan progress Qurban kepada jamaah.
+Landing publik & TV display Qurban **1447H** (`/publik/qurban`, `/publik/qurban/tv`,
+API `/api/publik/qurban`) **sudah dihapus**. Jalur ini dulu membaca **workbook
+Qurban terpisah** lewat env legacy khusus yang kini **dipensiunkan** — sudah tidak
+dibaca kode mana pun.
 
-### Routes
+Data Qurban 1447H sudah diarsipkan ke modul terintegrasi (Sprint F9); Google Sheet
+lama tetap disimpan di Google Drive sebagai backup (tidak dihapus). Halaman publik
+TV yang **live** sekarang hanyalah **`/publik`** (laporan keuangan), yang membaca
+workbook utama (`GOOGLE_SHEETS_ID`).
 
-| Route | Deskripsi |
-|---|---|
-| `/publik/qurban` | Mobile/Desktop view untuk jamaah |
-| `/publik/qurban/tv` | TV display untuk layar masjid (auto-rotate 4 slide, 10 detik) |
-| `/api/publik/qurban` | API endpoint (public, cache 5 menit) |
-
-> **Penting — ini path LEGACY yang terpisah.** Endpoint `/api/publik/qurban`
-> (dipakai landing publik + TV) membaca dari workbook **lain** lewat
-> `GOOGLE_SHEETS_QURBAN_ID`, dengan **3 tab tanpa prefix** (`master_hewan`,
-> `daftar_hewan`, `peserta`). Ini BUKAN data modul Qurban yang terintegrasi
-> (data itu ada di `GOOGLE_SHEETS_ID`, tab `qurban_*`). Kode **tidak punya
-> fallback**: jika landing/TV diakses sementara `GOOGLE_SHEETS_QURBAN_ID` belum
-> di-set, request akan error. Jika kamu tidak memakai landing/TV publik ini,
-> biarkan var-nya kosong. (Lihat Divergensi di deskripsi PR B1 — owner menyatakan
-> sistem kini satu workbook; path publik legacy ini ditandai untuk keputusan
-> manusia.)
-
-### Environment Variables
-
-Tambahkan ke `.env.local` (placeholder — isi nilai aslimu):
-
-```env
-# Workbook LEGACY terpisah untuk landing/TV publik (lihat catatan di atas)
-GOOGLE_SHEETS_QURBAN_ID=your_legacy_qurban_spreadsheet_id_here
-
-# Payment info (ditampilkan di landing page & WA share text)
-QURBAN_PAYMENT_BANK_NAME=BSI
-QURBAN_PAYMENT_ACCOUNT_NUMBER=your_account_number
-QURBAN_PAYMENT_ACCOUNT_HOLDER=Nama Pemilik Rekening
-QURBAN_PANITIA_HP=08xx-xxxx-xxxx
-```
-
-### Google Sheets Qurban Structure (workbook legacy)
-
-Workbook legacy terpisah dengan 3 sheets:
-- `master_hewan` — Master data harga per jenis & kelas hewan
-- `daftar_hewan` — List hewan yang ter-register untuk Qurban tahun ini
-- `peserta` — Daftar muqorib yang sudah booking slot
-
-Service account yang sama dengan SKM utama harus di-share ke workbook legacy ini (Viewer access cukup).
-
-### Fitur
-
-- Summary card (total sapi/kambing, muqorib, status bayar)
-- Search peserta by name
-- Tab filter: Semua / Sapi / Kambing / Penitipan
-- Card per hewan dengan slot list dan status bayar
-- Payment info card (rekening bank + keyword transfer)
-- Share ke WA (pre-formatted text) + Copy Link
-- TV mode: auto-rotate 4 slides (Ringkasan, Top Sapi, Top Kambing, Penitipan)
-- Auto-refresh data setiap 5 menit
-- `noindex` meta tag (tidak muncul di Google search)
+> Bila edisi berikutnya (mis. 1448H) butuh landing/TV publik Qurban lagi, halaman
+> itu akan **dibangun ulang di atas modul terintegrasi** (tab `qurban_*` di workbook
+> utama), bukan menghidupkan jalur legacy ini. Env `QURBAN_PAYMENT_*` &
+> `QURBAN_PANITIA_HP` dipertahankan di `.env.example` untuk keperluan rebuild itu.

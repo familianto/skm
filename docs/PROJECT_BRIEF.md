@@ -794,22 +794,11 @@ Fitur-fitur berikut **tidak termasuk** dalam scope v2.1, tapi bisa ditambahkan d
 
 ## Display Layer Conventions
 
-### Tipe Qurban / Pengadaan Display Mapping
+### Tipe Qurban / Pengadaan Display Mapping — DECOMMISSIONED
 
-Master data di GSheet menggunakan istilah legacy:
-- `peserta.tipe_qurban`: `'Beli'` atau `'Penitipan'`
-- `daftar_hewan.pengadaan`: `'Via Panitia'`, `'Penitipan'`, atau `'Bawa Sendiri'`
-
-Untuk display ke user di public-facing pages, istilah `'Penitipan'` di-translate jadi `'Bawa Sendiri'`. Translasi disentral di:
-- **Helper**: `src/lib/qurban-display.ts` → `displayTipeQurban(raw)`
-- **Konstanta**: `LABEL_BAWA_SENDIRI = 'Bawa Sendiri'`, `LABEL_BELI = 'Beli'`
-
-| Layer | Pakai apa? |
-|---|---|
-| Logic comparison (`if`, `filter`, etc.) | `'Penitipan'` (master data) |
-| Type definitions | `'Penitipan'` valid |
-| Data fetching (qurban-sheets.ts) | Raw "Penitipan" |
-| Display JSX (page.tsx, components) | `LABEL_BAWA_SENDIRI` constant |
-| WA share message (qurban-wa-text.ts) | `LABEL_BAWA_SENDIRI` constant |
-
-Kalau perlu mengubah istilah lagi nanti, edit di `src/lib/qurban-display.ts` saja.
+> Helper translasi display legacy (`Penitipan` → `Bawa Sendiri`) untuk halaman
+> publik Qurban **1447H** sudah **dihapus** bersama jalur publik/TV legacy
+> (decommission B1.5). Modul Qurban terintegrasi memakai konvensi tipe-nya
+> sendiri (`BELI` / `BAWA_SENDIRI`) di `src/lib/qurban/` (mis. `peserta-form.ts`,
+> `validators.ts`). Bila landing/TV publik dibangun ulang untuk edisi berikutnya,
+> konvensi display didefinisikan ulang di atas modul terintegrasi.
