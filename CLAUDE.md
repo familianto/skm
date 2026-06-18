@@ -133,10 +133,6 @@ FONNTE_MOCK=                    # "true" memaksa mode mock WA
 NEXT_PUBLIC_MASJID_NAME=        # Fallback nama masjid utk export
 QURBAN_MODULE_ENABLED=          # "false" mematikan rute Qurban (kill-switch)
 QURBAN_LEGACY_LOGIN_ENABLED=    # "true" izinkan login legacy single-PIN
-QURBAN_PANITIA_HP=              # Tidak dibaca kode (landing publik 1447H di-decommission); simpan utk rebuild
-QURBAN_PAYMENT_BANK_NAME=       # idem
-QURBAN_PAYMENT_ACCOUNT_NUMBER=  # idem
-QURBAN_PAYMENT_ACCOUNT_HOLDER=  # idem
 DARI_REKENING_ID=               # Hanya utk script migrasi mutasi
 KE_REKENING_ID=                 # Hanya utk script migrasi mutasi
 ```

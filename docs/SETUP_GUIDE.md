@@ -292,5 +292,9 @@ workbook utama (`GOOGLE_SHEETS_ID`).
 
 > Bila edisi berikutnya (mis. 1448H) butuh landing/TV publik Qurban lagi, halaman
 > itu akan **dibangun ulang di atas modul terintegrasi** (tab `qurban_*` di workbook
-> utama), bukan menghidupkan jalur legacy ini. Env `QURBAN_PAYMENT_*` &
-> `QURBAN_PANITIA_HP` dipertahankan di `.env.example` untuk keperluan rebuild itu.
+> utama), bukan menghidupkan jalur legacy ini.
+>
+> **Konfigurasi pembayaran & kontak panitia** (rekening, nomor panitia) untuk edisi
+> mendatang dikelola lewat sheet konfigurasi edisi (`qurban_konfigurasi_edisi`),
+> **bukan** env var. Env legacy `QURBAN_PAYMENT_*` & `QURBAN_PANITIA_HP` sudah
+> **dipensiunkan** (tidak lagi dibaca kode mana pun).
