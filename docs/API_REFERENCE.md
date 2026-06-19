@@ -2775,17 +2775,18 @@ tipe_qurban, hewan_id, slot_number, harga_disepakati, status_pendaftaran }`.
 
 ---
 
-## Qurban Public Endpoints
+## Qurban Public Endpoints — DECOMMISSIONED
 
-### `GET /api/publik/qurban`
+> `GET /api/publik/qurban` (data landing/TV publik Qurban **1447H**) **sudah
+> dihapus**. Endpoint ini dulu membaca workbook Qurban terpisah via env legacy
+> khusus (kini dipensiunkan). Data 1447H sudah diarsipkan ke
+> tab `qurban_*` di workbook utama (Sprint F9). Halaman publik yang masih live
+> hanyalah `/publik` (laporan keuangan) lewat `GET /api/publik/ringkasan`, dan
+> endpoint pendaftaran publik terintegrasi `GET/POST /api/publik/qurban/{options,
+> daftar, daftar/lookup, cek-status}` (lihat bagian Pendaftaran Publik di atas).
 
-Ambil data publik Qurban 1447H dari Google Sheets terpisah (Qurban master data).
-
-**Auth:** Tidak perlu (public endpoint).
-
-**Caching:** In-memory TTL 5 menit + `Cache-Control: public, s-maxage=300, stale-while-revalidate=60`.
-
-**Data Source:** Google Sheets ID dari env var `GOOGLE_SHEETS_QURBAN_ID`, sheets: `master_hewan`, `daftar_hewan`, `peserta`.
+<details>
+<summary>Bentuk respons lama (arsip, tidak lagi tersedia)</summary>
 
 **Response (200):**
 ```json
@@ -2836,3 +2837,5 @@ Ambil data publik Qurban 1447H dari Google Sheets terpisah (Qurban master data).
 - Peserta dengan `nama` kosong di-filter (skip template rows)
 - Slot number di-parse dari `kode_muqorib` format `{id_hewan}-{slot_number}`
 - Payment info diambil dari env vars `QURBAN_PAYMENT_*`
+
+</details>

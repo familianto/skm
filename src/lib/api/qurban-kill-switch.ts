@@ -15,7 +15,6 @@ export function isQurbanModulePath(pathname: string): boolean {
     pathname.startsWith('/qurban/') ||
     pathname === '/api/qurban' ||
     pathname.startsWith('/api/qurban/') ||
-    pathname === '/api/publik/qurban' ||
     pathname.startsWith('/api/publik/qurban/')
   );
 }
