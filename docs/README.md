@@ -14,14 +14,16 @@ plus arsip riwayat pengembangan.
 
 Masjid yang ingin **memasang & memakai** SKM.
 
+**Mulai di sini → [adopter/README.md](adopter/README.md)** (overview, biaya, FAQ, indeks langkah).
+
 | Dokumen | Deskripsi |
 |---|---|
-| [adopter/SETUP_GUIDE.md](adopter/SETUP_GUIDE.md) | Panduan setup: Google Cloud, Service Account, Google Sheets, env, deploy Vercel |
-| [adopter/ADOPTER_GUIDE.md](adopter/ADOPTER_GUIDE.md) | Panduan adopsi untuk masjid lain (alur, biaya, checklist) |
+| [adopter/README.md](adopter/README.md) | Overview SKM, fitur, biaya, FAQ, checklist + indeks langkah |
+| [adopter/SETUP_GUIDE.md](adopter/SETUP_GUIDE.md) | Walkthrough setup dari-nol: Google Cloud, Sheets, env, deploy, first-run/seed, verifikasi |
 | [adopter/BANK_TEMPLATES.md](adopter/BANK_TEMPLATES.md) | Referensi operasional template import CSV bank |
 
-> Panduan per-modul (keuangan, reminder WA, TV display, Qurban) & halaman overview
-> adopter akan ditambahkan di Tahap B2b.
+> Panduan pakai per-modul (keuangan harian, reminder WA, TV display, Qurban) akan
+> ditambahkan di Tahap B2b-ii.
 
 ---
 
