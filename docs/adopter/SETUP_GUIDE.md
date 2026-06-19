@@ -210,10 +210,9 @@ Private key dari file JSON credentials perlu di-handle dengan benar:
 - Paste private key apa adanya (dengan actual newlines)
 - Vercel akan handle escaping otomatis
 
-**Test connection**:
-```bash
-npm run test:connection  # Script untuk test koneksi ke Google Sheets
-```
+**Test koneksi**: jalankan `npm run seed` (Langkah 7) — skrip itu mengecek koneksi
+ke spreadsheet dulu (menampilkan judul workbook) sebelum menulis apa pun. Bila
+kredensial/sharing salah, ia berhenti dengan pesan error.
 
 ## Langkah 5: Install Dependencies & Run
 
@@ -243,6 +242,85 @@ Di Vercel project settings → **Environment Variables**, tambahkan semua variab
 ### 6.3 Deploy
 
 Setiap push ke branch `main` akan auto-deploy.
+
+---
+
+## Langkah 7: First-Run (Seed, Admin Pertama, Login)
+
+### 7.1 Seed (header sheet + kategori default)
+
+Dengan `.env.local` terisi (Langkah 4), jalankan:
+
+```bash
+npm run seed
+```
+
+Skrip `scripts/seed.ts` akan:
+1. Mengecek koneksi ke spreadsheet (menampilkan judulnya).
+2. Membuat header Row 1 untuk sheet yang belum berheader.
+3. Mengisi **kategori default** (Infaq, Zakat, Listrik & Air, dll).
+4. Membuat 1 baris placeholder di sheet `master` (`nama_masjid` = "Nama Masjid").
+
+> ⚠️ **Catatan akurasi (per kondisi repo saat ini):** `scripts/seed.ts` membuat
+> header untuk **8 sheet** (`master`, `transaksi`, `kategori`, `rekening_bank`,
+> `audit_log`, `anggota`, `rekonsiliasi`, `kelompok`) dan **belum** mencakup
+> `donatur` & `reminder_log`, serta header `anggota`/`audit_log`-nya masih versi
+> lama (tanpa kolom F01). Sumber kebenaran kolom = `DATABASE_SCHEMA.md` /
+> `SHEET_HEADERS` (`src/lib/constants.ts`). Untuk sekarang, **lengkapi** sheet
+> `donatur`, `reminder_log`, dan kolom tambahan `anggota`/`audit_log` secara
+> manual sesuai `DATABASE_SCHEMA.md` setelah menjalankan seed.
+> _(Lihat FLAG di deskripsi PR — penyelarasan `seed.ts` perlu keputusan maintainer.)_
+
+### 7.2 Admin pertama & login
+
+SKM memakai login **nomor telepon + PIN** per anggota (sheet `anggota`); PIN
+di-hash bcrypt, sesi disimpan sebagai JWT di cookie `skm_session`. Membuat
+anggota baru lewat aplikasi memerlukan peran **SUPER_ADMIN** (lihat
+`src/middleware.ts` & `requireSuperAdmin`) — sehingga **anggota pertama tidak
+bisa dibuat dari UI** (belum ada SUPER_ADMIN). PIN juga tidak boleh lemah/berurutan
+(mis. `1234`, `0000` ditolak oleh kebijakan PIN).
+
+> 🚩 **FLAG — perlu konfirmasi maintainer (Hopy).** Repo **tidak memuat** skrip
+> resmi untuk menyemai **admin pertama** (tidak ada `migrate_F01`/seed-admin yang
+> menulis baris `anggota` SUPER_ADMIN atau mengisi `master.pin_hash`). Mekanisme
+> bootstrap yang dipakai di produksi belum terverifikasi dari repo. Dua kemungkinan
+> jalur (perlu dikonfirmasi, **jangan diasumsikan**):
+> 1. **Tambah baris `anggota` SUPER_ADMIN secara manual** di Google Sheets dengan
+>    `pin_hash` bcrypt yang sudah dihitung (mis. via skrip kecil `bcrypt.hash`),
+>    `peran = SUPER_ADMIN`, `is_active = TRUE`, lalu login pakai telepon + PIN itu.
+> 2. **Login legacy single-PIN**: set `QURBAN_LEGACY_LOGIN_ENABLED=true` dan isi
+>    `master.pin_hash` (hash bcrypt) — login jatuh ke jalur legacy (`master.pin_hash`).
+>    Namun **tidak ada endpoint** yang mengisi `master.pin_hash` (master PUT sengaja
+>    tidak mengubahnya), jadi pengisian awal pun manual.
+>
+> Langkah persisnya (perintah/skrip pembuat hash) **belum dibakukan di repo** —
+> menunggu keputusan maintainer untuk menambah skrip `seed:admin` resmi.
+
+### 7.3 Isi data masjid
+
+Setelah bisa login, perbarui data masjid (nama, alamat, dll) di halaman
+**Pengaturan**, lalu tambahkan **rekening bank** dan sesuaikan **kategori**.
+
+## Langkah 8: Verifikasi Berjalan
+
+- Buka aplikasi (lokal `http://localhost:3000` atau URL Vercel) → halaman **login** tampil.
+- Login berhasil → **Dashboard** memuat ringkasan (saldo/komponen) tanpa error.
+- Tambah satu transaksi uji → muncul di daftar **Transaksi** dan ter-tulis ke
+  sheet `transaksi` (cek di Google Sheets).
+- Halaman publik read-only `/publik` (laporan keuangan untuk TV/monitor) tampil.
+
+Bila muncul error koneksi/permission, lihat **Troubleshooting** di bawah.
+
+## Langkah 9 (Opsional): WhatsApp via Fonnte
+
+Reminder WhatsApp memakai [Fonnte](https://fonnte.com). Konfigurasi via env:
+
+- `FONNTE_API_TOKEN` — token dari dashboard Fonnte. **Kosong → mode mock**
+  (pesan tidak benar-benar dikirim, hanya disimulasikan).
+- `FONNTE_MOCK=true` — paksa mode mock walau token terisi (berguna saat uji coba).
+
+Tanpa token, fitur reminder tetap berjalan dalam mode mock — aman untuk dicoba
+lebih dulu sebelum mengaktifkan pengiriman nyata.
 
 ---
 

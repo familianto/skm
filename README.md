@@ -11,7 +11,7 @@ Sistem manajemen keuangan masjid berbasis web yang transparan, akuntabel, dan mu
 - **Upload Bukti** — Lampirkan foto bukti transaksi (struk, kwitansi)
 - **Export Laporan** — Download laporan dalam format PDF atau Excel, dengan filter kategori per jenis (Masuk/Keluar)
 - **Display Publik** — Halaman read-only untuk ditampilkan di TV/monitor masjid
-- **Landing Page Qurban** — Laporan progress Qurban publik dengan search, filter, share WA, dan TV mode
+- **Modul Qurban** — Manajemen edisi, master muqorib/hewan, pendaftaran (publik + panitia), pemetaan, pembayaran & rekonsiliasi, pelaporan
 - **Multi-Masjid** — Dapat diadopsi oleh masjid lain dengan mudah
 - **Bulk Edit Kategori** — Ubah kategori banyak transaksi sekaligus dengan checkbox dan dialog konfirmasi
 - **Proteksi Hapus** — Kategori dan rekening yang memiliki transaksi tidak dapat dihapus tanpa memindahkan transaksi terlebih dahulu
@@ -56,9 +56,9 @@ Buka `http://localhost:3000` di browser.
 docs/                           # Dokumentasi (lihat docs/README.md utk peta navigasi)
   README.md                     # Indeks navigasi dokumentasi
   adopter/                      # Untuk masjid yang memasang/memakai SKM
-    SETUP_GUIDE.md              # Panduan setup
-    ADOPTER_GUIDE.md            # Panduan adopsi masjid lain
-    BANK_TEMPLATES.md           # Referensi template import CSV bank
+    README.md                  # Overview, biaya, FAQ, checklist + indeks langkah
+    SETUP_GUIDE.md             # Walkthrough setup dari-nol + first-run
+    BANK_TEMPLATES.md          # Referensi template import CSV bank
   developer/                    # Untuk kontributor/pengembang
     PROJECT_BRIEF.md            # Brief proyek
     ARCHITECTURE.md             # Arsitektur sistem
@@ -88,7 +88,7 @@ Detail setiap sprint: [`docs/developer/history/SPRINT_PLAN.md`](docs/developer/h
 
 ## Untuk Masjid Lain
 
-SKM dapat diadopsi oleh masjid manapun secara **gratis**. Lihat [`docs/adopter/ADOPTER_GUIDE.md`](docs/adopter/ADOPTER_GUIDE.md) untuk panduan lengkap.
+SKM dapat diadopsi oleh masjid manapun secara **gratis**. Lihat [`docs/adopter/README.md`](docs/adopter/README.md) (overview & indeks) lalu [`docs/adopter/SETUP_GUIDE.md`](docs/adopter/SETUP_GUIDE.md) untuk walkthrough lengkap.
 
 **Estimasi biaya**: Rp 0/bulan (semua menggunakan free tier).
 
@@ -107,8 +107,8 @@ Peta navigasi lengkap: **[`docs/README.md`](docs/README.md)**. Dua jalur utama:
 | [`docs/developer/DATABASE_SCHEMA.md`](docs/developer/DATABASE_SCHEMA.md) | Schema semua Google Sheets |
 | [`docs/developer/API_REFERENCE.md`](docs/developer/API_REFERENCE.md) | Referensi semua API endpoints |
 | [`docs/developer/CONVENTIONS.md`](docs/developer/CONVENTIONS.md) | Standar dan konvensi coding |
-| [`docs/adopter/SETUP_GUIDE.md`](docs/adopter/SETUP_GUIDE.md) | Panduan setup development |
-| [`docs/adopter/ADOPTER_GUIDE.md`](docs/adopter/ADOPTER_GUIDE.md) | Panduan adopsi untuk masjid lain |
+| [`docs/adopter/README.md`](docs/adopter/README.md) | Overview adopter: fitur, biaya, FAQ, indeks langkah |
+| [`docs/adopter/SETUP_GUIDE.md`](docs/adopter/SETUP_GUIDE.md) | Walkthrough setup dari-nol + first-run |
 
 ## Contributing
 

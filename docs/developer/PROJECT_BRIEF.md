@@ -156,6 +156,11 @@ Lihat detail lengkap di `DATABASE_SCHEMA.md`.
 - **Warning visual**: Peringatan sisa percobaan setelah gagal ke-3 dengan border merah pada input
 
 ### 5.8 Landing Page Qurban Publik — BARU
+> ⚠️ **DECOMMISSIONED (B1.5).** Landing/TV publik Qurban 1447H (`/publik/qurban`,
+> `/publik/qurban/tv`, `/api/publik/qurban`) beserta workbook legacy-nya **sudah
+> dihapus**. Entri ini dipertahankan sebagai catatan changelog historis; fitur
+> tidak lagi ada di kode. Pendaftaran publik Qurban yang aktif kini lewat
+> `/publik/qurban/daftar` & `/publik/qurban/cek-status` (modul terintegrasi).
 - **Route publik** `/publik/qurban` (mobile) dan `/publik/qurban/tv` (TV display)
 - Data dari Google Sheets terpisah (master hewan, daftar hewan, peserta)
 - Summary card, search, tab filter (Semua/Sapi/Kambing/Penitipan)
