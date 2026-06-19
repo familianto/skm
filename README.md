@@ -48,21 +48,24 @@ npm run dev
 
 Buka `http://localhost:3000` di browser.
 
-> Untuk panduan setup lengkap (Google Cloud, Sheets, Drive), lihat [`docs/SETUP_GUIDE.md`](docs/SETUP_GUIDE.md).
+> Untuk panduan setup lengkap (Google Cloud, Sheets, Drive), lihat [`docs/adopter/SETUP_GUIDE.md`](docs/adopter/SETUP_GUIDE.md).
 
 ## Struktur Project
 
 ```
-docs/                           # Dokumentasi lengkap
-  PROJECT_BRIEF.md              # Brief proyek
-  ARCHITECTURE.md               # Arsitektur sistem
-  DATABASE_SCHEMA.md            # Schema Google Sheets
-  API_REFERENCE.md              # Referensi API
-  SETUP_GUIDE.md                # Panduan setup
-  SPRINT_PLAN.md                # Rencana sprint
-  CONVENTIONS.md                # Standar coding
-  ADOPTER_GUIDE.md              # Panduan adopsi masjid lain
-  sprints/                      # Detail per sprint (0-6)
+docs/                           # Dokumentasi (lihat docs/README.md utk peta navigasi)
+  README.md                     # Indeks navigasi dokumentasi
+  adopter/                      # Untuk masjid yang memasang/memakai SKM
+    SETUP_GUIDE.md              # Panduan setup
+    ADOPTER_GUIDE.md            # Panduan adopsi masjid lain
+    BANK_TEMPLATES.md           # Referensi template import CSV bank
+  developer/                    # Untuk kontributor/pengembang
+    PROJECT_BRIEF.md            # Brief proyek
+    ARCHITECTURE.md             # Arsitektur sistem
+    DATABASE_SCHEMA.md          # Schema Google Sheets
+    API_REFERENCE.md            # Referensi API
+    CONVENTIONS.md              # Standar coding
+    history/                    # Arsip riwayat pengembangan (HANDOFF/PROMPT/sprints)
 CLAUDE.md                       # Panduan untuk AI-assisted development
 ```
 
@@ -81,32 +84,37 @@ CLAUDE.md                       # Panduan untuk AI-assisted development
 | 8 | Mutasi Internal | ✅ Done | Transfer dana antar rekening |
 | 9 | Bulk Edit & Proteksi Hapus | ✅ Done | Bulk edit kategori, proteksi hapus, dialog konfirmasi, toast |
 
-Detail setiap sprint: [`docs/SPRINT_PLAN.md`](docs/SPRINT_PLAN.md)
+Detail setiap sprint: [`docs/developer/history/SPRINT_PLAN.md`](docs/developer/history/SPRINT_PLAN.md)
 
 ## Untuk Masjid Lain
 
-SKM dapat diadopsi oleh masjid manapun secara **gratis**. Lihat [`docs/ADOPTER_GUIDE.md`](docs/ADOPTER_GUIDE.md) untuk panduan lengkap.
+SKM dapat diadopsi oleh masjid manapun secara **gratis**. Lihat [`docs/adopter/ADOPTER_GUIDE.md`](docs/adopter/ADOPTER_GUIDE.md) untuk panduan lengkap.
 
 **Estimasi biaya**: Rp 0/bulan (semua menggunakan free tier).
 
 ## Dokumentasi
 
+Peta navigasi lengkap: **[`docs/README.md`](docs/README.md)**. Dua jalur utama:
+
+- **Adopter** (masjid yang ingin memasang SKM) → [`docs/adopter/`](docs/adopter/)
+- **Developer/kontributor** → [`docs/developer/`](docs/developer/) (arsip riwayat di [`docs/developer/history/`](docs/developer/history/))
+
 | Dokumen | Deskripsi |
 |---|---|
 | [`CLAUDE.md`](CLAUDE.md) | Entry point untuk AI-assisted development |
-| [`docs/PROJECT_BRIEF.md`](docs/PROJECT_BRIEF.md) | Brief proyek lengkap |
-| [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | Arsitektur dan design decisions |
-| [`docs/DATABASE_SCHEMA.md`](docs/DATABASE_SCHEMA.md) | Schema semua Google Sheets |
-| [`docs/API_REFERENCE.md`](docs/API_REFERENCE.md) | Referensi semua API endpoints |
-| [`docs/SETUP_GUIDE.md`](docs/SETUP_GUIDE.md) | Panduan setup development |
-| [`docs/CONVENTIONS.md`](docs/CONVENTIONS.md) | Standar dan konvensi coding |
-| [`docs/ADOPTER_GUIDE.md`](docs/ADOPTER_GUIDE.md) | Panduan adopsi untuk masjid lain |
+| [`docs/developer/PROJECT_BRIEF.md`](docs/developer/PROJECT_BRIEF.md) | Brief proyek lengkap |
+| [`docs/developer/ARCHITECTURE.md`](docs/developer/ARCHITECTURE.md) | Arsitektur dan design decisions |
+| [`docs/developer/DATABASE_SCHEMA.md`](docs/developer/DATABASE_SCHEMA.md) | Schema semua Google Sheets |
+| [`docs/developer/API_REFERENCE.md`](docs/developer/API_REFERENCE.md) | Referensi semua API endpoints |
+| [`docs/developer/CONVENTIONS.md`](docs/developer/CONVENTIONS.md) | Standar dan konvensi coding |
+| [`docs/adopter/SETUP_GUIDE.md`](docs/adopter/SETUP_GUIDE.md) | Panduan setup development |
+| [`docs/adopter/ADOPTER_GUIDE.md`](docs/adopter/ADOPTER_GUIDE.md) | Panduan adopsi untuk masjid lain |
 
 ## Contributing
 
 1. Fork repository
 2. Buat branch fitur (`sprint-N/feature-name`)
-3. Ikuti konvensi di [`docs/CONVENTIONS.md`](docs/CONVENTIONS.md)
+3. Ikuti konvensi di [`docs/developer/CONVENTIONS.md`](docs/developer/CONVENTIONS.md)
 4. Commit dengan [Conventional Commits](https://www.conventionalcommits.org/)
 5. Buat Pull Request
 

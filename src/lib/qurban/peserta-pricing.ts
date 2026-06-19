@@ -10,7 +10,7 @@ import type { TipeQurban } from './peserta-types';
  *   BAWA_SENDIRI → `harga_bawa_sendiri`  (jasa penitipan & potong)
  *
  * Per-slot = harga_penuh / kapasitas_slot, sesuai kontrak in-repo
- * `docs/HANDOFF_TAHAP_2_ARCHITECTURE.md` §4.4 ("Harga per slot BELI dihitung di
+ * `docs/developer/history/HANDOFF_TAHAP_2_ARCHITECTURE.md` §4.4 ("Harga per slot BELI dihitung di
  * app: harga_beli / kapasitas_slot"). Pembagian yang sama diterapkan ke
  * BAWA_SENDIRI agar pendaftaran 1 ekor penuh (semua slot) berjumlah tepat
  * harga_penuh. Dibulatkan ke Rupiah integer (Math.round) — monetary = integer.
