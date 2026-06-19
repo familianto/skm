@@ -1,5 +1,5 @@
 /**
- * Seed Script — Setup Google Sheets headers and default data
+ * Seed Script — Setup Google Sheets tabs + headers and default data
  *
  * Usage: npm run seed
  *
@@ -7,11 +7,22 @@
  * - GOOGLE_SHEETS_ID
  * - GOOGLE_SERVICE_ACCOUNT_EMAIL
  * - GOOGLE_PRIVATE_KEY
+ *
+ * Behaviour:
+ * - Sheet list is derived from `SHEET_HEADERS` (src/lib/constants.ts) — the
+ *   single source of truth — so it can never drift out of sync again. ALL
+ *   registered sheets are created (10 inti + 9 qurban_*); empty tabs are
+ *   harmless and prevent the "Unknown sheet" error on first use.
+ * - Idempotent & non-destructive: existing tabs/rows are never overwritten or
+ *   deleted. If an existing sheet's header differs from `SHEET_HEADERS`, it is
+ *   only FLAGGED (no auto-migrate — that would risk misaligning existing data).
  */
 
 import { google } from 'googleapis';
 import * as dotenv from 'dotenv';
 import * as path from 'path';
+
+import { SHEET_HEADERS, DEFAULT_CATEGORIES } from '../src/lib/constants';
 
 // Load .env.local
 dotenv.config({ path: path.resolve(process.cwd(), '.env.local') });
@@ -19,60 +30,6 @@ dotenv.config({ path: path.resolve(process.cwd(), '.env.local') });
 const SPREADSHEET_ID = process.env.GOOGLE_SHEETS_ID!;
 const SERVICE_ACCOUNT_EMAIL = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL!;
 const PRIVATE_KEY = (process.env.GOOGLE_PRIVATE_KEY || '').replace(/\\n/g, '\n');
-
-// Sheet headers (same as constants.ts)
-const SHEET_HEADERS: Record<string, string[]> = {
-  master: [
-    'id', 'nama_masjid', 'alamat', 'kota', 'provinsi', 'telepon',
-    'email', 'pin_hash', 'logo_url', 'tahun_buku_aktif', 'mata_uang',
-    'created_at', 'updated_at',
-  ],
-  transaksi: [
-    'id', 'tanggal', 'jenis', 'kategori_id', 'deskripsi', 'jumlah',
-    'rekening_id', 'bukti_url', 'status', 'void_reason', 'void_date',
-    'koreksi_dari_id', 'created_by', 'created_at', 'updated_at',
-  ],
-  kategori: [
-    'id', 'nama', 'jenis', 'deskripsi', 'is_active', 'created_at',
-  ],
-  rekening_bank: [
-    'id', 'nama_bank', 'nomor_rekening', 'atas_nama', 'saldo_awal',
-    'is_active', 'created_at', 'updated_at',
-  ],
-  audit_log: [
-    'id', 'timestamp', 'aksi', 'entitas', 'entitas_id', 'detail', 'user_info',
-  ],
-  anggota: [
-    'id', 'nama', 'telepon', 'email', 'peran', 'is_active', 'created_at',
-  ],
-  rekonsiliasi: [
-    'id', 'rekening_id', 'tanggal', 'saldo_bank', 'saldo_sistem',
-    'selisih', 'status', 'catatan', 'created_at',
-  ],
-  kelompok: [
-    'id', 'nama', 'deskripsi', 'warna',
-    'kategori_masuk', 'kategori_keluar',
-    'created_at', 'updated_at',
-  ],
-};
-
-const DEFAULT_CATEGORIES = [
-  // Pemasukan (MASUK)
-  { nama: 'Infaq Jumat', jenis: 'MASUK', deskripsi: 'Infaq mingguan hari Jumat' },
-  { nama: 'Infaq Harian', jenis: 'MASUK', deskripsi: 'Infaq harian kotak amal' },
-  { nama: 'Zakat', jenis: 'MASUK', deskripsi: 'Penerimaan zakat' },
-  { nama: 'Donasi', jenis: 'MASUK', deskripsi: 'Donasi dari jamaah atau pihak lain' },
-  { nama: 'Lain-lain Masuk', jenis: 'MASUK', deskripsi: 'Pemasukan lainnya' },
-  // Pengeluaran (KELUAR)
-  { nama: 'Listrik & Air', jenis: 'KELUAR', deskripsi: 'Pembayaran listrik dan air' },
-  { nama: 'Kebersihan', jenis: 'KELUAR', deskripsi: 'Biaya kebersihan dan perawatan' },
-  { nama: 'Honorarium Imam/Khatib', jenis: 'KELUAR', deskripsi: 'Honor imam dan khatib' },
-  { nama: 'Perbaikan/Renovasi', jenis: 'KELUAR', deskripsi: 'Biaya perbaikan dan renovasi' },
-  { nama: 'Kegiatan Ramadhan', jenis: 'KELUAR', deskripsi: 'Biaya kegiatan Ramadhan' },
-  { nama: 'Kegiatan Sosial', jenis: 'KELUAR', deskripsi: 'Biaya kegiatan sosial' },
-  { nama: 'ATK & Perlengkapan', jenis: 'KELUAR', deskripsi: 'Alat tulis dan perlengkapan' },
-  { nama: 'Lain-lain Keluar', jenis: 'KELUAR', deskripsi: 'Pengeluaran lainnya' },
-];
 
 async function main() {
   console.log('🔧 SKM Seed Script');
@@ -98,28 +55,60 @@ async function main() {
 
   const sheets = google.sheets({ version: 'v4', auth });
 
-  // Test connection
+  // Test connection + read existing tabs
   console.log('📡 Testing connection...');
+  let existingTitles: string[] = [];
   try {
     const spreadsheet = await sheets.spreadsheets.get({ spreadsheetId: SPREADSHEET_ID });
     console.log(`✅ Connected to: "${spreadsheet.data.properties?.title}"\n`);
+    existingTitles = (spreadsheet.data.sheets || [])
+      .map((s) => s.properties?.title)
+      .filter((t): t is string => !!t);
   } catch (error) {
     console.error('❌ Failed to connect to Google Sheets:', error);
     process.exit(1);
   }
 
-  // Setup headers for each sheet
-  console.log('📋 Setting up headers...');
+  const registeredSheets = Object.keys(SHEET_HEADERS);
+  const mismatches: { sheet: string; expected: string[]; actual: string[] }[] = [];
+
+  // 1) Create any registered tab that is missing (single batchUpdate)
+  console.log(`📑 Ensuring ${registeredSheets.length} sheet tabs exist...`);
+  const missing = registeredSheets.filter((name) => !existingTitles.includes(name));
+  if (missing.length > 0) {
+    await sheets.spreadsheets.batchUpdate({
+      spreadsheetId: SPREADSHEET_ID,
+      requestBody: {
+        requests: missing.map((title) => ({ addSheet: { properties: { title } } })),
+      },
+    });
+    for (const name of missing) console.log(`   ✅ ${name} — tab created`);
+  } else {
+    console.log('   ⏭️  All tabs already present');
+  }
+
+  // 2) Set up / verify header row for every registered sheet (non-destructive)
+  console.log('\n📋 Setting up headers...');
   for (const [sheetName, headers] of Object.entries(SHEET_HEADERS)) {
     try {
-      // Check if headers already exist
+      // Read the full existing header row (up to ZZ)
       const existing = await sheets.spreadsheets.values.get({
         spreadsheetId: SPREADSHEET_ID,
-        range: `${sheetName}!A1:A1`,
+        range: `${sheetName}!A1:ZZ1`,
       });
+      const actual = (existing.data.values?.[0] as string[] | undefined) || [];
 
-      if (existing.data.values && existing.data.values.length > 0 && existing.data.values[0][0]) {
-        console.log(`   ⏭️  ${sheetName} — headers already exist, skipping`);
+      if (actual.length > 0 && actual[0]) {
+        // Header already present — verify it matches, but NEVER overwrite.
+        const matches =
+          actual.length === headers.length &&
+          headers.every((h, i) => actual[i] === h);
+        if (matches) {
+          console.log(`   ⏭️  ${sheetName} — headers already correct, skipping`);
+        } else {
+          mismatches.push({ sheet: sheetName, expected: headers, actual });
+          console.log(`   ⚠️  ${sheetName} — header MISMATCH (flagged, not modified)`);
+        }
         continue;
       }
 
@@ -135,7 +124,7 @@ async function main() {
     }
   }
 
-  // Seed default categories
+  // 3) Seed default categories
   console.log('\n📂 Seeding default categories...');
   try {
     const existing = await sheets.spreadsheets.values.get({
@@ -148,7 +137,11 @@ async function main() {
     } else {
       const now = new Date().toISOString();
       const today = now.slice(0, 10).replace(/-/g, '');
-      const rows = DEFAULT_CATEGORIES.map((cat, index) => [
+      const flat = [
+        ...DEFAULT_CATEGORIES.MASUK.map((c) => ({ ...c, jenis: 'MASUK' })),
+        ...DEFAULT_CATEGORIES.KELUAR.map((c) => ({ ...c, jenis: 'KELUAR' })),
+      ];
+      const rows = flat.map((cat, index) => [
         `KAT-${today}-${String(index + 1).padStart(4, '0')}`,
         cat.nama,
         cat.jenis,
@@ -169,7 +162,7 @@ async function main() {
     console.error('   ❌ Failed to seed categories:', error instanceof Error ? error.message : error);
   }
 
-  // Seed master data placeholder
+  // 4) Seed master data placeholder
   console.log('\n🏛️  Seeding master data...');
   try {
     const existing = await sheets.spreadsheets.values.get({
@@ -190,7 +183,7 @@ async function main() {
         '',                     // provinsi
         '',                     // telepon
         '',                     // email
-        '',                     // pin_hash (will be set during first login setup)
+        '',                     // pin_hash (legacy single-PIN; admin login uses `anggota` — see seed:admin)
         '',                     // logo_url
         new Date().getFullYear().toString(), // tahun_buku_aktif
         'IDR',                  // mata_uang
@@ -210,7 +203,19 @@ async function main() {
     console.error('   ❌ Failed to seed master data:', error instanceof Error ? error.message : error);
   }
 
+  // Summary
   console.log('\n🎉 Seed completed!');
+  if (mismatches.length > 0) {
+    console.log('\n⚠️  HEADER MISMATCHES (NOT modified — review manually):');
+    for (const m of mismatches) {
+      console.log(`   • ${m.sheet}`);
+      console.log(`       expected (${m.expected.length}): ${m.expected.join(', ')}`);
+      console.log(`       actual   (${m.actual.length}): ${m.actual.join(', ')}`);
+    }
+    console.log('\n   Auto-migration is intentionally NOT performed to avoid misaligning');
+    console.log('   existing data. Reconcile these headers manually if needed.');
+  }
+  console.log('\n👉 Next: create the first SUPER_ADMIN with `npm run seed:admin`.');
 }
 
 main().catch(console.error);
