@@ -13,7 +13,7 @@ import { masterHargaPerSlot } from './pemetaan-engine';
  * handler bertugas baca Sheets + bangun lookup map, fungsi murni ini bertugas
  * transformasi → unit-testable tanpa mock Sheets.
  *
- * Output kontrak PM2 (lihat `docs/API_REFERENCE.md`):
+ * Output kontrak PM2 (lihat `docs/developer/API_REFERENCE.md`):
  *   {
  *     edisi_id, version,
  *     hewan: [

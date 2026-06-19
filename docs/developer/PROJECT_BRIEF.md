@@ -178,14 +178,14 @@ Lihat detail lengkap di `DATABASE_SCHEMA.md`.
 - **Hybrid duplicate detection** berdasarkan Nomor Referensi CSV (kolom
   `bank_ref` di sheet transaksi) + fallback tanggal+jumlah+jenis untuk
   matching dengan input manual (lihat Import Duplicate Detection di
-  `docs/BANK_TEMPLATES.md` & endpoint
-  `POST /api/transaksi/check-duplicates` di `docs/API_REFERENCE.md`).
+  `docs/adopter/BANK_TEMPLATES.md` & endpoint
+  `POST /api/transaksi/check-duplicates` di `docs/developer/API_REFERENCE.md`).
 - SummaryDialog pre-import: menampilkan Siap Import / Duplikat (auto-skip)
   / Mungkin Duplikat dengan checkbox opt-in per baris sebelum user
   menekan "Import N Transaksi".
 - Batch insert ke sheet Transaksi via API, dengan `bank_ref` tersimpan
   per row untuk mencegah re-import.
-- Template bank disimpan di `src/lib/bank-templates/` — lihat `docs/BANK_TEMPLATES.md`
+- Template bank disimpan di `src/lib/bank-templates/` — lihat `docs/adopter/BANK_TEMPLATES.md`
 
 ### 5.9 Import Master Bank & Rekonsiliasi (Sprint 4) — BARU
 - Import data rekening bank dari file
@@ -402,7 +402,7 @@ dikelompokkan (Kecocokan Kuat / Saran skor / Tak Cocok / Anomali) + Taut Manual
 (PY6) + **Cari Transaksi di luar band** (PY8) + **Resolusi Kategori mixed** (PY9).
 **Band-filter** (`rekonsiliasi-band.ts`, `[3jt, 40jt]`) membatasi jalur code-less
 agar antrian tak banjir; Layer 1 (kode_bayar) tak dibatasi band. **Sprint F6
-lengkap end-to-end.** Detail: `HANDOFF_SPRINT_F6.md`, `docs/API_REFERENCE.md`.
+lengkap end-to-end.** Detail: `HANDOFF_SPRINT_F6.md`, `docs/developer/API_REFERENCE.md`.
 
 ### Sprint F02 — Qurban Edisi Management
 
@@ -436,7 +436,7 @@ Pre-flight aktivasi punya TODO marker untuk cek master_hewan (F3) dan
 hewan AKTIF (F4); pre-flight close punya TODO untuk blok peserta
 TERDAFTAR belum lunas (F4+).
 
-Detail lengkap: `HANDOFF_SPRINT_F02.md`, `docs/API_REFERENCE.md`
+Detail lengkap: `HANDOFF_SPRINT_F02.md`, `docs/developer/API_REFERENCE.md`
 (section Qurban Edisi/Konfigurasi/Panitia), `docs/ACCEPTANCE_F02.md`.
 
 ### Sprint F03 — Master Muqorib + Master Hewan (Opsi B)
@@ -473,7 +473,7 @@ bersama Pemetaan).
 **Tertunda (sengaja) ke F05:** inventory hewan fisik per ekor
 (`qurban_daftar_hewan`), halaman Pemetaan, dan UI bulk-setup tipe.
 
-Detail lengkap: `HANDOFF_SPRINT_F03.md`, `docs/API_REFERENCE.md`
+Detail lengkap: `HANDOFF_SPRINT_F03.md`, `docs/developer/API_REFERENCE.md`
 (section Qurban Muqorib + Master Hewan).
 
 ### Sprint F5a — Inventaris Hewan Fisik
@@ -504,7 +504,7 @@ dengan `jenis`/`kelas`/`kapasitas_slot` didenormalisasi dari master tipe.
 kolom, Opsi A); `nomor_urut_pemotongan` dibuat sekarang tapi milik F7;
 penanganan defensif `qurban_peserta` (sheet belum ada hingga F4a → slot `0`).
 
-Detail lengkap: `HANDOFF_SPRINT_F5a.md`, `docs/API_REFERENCE.md`
+Detail lengkap: `HANDOFF_SPRINT_F5a.md`, `docs/developer/API_REFERENCE.md`
 (section Qurban Daftar Hewan H1–H7).
 
 ### Sprint F4a — Pendaftaran Peserta (Backend)
@@ -534,7 +534,7 @@ slot Sapi → 3 baris). **Backend-only**; UI menyusul F4c, pendaftaran publik F4
 - **1 sheet baru:** `qurban_peserta` (17 kolom). Migrasi via Apps Script
   `migrate_F4a` (idempoten, `verify_F4a` dengan guard jumlah kolom).
 
-Detail lengkap: `HANDOFF_SPRINT_F4a.md`, `docs/API_REFERENCE.md`
+Detail lengkap: `HANDOFF_SPRINT_F4a.md`, `docs/developer/API_REFERENCE.md`
 (section Qurban Peserta PS1–PS8).
 
 ### Sprint F4b — Pendaftaran Publik + Integrasi Fonnte
@@ -566,7 +566,7 @@ plus notifikasi WhatsApp. **Backend-only**; UI menyusul F4c. **Tanpa migrasi**
 - **Keterbatasan jujur:** rate-limit `Map` in-memory (per-instance serverless,
   bukan global) — friksi-abuse MVP; pengerasan = Upstash Redis (backlog).
 
-Detail lengkap: `HANDOFF_SPRINT_F4b.md`, `docs/API_REFERENCE.md`
+Detail lengkap: `HANDOFF_SPRINT_F4b.md`, `docs/developer/API_REFERENCE.md`
 (section Qurban Public Pendaftaran PB1–PB4).
 
 ### Sprint F4c — UI Pendaftaran Qurban

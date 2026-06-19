@@ -158,12 +158,12 @@ KE_REKENING_ID=                 # Hanya utk script migrasi mutasi
 
 | Dokumen | Path | Deskripsi |
 |---|---|---|
-| Project Brief | `docs/PROJECT_BRIEF.md` | Referensi utama proyek |
-| Architecture | `docs/ARCHITECTURE.md` | Arsitektur sistem & data flow |
-| Database Schema | `docs/DATABASE_SCHEMA.md` | **KRITIS** — Schema 19 tab (10 inti + 9 Qurban) dalam SATU workbook. Sheet baru WAJIB didaftarkan di `SHEET_HEADERS` (`src/lib/constants.ts`). |
-| API Reference | `docs/API_REFERENCE.md` | Semua API routes & kontrak |
-| Setup Guide | `docs/SETUP_GUIDE.md` | Panduan setup development |
-| Sprint Plan | `docs/SPRINT_PLAN.md` | Overview sprint & dependensi |
-| Conventions | `docs/CONVENTIONS.md` | Standar coding |
-| Adopter Guide | `docs/ADOPTER_GUIDE.md` | Panduan adopsi untuk masjid lain |
-| Sprint Details | `docs/sprints/SPRINT_N.md` | Detail per sprint (0-6) |
+| Peta Dokumentasi | `docs/README.md` | Indeks navigasi (adopter / developer / history) |
+| Project Brief | `docs/developer/PROJECT_BRIEF.md` | Referensi utama proyek |
+| Architecture | `docs/developer/ARCHITECTURE.md` | Arsitektur sistem & data flow |
+| Database Schema | `docs/developer/DATABASE_SCHEMA.md` | **KRITIS** — Schema 19 tab (10 inti + 9 Qurban) dalam SATU workbook. Sheet baru WAJIB didaftarkan di `SHEET_HEADERS` (`src/lib/constants.ts`). |
+| API Reference | `docs/developer/API_REFERENCE.md` | Semua API routes & kontrak |
+| Setup Guide | `docs/adopter/SETUP_GUIDE.md` | Panduan setup development |
+| Conventions | `docs/developer/CONVENTIONS.md` | Standar coding |
+| Adopter Guide | `docs/adopter/ADOPTER_GUIDE.md` | Panduan adopsi untuk masjid lain |
+| Sprint Plan & Details | `docs/developer/history/SPRINT_PLAN.md`, `docs/developer/history/sprints/` | Arsip overview & detail sprint (0-6) |
