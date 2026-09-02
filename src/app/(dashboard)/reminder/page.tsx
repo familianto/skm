@@ -26,9 +26,9 @@ const STATUS_VARIANT: Record<string, string> = {
 };
 
 const TEMPLATES: Record<string, string> = {
-  [ReminderTipe.DONASI_RUTIN]: 'Assalamu\'alaikum {nama},\n\nSemoga Allah SWT senantiasa melimpahkan rahmat-Nya. Kami dari pengurus masjid mengingatkan kembali untuk donasi rutin bulan ini.\n\nJazakallah khairan.',
-  [ReminderTipe.UCAPAN_TERIMA_KASIH]: 'Assalamu\'alaikum {nama},\n\nTerima kasih atas donasi yang telah diberikan. Semoga Allah SWT membalas kebaikan Anda dengan berlipat ganda.\n\nJazakallah khairan.',
-  [ReminderTipe.LAPORAN_KEUANGAN]: 'Assalamu\'alaikum {nama},\n\nBerikut kami sampaikan ringkasan keuangan masjid bulan ini. Terima kasih atas kepercayaan dan kontribusi Anda.\n\nJazakallah khairan.',
+  [ReminderTipe.DONASI_RUTIN]: 'Assalamu\'alaikum Bapak/Ibu {nama},\n\nSemoga Allah SWT senantiasa melimpahkan rahmat-Nya. Kami dari pengurus masjid mengingatkan kembali untuk donasi rutin bulan ini.\n\nJazakallah khairan.',
+  [ReminderTipe.UCAPAN_TERIMA_KASIH]: 'Assalamu\'alaikum Bapak/Ibu {nama},\n\nTerima kasih atas donasi yang telah diberikan. Semoga Allah SWT membalas kebaikan Anda dengan berlipat ganda.\n\nJazakallah khairan.',
+  [ReminderTipe.LAPORAN_KEUANGAN]: 'Assalamu\'alaikum Bapak/Ibu {nama},\n\nBerikut kami sampaikan ringkasan keuangan masjid bulan ini. Terima kasih atas kepercayaan dan kontribusi Anda.\n\nJazakallah khairan.',
   [ReminderTipe.CUSTOM]: '',
 };
 
