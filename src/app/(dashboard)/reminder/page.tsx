@@ -9,6 +9,7 @@ import { Loading } from '@/components/ui/loading';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table';
 import { useToast } from '@/components/ui/toast';
 import { formatTimestamp } from '@/lib/utils';
+import { kelompokOptions, normalizeKelompok } from '@/lib/donatur-kelompok';
 import type { Donatur, Reminder, ApiResponse } from '@/types';
 import { DonaturKelompok, ReminderTipe, ReminderStatus } from '@/types';
 
@@ -72,8 +73,12 @@ export default function ReminderPage() {
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
+  // Opsi filter diturunkan dari kolom `kelompok` sheet donatur — bukan daftar
+  // statis TETAP/INSIDENTAL — agar kode kelompok milik masjid ikut terdaftar.
+  const opsiKelompok = kelompokOptions(donaturs);
+
   const filteredDonaturs = donaturs.filter((d) => {
-    if (filterKelompok && d.kelompok !== filterKelompok) return false;
+    if (filterKelompok && normalizeKelompok(d.kelompok) !== filterKelompok) return false;
     return !!d.telepon;
   });
 
@@ -186,8 +191,9 @@ export default function ReminderPage() {
                 className="rounded-lg border border-gray-300 px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500"
               >
                 <option value="">Semua</option>
-                <option value={DonaturKelompok.TETAP}>Tetap</option>
-                <option value={DonaturKelompok.INSIDENTAL}>Insidental</option>
+                {opsiKelompok.map((o) => (
+                  <option key={o.value} value={o.value}>{o.label}</option>
+                ))}
               </select>
               <button
                 onClick={selectAll}
