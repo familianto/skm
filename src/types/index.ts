@@ -197,6 +197,22 @@ export interface Reminder {
   fonnte_id?: string;
 }
 
+/** Hasil satu chunk pengiriman reminder massal (`POST /api/reminder/send`). */
+export interface ReminderBulkResult {
+  reminders: Reminder[];
+  total: number;
+  terkirim: number;
+  gagal: number;
+  dilewati: number;
+  /** true bila blast dihentikan di tengah (device terputus). */
+  stopped: boolean;
+  stopped_reason: string;
+  /** false bila baris `reminder_log` gagal ditulis (alasan ada di audit_log). */
+  log_persisted: boolean;
+  /** false bila status device tidak terbaca — pengiriman tetap jalan. */
+  device_checked: boolean;
+}
+
 export interface Kelompok {
   id: string;
   nama: string;
