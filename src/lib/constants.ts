@@ -65,9 +65,14 @@ export const SHEET_HEADERS: Record<string, string[]> = {
     'id', 'nama', 'telepon', 'alamat', 'kelompok',
     'jumlah_komitmen', 'catatan', 'is_active', 'created_at', 'updated_at',
   ],
+  // Kolom I-K ditambahkan setelah insiden blast 2026-09-03 supaya alasan gagal
+  // bisa ditelusuri: nomor yang benar-benar dikirimi, HTTP status Fonnte, dan
+  // id pesan Fonnte (dasar rekonsiliasi status kirim).
+  // Migrasi: scripts/migrate_reminder_log_v2.gs
   [SHEET_NAMES.REMINDER]: [
     'id', 'donatur_id', 'tanggal_kirim', 'jenis_reminder',
     'pesan', 'status_kirim', 'error_message', 'created_at',
+    'target', 'http_status', 'fonnte_id',
   ],
   [SHEET_NAMES.KELOMPOK]: [
     'id', 'nama', 'deskripsi', 'warna',
