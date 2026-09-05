@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { sheetsService } from '@/lib/google-sheets';
 import { SHEET_NAMES, SHEET_HEADERS, ID_PREFIXES } from '@/lib/constants';
-import { logAudit } from '@/lib/audit';
+import { writeAuditLog } from '@/lib/api/audit';
+import { getSessionFromRequest } from '@/lib/api/auth';
 import { reminderCreateSchema } from '@/lib/validators';
-import { AuditAksi, ReminderTipe, ReminderStatus, DonaturKelompok } from '@/types';
+import { ReminderTipe, ReminderStatus, DonaturKelompok } from '@/types';
 import type { ApiResponse, Reminder, Donatur } from '@/types';
 import { nowISO } from '@/lib/utils';
 import { sendWhatsApp } from '@/lib/fonnte';
@@ -58,6 +59,14 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    const session = await getSessionFromRequest(request);
+    if (!session) {
+      return NextResponse.json<ApiResponse<null>>(
+        { success: false, error: 'Sesi tidak ditemukan atau telah berakhir.' },
+        { status: 401 }
+      );
+    }
+
     const body = await request.json();
     const parsed = reminderCreateSchema.safeParse(body);
 
@@ -91,26 +100,39 @@ export async function POST(request: NextRequest) {
     const now = nowISO();
     const status_kirim = waResult.success ? ReminderStatus.TERKIRIM : ReminderStatus.GAGAL;
 
+    const httpStatus = waResult.httpStatus ? String(waResult.httpStatus) : '';
+
     let id = '';
     try {
       id = await sheetsService.getNextId(ID_PREFIXES.REMINDER);
       await sheetsService.appendRow(SHEET_NAMES.REMINDER, [
         id, donatur_id, now, tipe, pesan,
         status_kirim, waResult.detail, now,
+        waResult.target, httpStatus, waResult.messageId,
       ]);
     } catch (sheetError) {
       console.error('[reminder] Failed to persist reminder row:', sheetError);
     }
 
-    await logAudit(AuditAksi.CREATE, SHEET_NAMES.REMINDER, id,
-      JSON.stringify({ donatur: donatur.nama, tipe, status_kirim, mock: waResult.mock }),
-      'Bendahara'
-    );
+    await writeAuditLog({
+      aksi: 'CREATE',
+      entitas: SHEET_NAMES.REMINDER,
+      entitas_id: id || '—',
+      event_type: 'reminder.send',
+      after: {
+        donatur: donatur.nama, tipe, status_kirim,
+        target: waResult.target, http_status: httpStatus,
+        alasan: waResult.success ? '' : waResult.detail,
+        mock: waResult.mock,
+      },
+      user_id: session.user_id,
+    });
 
     const reminder: Reminder = {
       id, donatur_id, tanggal_kirim: now, jenis_reminder: tipe,
       pesan, status_kirim, error_message: waResult.detail,
       created_at: now,
+      target: waResult.target, http_status: httpStatus, fonnte_id: waResult.messageId,
     };
 
     return NextResponse.json<ApiResponse<Reminder>>(

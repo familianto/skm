@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { PageTitle } from '@/components/layout/page-title';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -8,8 +8,10 @@ import { Badge } from '@/components/ui/badge';
 import { Loading } from '@/components/ui/loading';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table';
 import { useToast } from '@/components/ui/toast';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { formatTimestamp } from '@/lib/utils';
-import type { Donatur, Reminder, ApiResponse } from '@/types';
+import { chunk, classifyTargets, REMINDER_CHUNK_SIZE } from '@/lib/reminder/bulk';
+import type { Donatur, Reminder, ReminderBulkResult, ApiResponse } from '@/types';
 import { DonaturKelompok, ReminderTipe, ReminderStatus } from '@/types';
 
 const TIPE_LABELS: Record<string, string> = {
@@ -19,11 +21,25 @@ const TIPE_LABELS: Record<string, string> = {
   [ReminderTipe.CUSTOM]: 'Custom',
 };
 
+// "Masuk Antrean", bukan "Terkirim": respons sukses Fonnte hanya berarti pesan
+// diterima antreannya. Pada insiden 2026-09-03, 10 dari 14 pesan berstatus
+// sukses di SKM ternyata `expired` di Fonnte — tidak pernah sampai ke WhatsApp.
+const STATUS_LABELS: Record<string, string> = {
+  [ReminderStatus.TERKIRIM]: 'Masuk Antrean',
+  [ReminderStatus.GAGAL]: 'Gagal',
+  [ReminderStatus.PENDING]: 'Pending',
+  [ReminderStatus.DILEWATI]: 'Dilewati',
+};
+
 const STATUS_VARIANT: Record<string, string> = {
   [ReminderStatus.TERKIRIM]: 'AKTIF',
   [ReminderStatus.GAGAL]: 'VOID',
   [ReminderStatus.PENDING]: 'default',
+  [ReminderStatus.DILEWATI]: 'default',
 };
+
+/** Di atas ambang ini, pengiriman minta konfirmasi eksplisit dulu. */
+const KONFIRMASI_DI_ATAS = 50;
 
 const TEMPLATES: Record<string, string> = {
   [ReminderTipe.DONASI_RUTIN]: 'Assalamu\'alaikum Bapak/Ibu {nama},\n\nSemoga Allah SWT senantiasa melimpahkan rahmat-Nya. Kami dari pengurus masjid mengingatkan kembali untuk donasi rutin bulan ini.\n\nJazakallah khairan.',
@@ -38,7 +54,9 @@ export default function ReminderPage() {
   // Data
   const [donaturs, setDonaturs] = useState<Donatur[]>([]);
   const [reminders, setReminders] = useState<Reminder[]>([]);
-  const [fonnteStatus, setFonnteStatus] = useState<{ connected: boolean; mock: boolean }>({ connected: false, mock: true });
+  const [fonnteStatus, setFonnteStatus] = useState<{
+    connected: boolean; mock: boolean; device_status: string; device_checked: boolean; quota: string;
+  }>({ connected: false, mock: true, device_status: '', device_checked: false, quota: '' });
   const [loading, setLoading] = useState(true);
 
   // Send form
@@ -47,6 +65,11 @@ export default function ReminderPage() {
   const [pesan, setPesan] = useState(TEMPLATES[ReminderTipe.DONASI_RUTIN]);
   const [sending, setSending] = useState(false);
   const [filterKelompok, setFilterKelompok] = useState('');
+  const [progress, setProgress] = useState<{ selesai: number; total: number } | null>(null);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [expandedDetail, setExpandedDetail] = useState<string | null>(null);
+  // Ref, bukan state: dibaca di tengah loop pengiriman yang sedang berjalan.
+  const stopRef = useRef(false);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -97,7 +120,101 @@ export default function ReminderPage() {
     if (template) setPesan(template);
   };
 
-  const handleSend = async () => {
+  // Pratinjau pra-kirim: nomor divalidasi di klien memakai aturan yang sama
+  // dengan server, jadi jumlah yang akan dilewati terlihat SEBELUM mengirim.
+  const pratinjau = useMemo(() => {
+    const dipilih = donaturs.filter((d) => selectedIds.includes(d.id));
+    const classified = classifyTargets(dipilih);
+    const invalid = classified.filter((c) => !c.valid);
+    return {
+      total: dipilih.length,
+      valid: classified.length - invalid.length,
+      invalid: invalid.length,
+      contohInvalid: invalid.slice(0, 3).map((c) => `${c.donatur.nama} (${c.donatur.telepon || 'kosong'})`),
+      chunkCount: Math.ceil(dipilih.length / REMINDER_CHUNK_SIZE),
+    };
+  }, [donaturs, selectedIds]);
+
+  /**
+   * Kirim bertahap per chunk.
+   *
+   * Insiden 2026-09-03: satu request berisi 287 target, device WhatsApp putus
+   * di detik ke-4, dan 244 request sisanya tetap ditembakkan. Sekarang UI
+   * memecah sendiri, berhenti begitu server melaporkan blast dihentikan, dan
+   * menyisakan target yang belum diproses tetap terpilih agar bisa dilanjutkan.
+   */
+  const runSend = async () => {
+    const antrean = [...selectedIds];
+    const chunks = chunk(antrean, REMINDER_CHUNK_SIZE);
+
+    setSending(true);
+    stopRef.current = false;
+    setProgress({ selesai: 0, total: antrean.length });
+
+    const total = { terkirim: 0, gagal: 0, dilewati: 0 };
+    const diproses: string[] = [];
+    let dihentikan = '';
+    let logHilang = false;
+
+    try {
+      for (const potongan of chunks) {
+        if (stopRef.current) {
+          dihentikan = 'dihentikan oleh pengguna';
+          break;
+        }
+
+        const res = await fetch('/api/reminder/send', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ donatur_ids: potongan, tipe, pesan }),
+        });
+        const data: ApiResponse<ReminderBulkResult> = await res.json();
+
+        if (!data.success || !data.data) {
+          toast(data.error || 'Gagal mengirim reminder', 'error');
+          dihentikan = data.error || 'permintaan ditolak server';
+          break;
+        }
+
+        diproses.push(...potongan);
+        total.terkirim += data.data.terkirim;
+        total.gagal += data.data.gagal;
+        total.dilewati += data.data.dilewati;
+        if (!data.data.log_persisted) logHilang = true;
+        setProgress({ selesai: diproses.length, total: antrean.length });
+
+        if (data.data.stopped) {
+          dihentikan = data.data.stopped_reason || 'pengiriman dihentikan server';
+          break;
+        }
+      }
+
+      const sisa = antrean.filter((id) => !diproses.includes(id));
+      setSelectedIds(sisa);
+
+      const ringkas = `Masuk antrean: ${total.terkirim}, Gagal: ${total.gagal}, Dilewati: ${total.dilewati}`;
+      if (dihentikan) {
+        toast(`Pengiriman berhenti (${dihentikan}). ${ringkas}. Sisa ${sisa.length} donatur tetap terpilih.`, 'error');
+      } else if (total.gagal > 0) {
+        toast(`${ringkas}.`, 'info');
+      } else {
+        toast(`${total.terkirim} pesan masuk antrean WhatsApp.`, 'success');
+      }
+      if (logHilang) {
+        toast('Sebagian baris riwayat gagal ditulis ke Sheet — rinciannya ada di audit_log.', 'error');
+      }
+
+      fetchData();
+    } catch {
+      toast('Terjadi kesalahan jaringan', 'error');
+    } finally {
+      setSending(false);
+      setProgress(null);
+      stopRef.current = false;
+    }
+  };
+
+  const handleSend = () => {
     if (selectedIds.length === 0) {
       toast('Pilih minimal 1 donatur', 'error');
       return;
@@ -106,46 +223,20 @@ export default function ReminderPage() {
       toast('Pesan tidak boleh kosong', 'error');
       return;
     }
-
-    setSending(true);
-    try {
-      const res = await fetch('/api/reminder/send', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          donatur_ids: selectedIds,
-          tipe,
-          pesan,
-        }),
-      });
-      const data: ApiResponse<Reminder[]> = await res.json();
-      if (data.success && data.data) {
-        const terkirim = data.data.filter((r) => r.status_kirim === ReminderStatus.TERKIRIM).length;
-        const gagal = data.data.filter((r) => r.status_kirim === ReminderStatus.GAGAL).length;
-
-        if (terkirim > 0 && gagal === 0) {
-          toast(`Berhasil mengirim ke ${terkirim} donatur`, 'success');
-        } else if (terkirim > 0 && gagal > 0) {
-          toast(`Berhasil: ${terkirim}, Gagal: ${gagal}`, 'info');
-        } else {
-          toast(`Gagal mengirim ke ${gagal} donatur`, 'error');
-        }
-
-        setSelectedIds([]);
-        fetchData();
-      } else {
-        toast(data.error || 'Gagal mengirim reminder', 'error');
-      }
-    } catch {
-      toast('Terjadi kesalahan jaringan', 'error');
-    } finally {
-      setSending(false);
+    if (selectedIds.length > KONFIRMASI_DI_ATAS) {
+      setConfirmOpen(true);
+      return;
     }
+    runSend();
   };
 
-  // Build donatur lookups for reminder history
   const donaturNameMap = new Map(donaturs.map((d) => [d.id, d.nama]));
   const donaturPhoneMap = new Map(donaturs.map((d) => [d.id, d.telepon]));
+
+  // Device dianggap terputus HANYA bila statusnya benar-benar terbaca sebagai
+  // 'disconnect' — status yang gagal dibaca tidak boleh mengunci tombol kirim.
+  const deviceTerputus =
+    !fonnteStatus.mock && fonnteStatus.device_checked && fonnteStatus.device_status !== 'connect';
 
   if (loading) return <Loading className="py-12" />;
 
@@ -156,18 +247,35 @@ export default function ReminderPage() {
         subtitle="Kirim pengingat donasi via WhatsApp"
       />
 
-      {/* Fonnte Status */}
+      {/* Fonnte + status device WhatsApp */}
       <Card className="mb-6">
         <div className="flex items-center gap-3">
-          <div className={`w-3 h-3 rounded-full ${fonnteStatus.connected ? 'bg-emerald-500' : 'bg-amber-500'}`} />
+          <div className={`w-3 h-3 rounded-full ${deviceTerputus ? 'bg-red-500' : fonnteStatus.connected ? 'bg-emerald-500' : 'bg-amber-500'}`} />
           <div>
             <span className="text-sm font-medium">
-              {fonnteStatus.connected ? 'Fonnte Terkoneksi' : 'Fonnte Mode Mock'}
+              {fonnteStatus.mock
+                ? 'Fonnte Mode Mock'
+                : deviceTerputus
+                  ? 'Device WhatsApp Terputus'
+                  : 'Fonnte Terkoneksi'}
             </span>
             {fonnteStatus.mock && (
               <p className="text-xs text-amber-600 mt-0.5">
                 Device belum terkoneksi. Pesan akan dicatat tapi tidak terkirim ke WhatsApp.
               </p>
+            )}
+            {deviceTerputus && (
+              <p className="text-xs text-red-600 mt-0.5">
+                Sesi WhatsApp putus — hubungkan ulang di dashboard Fonnte sebelum mengirim. Pengiriman akan ditolak.
+              </p>
+            )}
+            {!fonnteStatus.mock && !fonnteStatus.device_checked && (
+              <p className="text-xs text-gray-500 mt-0.5">
+                Status device tidak terbaca. Pengiriman tetap bisa jalan dan akan berhenti sendiri bila device ternyata terputus.
+              </p>
+            )}
+            {!fonnteStatus.mock && fonnteStatus.quota && (
+              <p className="text-xs text-gray-500 mt-0.5">Sisa kuota Fonnte: {fonnteStatus.quota}</p>
             )}
           </div>
         </div>
@@ -259,9 +367,45 @@ export default function ReminderPage() {
               <p className="text-xs text-gray-400 mt-1">Gunakan {'{nama}'} untuk nama donatur otomatis</p>
             </div>
 
+            {selectedIds.length > 0 && !sending && (
+              <div className="rounded-lg bg-gray-50 border border-gray-200 px-3 py-2 text-xs text-gray-600 space-y-1">
+                <p>
+                  <span className="font-medium text-gray-900">{pratinjau.valid}</span> nomor siap dikirim
+                  {pratinjau.chunkCount > 1 && ` — bertahap dalam ${pratinjau.chunkCount} tahap @ ${REMINDER_CHUNK_SIZE}`}
+                </p>
+                {pratinjau.invalid > 0 && (
+                  <p className="text-amber-700">
+                    {pratinjau.invalid} nomor tidak valid dan akan dilewati
+                    {pratinjau.contohInvalid.length > 0 && `: ${pratinjau.contohInvalid.join(', ')}`}
+                    {pratinjau.invalid > pratinjau.contohInvalid.length && ', dst.'}
+                  </p>
+                )}
+              </div>
+            )}
+
+            {sending && progress && (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-xs text-gray-600">
+                  <span>Mengirim {progress.selesai}/{progress.total} donatur…</span>
+                  <button
+                    onClick={() => { stopRef.current = true; }}
+                    className="text-red-600 hover:text-red-700 font-medium"
+                  >
+                    Hentikan
+                  </button>
+                </div>
+                <div className="h-1.5 w-full rounded-full bg-gray-200 overflow-hidden">
+                  <div
+                    className="h-full bg-emerald-500 transition-all"
+                    style={{ width: `${progress.total ? (progress.selesai / progress.total) * 100 : 0}%` }}
+                  />
+                </div>
+              </div>
+            )}
+
             <Button
               onClick={handleSend}
-              disabled={sending || selectedIds.length === 0 || !pesan.trim()}
+              disabled={sending || selectedIds.length === 0 || !pesan.trim() || deviceTerputus}
               className="w-full"
             >
               {sending ? 'Mengirim...' : `Kirim ke ${selectedIds.length} Donatur`}
@@ -298,12 +442,29 @@ export default function ReminderPage() {
                   <TableCell className="text-sm">{donaturPhoneMap.get(r.donatur_id) || '-'}</TableCell>
                   <TableCell>
                     <Badge
-                      label={r.status_kirim}
+                      label={STATUS_LABELS[r.status_kirim] || r.status_kirim}
                       variant={STATUS_VARIANT[r.status_kirim] as 'AKTIF' | 'VOID' | 'default'}
                     />
                   </TableCell>
                   <TableCell>
-                    <p className="text-xs text-gray-500 max-w-xs truncate">{r.error_message}</p>
+                    {/* Alasan gagal harus bisa dibaca UTUH — pada insiden lalu
+                        penyebabnya terpotong dan hanya tersisa di log Vercel. */}
+                    <button
+                      onClick={() => setExpandedDetail(expandedDetail === r.id ? null : r.id)}
+                      className="text-left text-xs text-gray-500 hover:text-gray-700"
+                      title={r.error_message}
+                    >
+                      <span className={expandedDetail === r.id ? 'block max-w-xs whitespace-pre-wrap' : 'block max-w-xs truncate'}>
+                        {r.error_message}
+                      </span>
+                      {r.target && expandedDetail === r.id && (
+                        <span className="block mt-1 text-gray-400">
+                          Nomor: {r.target}
+                          {r.http_status && ` · HTTP ${r.http_status}`}
+                          {r.fonnte_id && ` · id ${r.fonnte_id}`}
+                        </span>
+                      )}
+                    </button>
                   </TableCell>
                 </TableRow>
               ))}
@@ -311,6 +472,20 @@ export default function ReminderPage() {
           </Table>
         )}
       </Card>
+
+      <ConfirmDialog
+        open={confirmOpen}
+        title={`Kirim ke ${selectedIds.length} donatur?`}
+        message={
+          `${pratinjau.valid} nomor akan dikirimi pesan` +
+          (pratinjau.invalid > 0 ? `, ${pratinjau.invalid} nomor tidak valid dilewati` : '') +
+          `. Pengiriman dilakukan bertahap dalam ${pratinjau.chunkCount} tahap dan akan berhenti otomatis bila sesi WhatsApp terputus. ` +
+          'Pastikan device Fonnte terhubung sebelum melanjutkan.'
+        }
+        confirmLabel="Kirim sekarang"
+        onConfirm={() => { setConfirmOpen(false); runSend(); }}
+        onCancel={() => setConfirmOpen(false)}
+      />
     </div>
   );
 }

@@ -54,9 +54,12 @@ export enum ReminderTipe {
 }
 
 export enum ReminderStatus {
+  /** Diterima antrean Fonnte — BUKAN bukti sampai di WhatsApp (lihat rekonsiliasi). */
   TERKIRIM = 'TERKIRIM',
   GAGAL = 'GAGAL',
   PENDING = 'PENDING',
+  /** Tidak jadi dikirim karena blast dihentikan (mis. device WhatsApp terputus). */
+  DILEWATI = 'DILEWATI',
 }
 
 // ============================================================
@@ -186,6 +189,28 @@ export interface Reminder {
   status_kirim: ReminderStatus;
   error_message: string;
   created_at: string;
+  /** Nomor tujuan ternormalisasi (628…) saat pengiriman. Kosong utk baris lama. */
+  target?: string;
+  /** HTTP status dari Fonnte ('' bila request tidak pernah sampai / baris lama). */
+  http_status?: string;
+  /** id pesan Fonnte — dasar rekonsiliasi status kirim yang sebenarnya. */
+  fonnte_id?: string;
+}
+
+/** Hasil satu chunk pengiriman reminder massal (`POST /api/reminder/send`). */
+export interface ReminderBulkResult {
+  reminders: Reminder[];
+  total: number;
+  terkirim: number;
+  gagal: number;
+  dilewati: number;
+  /** true bila blast dihentikan di tengah (device terputus). */
+  stopped: boolean;
+  stopped_reason: string;
+  /** false bila baris `reminder_log` gagal ditulis (alasan ada di audit_log). */
+  log_persisted: boolean;
+  /** false bila status device tidak terbaca — pengiriman tetap jalan. */
+  device_checked: boolean;
 }
 
 export interface Kelompok {

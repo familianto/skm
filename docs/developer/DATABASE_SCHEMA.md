@@ -297,10 +297,21 @@ Saldo Rekening = saldo_awal
 | D | `jenis_reminder` | enum | Ya | Jenis reminder | `DONASI_RUTIN` |
 | E | `pesan` | string | Ya | Isi pesan yang dikirim | `Assalamualaikum...` |
 | F | `status_kirim` | string | Ya | Status pengiriman | `SENT` |
-| G | `error_message` | string | Tidak | Pesan error jika gagal | `Invalid number` |
+| G | `error_message` | string | Tidak | Alasan gagal / detail mentah dari Fonnte | `request invalid on disconnected device` |
 | H | `created_at` | timestamp | Ya | Waktu dibuat | `2026-01-01T00:00:00Z` |
+| I | `target` | string | Tidak | Nomor tujuan ternormalisasi saat kirim | `628111882151` |
+| J | `http_status` | string | Tidak | HTTP status Fonnte (`''` bila request tak sampai) | `200` |
+| K | `fonnte_id` | string | Tidak | id pesan Fonnte (dasar rekonsiliasi status) | `12345678` |
 
-**Cell reference**: `reminder_log!A2:H`
+**Cell reference**: `reminder_log!A2:K`
+
+**Status `status_kirim`**: `TERKIRIM` (diterima antrean Fonnte — *bukan* bukti
+sampai di WhatsApp), `GAGAL`, `DILEWATI` (blast dihentikan sebelum nomor ini
+dikirim, mis. device WhatsApp terputus), `PENDING`.
+
+**Migrasi kolom I-K**: `scripts/migrate_reminder_log_v2.gs` (idempotent, tanpa
+backfill). Ditambahkan setelah insiden blast 2026-09-03 agar alasan gagal bisa
+ditelusuri sampai ke nomor dan respons HTTP-nya.
 
 ---
 
@@ -546,7 +557,7 @@ const SHEET_HEADERS = {
   anggota: ['id', 'nama', 'telepon', 'email', 'peran', 'is_active', 'created_at', 'pin_hash', 'created_by', 'updated_at', 'last_login_at', 'failed_attempts', 'locked_until'],
   rekonsiliasi: ['id', 'rekening_id', 'tanggal', 'saldo_bank', 'saldo_sistem', 'selisih', 'status', 'catatan', 'created_at'],
   donatur: ['id', 'nama', 'telepon', 'alamat', 'kelompok', 'jumlah_komitmen', 'catatan', 'is_active', 'created_at', 'updated_at'],
-  reminder_log: ['id', 'donatur_id', 'tanggal_kirim', 'jenis_reminder', 'pesan', 'status_kirim', 'error_message', 'created_at'],
+  reminder_log: ['id', 'donatur_id', 'tanggal_kirim', 'jenis_reminder', 'pesan', 'status_kirim', 'error_message', 'created_at', 'target', 'http_status', 'fonnte_id'],
   kelompok: ['id', 'nama', 'deskripsi', 'warna', 'kategori_masuk', 'kategori_keluar', 'created_at', 'updated_at'],
 
   // Qurban (9) — sama-sama di workbook ini
