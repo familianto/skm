@@ -21,18 +21,63 @@ interface FonnteResponse {
   target?: string | string[];
 }
 
+// Bentuk respons `POST /device` (docs.fonnte.com — API Device Profile).
+interface FonnteDeviceResponse {
+  status?: boolean | string;
+  device?: string;
+  device_status?: string;
+  quota?: string | number;
+  package?: string;
+  messages?: number;
+  expired?: string;
+  reason?: string;
+  detail?: string;
+}
+
 interface SendMessageParams {
   target: string; // Phone number (e.g., 08123456789 or 628123456789)
   message: string;
+  /**
+   * Fonnte `delay` (detik) — "3" atau rentang acak "3-10". Pesan masuk antrean
+   * di sisi Fonnte dan API langsung merespons, sehingga laju kirim ke WhatsApp
+   * jadi manusiawi TANPA menahan fungsi serverless. Wajib dipakai jalur bulk.
+   */
+  delay?: string;
 }
 
 interface SendResult {
   success: boolean;
   detail: string;
   mock: boolean;
+  /** Nomor setelah normalisasi — disimpan agar kegagalan bisa ditelusuri. */
+  target: string;
+  /** HTTP status Fonnte; 0 bila request tidak pernah sampai (error jaringan). */
+  httpStatus: number;
+  /** id pesan dari Fonnte bila ada — fondasi rekonsiliasi status kirim. */
+  messageId: string;
+  /**
+   * Kegagalan bersifat device-level (sesi WhatsApp putus), bukan per-nomor.
+   * Pemanggil bulk WAJIB berhenti saat ini true: pada insiden 2026-09-03,
+   * 244 request ditembakkan ke device yang sudah mati.
+   */
+  deviceDisconnected: boolean;
+}
+
+/** Profil device Fonnte (`POST /device`) — dipakai sebagai pagar pra-blast. */
+export interface DeviceStatus {
+  /** true bila status device benar-benar terbaca (bukan tebakan). */
+  ok: boolean;
+  connected: boolean;
+  /** Nilai mentah `device_status` Fonnte: 'connect' | 'disconnect' | ''. */
+  deviceStatus: string;
+  quota: string;
+  paket: string;
+  detail: string;
+  mock: boolean;
 }
 
 const FONNTE_API_URL = 'https://api.fonnte.com/send';
+const FONNTE_DEVICE_URL = 'https://api.fonnte.com/device';
 
 /**
  * Normalize Indonesian phone number to international format (628xxx)
@@ -81,6 +126,106 @@ function isFonnteSuccess(httpOk: boolean, data: FonnteResponse | null): boolean 
 }
 
 /**
+ * Apakah alasan gagal bersifat DEVICE-level (sesi WhatsApp putus / device tidak
+ * siap), bukan masalah nomor tujuan?
+ *
+ * Insiden 2026-09-03: 244 dari 287 target gagal dengan alasan identik
+ * "request invalid on disconnected device" — device terputus di detik ke-4 dan
+ * sisa request ditolak di gerbang API. Pola inilah yang harus menghentikan blast.
+ */
+export function isDeviceLevelFailure(detail: string): boolean {
+  return /disconnect|not connected|belum terhubung|tidak terhubung|device (?:invalid|offline|not found)|no device/i.test(
+    detail || ''
+  );
+}
+
+/**
+ * Baca status koneksi device (`POST https://api.fonnte.com/device`).
+ *
+ * Kontrak respons yang dipakai (docs.fonnte.com — API Device Profile):
+ *   { status: true, device: "628…", device_status: "connect" | "disconnect",
+ *     quota: "78", package: "Reguler", messages: 16785, expired: "…" }
+ *
+ * `ok: false` berarti status TIDAK terbaca (error jaringan / bentuk respons di
+ * luar kontrak). Pemanggil sengaja TIDAK memblokir pengiriman pada kasus itu —
+ * pagar kedua (fail-fast per pesan) tetap menahan kerusakan setelah 1 pesan,
+ * dan memblokir berdasarkan parse yang tidak pasti justru mematikan fitur.
+ */
+export async function getDeviceStatus(): Promise<DeviceStatus> {
+  if (isMockMode()) {
+    return {
+      ok: true,
+      connected: true,
+      deviceStatus: 'mock',
+      quota: '',
+      paket: '',
+      detail: '[MOCK] Fonnte belum terkoneksi — status device tidak dicek.',
+      mock: true,
+    };
+  }
+
+  try {
+    const response = await fetch(FONNTE_DEVICE_URL, {
+      method: 'POST',
+      headers: { Authorization: process.env.FONNTE_API_TOKEN! },
+      body: new URLSearchParams({}),
+    });
+
+    const rawBody = await response.text();
+    let data: FonnteDeviceResponse | null = null;
+    try {
+      data = rawBody ? (JSON.parse(rawBody) as FonnteDeviceResponse) : null;
+    } catch {
+      console.error('[FONNTE] /device non-JSON response:', rawBody.slice(0, 300));
+    }
+
+    console.log('[FONNTE] Device', {
+      http: response.status,
+      ok: response.ok,
+      body: data ?? rawBody.slice(0, 300),
+    });
+
+    const deviceStatus = String(data?.device_status ?? '').toLowerCase();
+    if (!response.ok || !deviceStatus) {
+      return {
+        ok: false,
+        connected: false,
+        deviceStatus,
+        quota: String(data?.quota ?? ''),
+        paket: String(data?.package ?? ''),
+        detail:
+          (data && (data.reason || data.detail)) ||
+          rawBody.slice(0, 200) ||
+          `HTTP ${response.status}`,
+        mock: false,
+      };
+    }
+
+    return {
+      ok: true,
+      connected: deviceStatus === 'connect',
+      deviceStatus,
+      quota: String(data?.quota ?? ''),
+      paket: String(data?.package ?? ''),
+      detail: `device_status=${deviceStatus}`,
+      mock: false,
+    };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    console.error('[FONNTE] Device status error:', message);
+    return {
+      ok: false,
+      connected: false,
+      deviceStatus: '',
+      quota: '',
+      paket: '',
+      detail: `Gagal membaca status device: ${message}`,
+      mock: false,
+    };
+  }
+}
+
+/**
  * Send a WhatsApp message via Fonnte API
  */
 export async function sendWhatsApp(params: SendMessageParams): Promise<SendResult> {
@@ -92,6 +237,10 @@ export async function sendWhatsApp(params: SendMessageParams): Promise<SendResul
       success: true,
       detail: `[MOCK] Pesan akan dikirim ke ${target}. Fonnte belum terkoneksi.`,
       mock: true,
+      target,
+      httpStatus: 0,
+      messageId: '',
+      deviceDisconnected: false,
     };
   }
 
@@ -105,6 +254,9 @@ export async function sendWhatsApp(params: SendMessageParams): Promise<SendResul
         target,
         message: params.message,
         countryCode: '62',
+        // `delay` opsional: kirim hanya bila diminta agar jalur single-send
+        // (perilaku lama) tidak berubah.
+        ...(params.delay ? { delay: params.delay } : {}),
       }),
     });
 
@@ -130,10 +282,17 @@ export async function sendWhatsApp(params: SendMessageParams): Promise<SendResul
       rawBody.slice(0, 200) ||
       (success ? 'Pesan terkirim' : `HTTP ${response.status}`);
 
+    const rawId = data?.id;
+    const messageId = Array.isArray(rawId) ? rawId[0] ?? '' : rawId ?? '';
+
     return {
       success,
       detail,
       mock: false,
+      target,
+      httpStatus: response.status,
+      messageId: String(messageId),
+      deviceDisconnected: !success && isDeviceLevelFailure(detail),
     };
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';
@@ -142,6 +301,10 @@ export async function sendWhatsApp(params: SendMessageParams): Promise<SendResul
       success: false,
       detail: `Gagal mengirim: ${message}`,
       mock: false,
+      target,
+      httpStatus: 0,
+      messageId: '',
+      deviceDisconnected: false,
     };
   }
 }
