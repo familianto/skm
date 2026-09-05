@@ -1282,6 +1282,67 @@ Hitung jumlah transaksi aktif (non-VOID) yang menggunakan rekening ini.
 
 ---
 
+## Reminder WhatsApp Endpoints
+
+> Kontrak ini direvisi setelah insiden blast 2026-09-03: satu request berisi 287
+> target, sesi WhatsApp device putus di detik ke-4, dan 244 request sisanya tetap
+> ditembakkan ke device mati (`request invalid on disconnected device`).
+
+### `GET /api/reminder`
+
+Riwayat pengiriman dari sheet `reminder_log`, terbaru dulu. Query opsional
+`?donatur_id=DON-…` menyaring per donatur.
+
+### `POST /api/reminder`
+
+Kirim satu pesan ke satu donatur. Wajib sesi. Body: `{ donatur_id, tipe, pesan }`.
+
+### `POST /api/reminder/send` — kirim satu CHUNK
+
+Wajib sesi. Body: `{ donatur_ids: string[], tipe, pesan }`.
+
+**Batas & pagar**
+
+| Pagar | Perilaku |
+|---|---|
+| Batas ukuran | >50 `donatur_ids` → `400`. UI memecah sendiri per 25. |
+| Pagar device | `device_status = disconnect` → `503`, **nol** pesan dikirim. Status yang tidak terbaca tidak memblokir. |
+| Fail-fast | Kegagalan device-level menghentikan loop; sisa target berstatus `DILEWATI`. |
+| Throttle | Jalur bulk mengirim `delay=3-10` (detik) ke Fonnte. |
+| Nomor invalid | Ditandai `GAGAL` secara lokal tanpa memanggil Fonnte. |
+| `maxDuration` | 60 detik (anggaran satu chunk ±30 detik). |
+
+**Response `201`** — `data: ReminderBulkResult`:
+
+```json
+{
+  "success": true,
+  "data": {
+    "reminders": [ { "id": "RMD-…", "status_kirim": "TERKIRIM|GAGAL|DILEWATI", "error_message": "…",
+                     "target": "628…", "http_status": "200", "fonnte_id": "…" } ],
+    "total": 25, "terkirim": 25, "gagal": 0, "dilewati": 0,
+    "stopped": false, "stopped_reason": "",
+    "log_persisted": true, "device_checked": true
+  },
+  "meta": { "total": 25 }
+}
+```
+
+`log_persisted: false` berarti pesan sudah dikirim tetapi baris `reminder_log`
+gagal ditulis — rincian per pengiriman ada di `audit_log` (`reminder.bulk_send`,
+memuat distribusi alasan gagal).
+
+**Catatan status**: `TERKIRIM` berarti *diterima antrean Fonnte*, bukan sampai di
+WhatsApp. Rekonsiliasi status sebenarnya (webhook / tarik report) belum
+diimplementasikan; `fonnte_id` sudah disimpan sebagai fondasinya.
+
+### `GET /api/reminder/send`
+
+Status koneksi: `{ connected, mock, device_status, device_checked, quota }`.
+`device_status` berasal dari `POST https://api.fonnte.com/device`.
+
+---
+
 ## Health Check
 
 ### `GET /api/health`
